@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp Tag Highlighter Companion
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Rearranges layout and enhances tag display on Empornium
 // @author       xrt141
 // @match        *://*.empornium.sx/torrents.php*
@@ -127,6 +127,9 @@
 
     // Add toggle button to show/hide tag buttons
     function addButtonToggle() {
+        // Prevent duplicate toggle buttons
+        if (document.querySelector('#hideTagButtonsToggle')) return;
+
         const tagList = document.querySelector(tagListSelector);
         if (!tagList) {
             console.warn('Toggle script: #torrent_tags_list not found.');
@@ -134,6 +137,7 @@
         }
 
         const toggleBtn = document.createElement('button');
+        toggleBtn.id = 'hideTagButtonsToggle'; // Add ID for future reference
         toggleBtn.textContent = 'Hide Tag Buttons';
         toggleBtn.style.margin = '10px 0';
         toggleBtn.style.padding = '4px 8px';
@@ -152,6 +156,7 @@
 
         tagList.parentElement.insertBefore(toggleBtn, tagList);
     }
+
 
     // Shrink font size of tag links until they fit
     function resizeAllTagText() {
@@ -177,13 +182,32 @@
         });
     }
 
-    // Initialize layout and enhancements
-    window.addEventListener('load', () => {
+    function isEmporiumTorrentPage() {
+        return /^https:\/\/www\.empornium\.sx\/torrents\.php\?id=\d+/.test(window.location.href);
+    }
+
+    function initializeEnhancements() {
+        if (!isEmporiumTorrentPage()) return;
+
         rearrangeLayout();
         splitTagsIntoColumns();
         enforceTagRowLayout();
         overrideTagLinkWidths();
         addButtonToggle();
         resizeAllTagText();
+    }
+
+    // Run on load
+    window.addEventListener('load', () => {
+        initializeEnhancements();
     });
+
+    // Re-run when tab becomes visible
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            initializeEnhancements();
+        }
+    });
+
+
 })();
