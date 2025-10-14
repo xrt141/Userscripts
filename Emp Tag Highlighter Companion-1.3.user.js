@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp Tag Highlighter Companion
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.7
 // @description  Rearranges layout and enhances tag display on Empornium
 // @author       xrt141
 // @match        *://*.empornium.sx/torrents.php*
