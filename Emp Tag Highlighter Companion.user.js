@@ -1,41 +1,58 @@
 // ==UserScript==
 // @name         Emp Tag Highlighter Companion
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.6
 // @description  Rearranges layout and enhances tag display on Empornium
 // @author       xrt141
 // @match        *://*.empornium.sx/torrents.php*
-// @updateURL    https://github.com/xrt141/Userscripts/raw/refs/heads/main/Emp%20Tag%20Highlighter%20Companion.user.js
-// @downloadURL  https://github.com/xrt141/Userscripts/raw/refs/heads/main/Emp%20Tag%20Highlighter%20Companion.user.js
 // @grant        none
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    // Configurable selectors
-    const middleTableSelector = '#details_top > div.middle_column > table';
-    const sidebarSelector = '#details_top > div.sidebar';
-    const containerSelector = '#details_top';
-    const tagListSelector = '#torrent_tags_list';
 
-    // Move middle_column above sidebar and stretch sidebar full width
-    function rearrangeLayout() {
-        const middleTable = document.querySelector(middleTableSelector);
-        const sidebar = document.querySelector(sidebarSelector);
-        const container = document.querySelector(containerSelector);
 
-        if (!middleTable || !sidebar || !container) {
-            console.warn('Rearrange script: One or more elements not found.');
-            return;
-        }
 
-        container.insertBefore(middleTable, container.firstChild);
-        sidebar.style.width = '100%';
-        sidebar.style.boxSizing = 'border-box';
-        sidebar.style.float = 'none';
-        sidebar.style.display = 'block';
+// Configurable selectors
+const middleColumnSelector = '#details_top > div.middle_column';
+const middleTableSelector = '#details_top > div.middle_column > table';
+const sidebarSelector = '#details_top > div.sidebar';
+const tagListSelector = '#torrent_tags_list';
+
+// Rearrange layout inside middle_column and normalize sidebar
+function rearrangeLayout() {
+    const middleColumn = document.querySelector('#details_top > div.middle_column');
+    const sidebar = document.querySelector('#details_top > div.sidebar');
+    const container = document.querySelector('#details_top');
+
+    if (!middleColumn || !sidebar || !container) {
+        console.warn('Rearrange script: One or more elements not found.');
+        return;
     }
+
+    // Move middle_column above sidebar
+    container.insertBefore(middleColumn, sidebar);
+
+    // Normalize sidebar layout
+    sidebar.style.width = '100%';
+    sidebar.style.boxSizing = 'border-box';
+    sidebar.style.float = 'none';
+    sidebar.style.display = 'block';
+
+    // Debug output
+    console.log('middleColumn moved above sidebar:', middleColumn);
+
+    middleColumn.style.marginTop = '0';
+    middleColumn.style.marginBottom = '0';
+    middleColumn.style.marginLeft = '0';
+    middleColumn.style.marginRight = '0';
+
+}
+
+
+
+
 
     // Split tag list into 3 columns
     function splitTagsIntoColumns() {
@@ -199,10 +216,37 @@
         resizeAllTagText();
     }
 
-    // Run on load
-    window.addEventListener('load', () => {
-        initializeEnhancements();
+function waitForLayoutReady(callback) {
+    const container = document.querySelector('#details_top');
+    if (!container) {
+        console.warn('LayoutWatcher: #details_top not found.');
+        return;
+    }
+
+    const observer = new MutationObserver(() => {
+        const middleColumn = container.querySelector('div.middle_column');
+        const tagList = container.querySelector('#torrent_tags_list');
+        const sidebar = container.querySelector('div.sidebar');
+
+        if (middleColumn && tagList && sidebar) {
+            observer.disconnect();
+            console.log('Layout ready: triggering enhancements');
+            callback();
+        }
     });
+
+    observer.observe(container, { childList: true, subtree: true });
+}
+
+
+
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        initializeEnhancements();
+    }, 500); // Adjust delay if needed
+});
+
+
 
     // Re-run when tab becomes visible
     document.addEventListener('visibilitychange', () => {
