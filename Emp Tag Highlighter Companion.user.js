@@ -5,6 +5,8 @@
 // @description  Rearranges layout and enhances tag display on Empornium
 // @author       xrt141
 // @match        *://*.empornium.sx/torrents.php*
+// @updateURL    https://raw.githubusercontent.com/xrt141/Userscripts/main/Emp%20Tag%20Highlighter%20Companion.user.js
+// @downloadURL  https://raw.githubusercontent.com/xrt141/Userscripts/main/Emp%20Tag%20Highlighter%20Companion.user.js
 // @grant        none
 // ==/UserScript==
 
