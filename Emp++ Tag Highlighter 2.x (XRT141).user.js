@@ -26,14 +26,14 @@
 // 2025-10-29 - 2.0.26 Changes (Major Changes ONLY since 0.7.9b)
 /* - 0.7.9b data *should* import safely.
    # Config Changes
-       - Color/Names Tab - All tag categories can be renamed to custom names (pick your own categories).
-       - Color/Names Tab - All tag categories can have custom colors and fonts (choose your look).
-       - Color/Names Tab - All tag categories can be set as Good, Very Good, Bad, Very Bad, or Ignore — which will influence the Percent Bar if enabled.
-       - Dupe Cleanup Tab - If any tags appear in multiple categories, you can choose the correct one and remove the rest.
-       - Percent bar - hover shows the numbers / % breakdown.
-       - Percent bar - calculation weighs "Very Good" as twice the % value of "Good". Same way for Very Bad / Bad.
-       - Torrent Coloring - "bad tags" total "weighs" more than "Good tags" total
-       - Added a new subcategory under the old childless "New Performer" category so all categories now have a child sub-category.
+       - Color/Names Tab – All tag categories can be renamed to custom names (pick your own categories).
+       - Color/Names Tab – All tag categories can have custom colors and fonts (choose your look).
+       - Color/Names Tab – All tag categories can be set as Good, Very Good, Bad, Very Bad, or Ignore — which will influence the Percent Bar if enabled.
+       - Dupe Cleanup Tab – If any tags appear in multiple categories, you can choose the correct one and remove the rest.
+       - Percent Bar – Hover shows the numbers / % breakdown.
+       - Percent Bar – Calculation weighs "Very Good" as twice the % value of "Good". Same for Very Bad / Bad.
+       - Torrent Coloring – "Bad tags" total weighs more than "Good tags" total.
+       - Added a new subcategory under the previously childless "New Performer" category so all categories now have a child subcategory.
        - Because you can rename and recolor tags, toggles were added to disable hiding if you repurpose "Useless" or "Blacklist".
        - Configuration panel is now scrollable for lower-resolution screens (more fixes coming soon).
 
@@ -46,7 +46,7 @@
        - Added a button above the tag list to show/hide the tag buttons so long tag names can be read.
        - Disabled the default sort buttons in the tag list since they caused issues. (Will fix later.)
 
-   * Tags Page
+   # Tags Page
        - This now works on the Tags page by hitting the "Edit Tags" button.
        - Synonyms are not currently supported.
 
@@ -55,8 +55,8 @@
        - Using the "Add Tag" feature on torrents can mess up the layout. Refresh the page after adding. (Hard to test without adding tons of tags.)
 
    ## Notes
-       - Detail Page - Torrents are sorted alphabetically. Plugins like Hoverbabe add camera icons to actresses *after* sorting — using Refresh will sort actresses first.
-       - Kept the parent child relationship to reduce the total buttons for uncategorized tags, but they dont need to be related. You just have to remember what parent the tag you want is under.
+       - Detail Page – Torrents are sorted alphabetically. Plugins like Hoverbabe add camera icons to actresses *after* sorting — using Refresh will sort actresses first.
+       - Kept the parent-child relationship to reduce the total buttons for uncategorized tags, but they don’t need to be related. You just have to remember what parent the tag you want is under.
        - This has not been tested on any sites other than Empornium.
 */
 
@@ -2746,7 +2746,6 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
     `;
 
             // Button styling should continue to target the .s-add-<TagsX> / .s-remove-<TagsX> classes
-            // (those button classes in your DOM use the "Tags..." naming)
             css += `
     .s-add-${type}, .s-remove-${type} {
         background: ${c.background} !important;
@@ -3274,11 +3273,6 @@ function addJQuery(callback) {
             }, 300);
         });
     })();
-
-
-
-
-
 
 
 })();
