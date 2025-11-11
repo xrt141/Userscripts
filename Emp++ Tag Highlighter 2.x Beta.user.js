@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.x (XRT141)
 // @namespace    http://tampermonkey.net/
-// @version      2.0.50
+// @version      2.0.51
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -14,8 +14,8 @@
 // @include      /^https://femdomcult\.org/
 // @include      /^https://www\.homeporntorrents\.club/
 // @match        *://*.empornium.sx/torrents.php*
-// @updateURL    https://github.com/xrt141/Userscripts/raw/refs/heads/main/Emp++%20Tag%20Highlighter%202.x%20(XRT141).user.js
-// @downloadURL  https://github.com/xrt141/Userscripts/raw/refs/heads/main/Emp++%20Tag%20Highlighter%202.x%20(XRT141).user.js
+// @updateURL    https://github.com/xrt141/Userscripts/raw/refs/heads/main/Emp++%20Tag%20Highlighter%202.x%20Beta.user.js
+// @downloadURL  https://github.com/xrt141/Userscripts/raw/refs/heads/main/Emp++%20Tag%20Highlighter%202.x%20Beta.user.js
 // @run-at       document-end
 // ==/UserScript==
 
