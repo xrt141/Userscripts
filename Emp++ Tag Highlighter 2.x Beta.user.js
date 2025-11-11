@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Emp++ Tag Highlighter 2.x (XRT141)
+// @name         Emp++ Tag Highlighter 2.x Beta
 // @namespace    http://tampermonkey.net/
-// @version      2.0.51
+// @version      2.0.52
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -702,8 +702,6 @@ function runScript() {
             "<label title='Removes italics from tags (Torrent List Page)'>" +
             "<input class='s-conf-gen-checkbox' type='checkbox' name='disableItalics'/> Disable Italic Tags (List Page)</label>" +
 
-            "<label title='Adds extra vertical spacing between tags for easier reading (Torrent List Page)'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='roomierTags'/> More Space Between Tags (List Page)</label>" +
             "</div>" +
 
             "<div class='s-conf-buttons'>" +
@@ -893,7 +891,7 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
 .s-Tag7d-tags{display:none;}
 .s-Tag7d-toggle{font-weight:bold; cursor:pointer;}
 .s-Tag7d-desc{clear:both; padding:8px 0 8px 15px;}
-.s-tag{border-radius:6px!important;padding:0px 4px!important;display:inline-block;}
+.s-tag{border-radius:7px!important;padding:0px 4px!important;display:inline-block;}
 .s-tag a{border-radius:12px!important;text-decoration:none;display:inline-block;padding:2px}
 #torrent_tags_list li { display:flex !important;flex-wrap:nowrap !important;align-items:center !important;justify-content:space-between !important;}
 #torrent_tags_list li .s-tag a { float:none !important;display:block !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important;min-width:0 !important;}
