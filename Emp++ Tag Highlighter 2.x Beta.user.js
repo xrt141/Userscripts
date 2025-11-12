@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.x Beta
 // @namespace    http://tampermonkey.net/
-// @version      2.0.52
+// @version      2.0.54
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -286,6 +286,52 @@ function runScript() {
         // handle upgrade actions here if needed
     }
 
+
+    function detectEmpThemeFromStylesheets() {
+        const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
+        const themeLinks = links
+        .map(link => link.href)
+        .filter(href => href && href.match(/themes?|style/i));
+
+        console.log("🎨 Stylesheet URLs:");
+        themeLinks.forEach(url => console.log(" -", url));
+
+        return themeLinks;
+    }
+    const themeStyles = detectEmpThemeFromStylesheets();
+
+    const currentTheme = themeStyles.find(url => url.includes("afterdark/style.css")) ? "Afterdark" :
+    themeStyles.find(url => url.includes("/deviloid/style.css")) ? "Deviloid" :
+    themeStyles.find(url => url.includes("/watch_dogs/style.css")) ? "Watch Dogs" :
+    themeStyles.find(url => url.includes("/hempornium/style.css")) ? "Hempornium" :
+    themeStyles.find(url => url.includes("/light/style.css")) ? "Light" :
+    themeStyles.find(url => url.includes("/minimal/style.css")) ? "Minimal" :
+    themeStyles.find(url => url.includes("/modern/style.css")) ? "Modern" :
+    themeStyles.find(url => url.includes("/modern_red/style.css")) ? "Modern Red" :
+    themeStyles.find(url => url.includes("/rochelle/style.css")) ? "Rochelle" :
+    themeStyles.find(url => url.includes("/sarandafl/style.css")) ? "Sarandafl" :
+    themeStyles.find(url => url.includes("/empornium/style.css")) ? "Empornium" :
+    "unknown";
+
+    console.log("🧩 Detected theme from stylesheet:", currentTheme);
+
+
+// === Theme-based color and saturation overrides ===
+const themeVisualMap = {
+  Afterdark:   { green: [100, 180, 100], red: [180, 80, 80], maxAlpha: 0.25 },
+  Deviloid:    { green: [110, 190, 110], red: [190, 90, 90], maxAlpha: 0.35 },
+  WatchDogs:   { green: [120, 200, 120], red: [200, 100, 100], maxAlpha: 0.4 },
+  Hempornium:  { green: [130, 210, 130], red: [210, 110, 110], maxAlpha: 0.25 },
+  Light:       { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 },
+  Minimal:     { green: [125, 205, 125], red: [215, 105, 105], maxAlpha: 0.5 },
+  Modern:      { green: [110, 160, 110], red: [220, 110, 110], maxAlpha: 0.6 },
+  ModernRed:   { green: [140, 220, 140], red: [230, 120, 120], maxAlpha: 0.5 },
+  Rochelle:    { green: [135, 215, 135], red: [225, 115, 115], maxAlpha: 0.5 },
+  Sarandafl:   { green: [130, 210, 130], red: [220, 110, 110], maxAlpha: 0.5 },
+  Empornium:   { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.7 },
+  unknown:     { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 }
+};
+
     // Default values for the tag effect on the percent bar and torrent good / bad color
     if (!settings.tagValues) {
         settings.tagValues = {
@@ -361,14 +407,23 @@ function runScript() {
 
                 .s-tag a {
                     display: inline-block;
-                    padding: 0px !important;
+                    padding: 1px !important;
                     margin: 2px 0px !important;
                     font-size: 12px !important;
                     line-height: 1.2 !important;
                     vertical-align: baseline !important;
                 }
+                 #torrent_tags_list li {
+                     margin: 1px 10px;
+                }
+                 #torrent_tags_list li .s-tag a {
+                    font-size: 11px !important;
+                    line-height: 1.2 !important;
+                    padding: 0px 1px 1px 0px !important;
+                    border-radius: 0px !important;
+                }
                 `;
-            break;
+                break;
 
             case "roomy":
                 css = `
@@ -385,18 +440,29 @@ function runScript() {
                     vertical-align: baseline !important;
                     box-sizing: border-box !important;
                     border-bottom: 0px !important;
+                    outline: 0px solid gray !important;
                 }
 
                 .s-tag a {
                     display: inline-block;
-                    padding: 1px !important;
+                    padding: 0px !important;
                     margin: 3px 0px !important;
                     font-size: 13px !important;
                     line-height: 1.4 !important;
                     vertical-align: baseline !important;
                 }
+                 #torrent_tags_list li {
+                     margin: 3px 10px;
+                }
+                #torrent_tags_list li .s-tag a {
+                    font-size: 13px !important;
+                    line-height: 1.2 !important;
+                    padding: 2px 3px !important;
+                    border-radius: 0px !important;
+                }
+
                 `;
-            break;
+                break;
 
             default: // "Normal" or fallback
                 css = `
@@ -413,6 +479,7 @@ function runScript() {
                     vertical-align: baseline !important;
                     box-sizing: border-box !important;
                     border-bottom: 0px !important;
+                    outline: 0px solid gray !important;
                 }
 
                 .s-tag a {
@@ -423,8 +490,18 @@ function runScript() {
                     line-height: 1.3 !important;
                     vertical-align: baseline !important;
                 }
+                 #torrent_tags_list li {
+                     margin: 3px 10px;
+                }
+                #torrent_tags_list li .s-tag a {
+                    font-size: 13px !important;
+                    line-height: 1 !important;
+                    padding: 0px 1px 1px 0px !important;
+                    border-radius: 0px !important;
+                }
+
                 `;
-            break;
+                break;
         }
 
         style.textContent = css;
@@ -919,10 +996,10 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
         $j("<li class='brackets' title=\"Change Empornium++Tag Highlighter's settings.\"><a href='#'>Tag-Config</a></li>")
             .insertAfter(userInfoID)
             .on("click", function (e) {
-                e.preventDefault();
-                initConfig($j(buildSettingsHTML()).prependTo("body"));
-                $j("select[name='tagLayoutStyle']").val(settings.tagLayoutStyle);
-            });
+            e.preventDefault();
+            initConfig($j(buildSettingsHTML()).prependTo("body"));
+            $j("select[name='tagLayoutStyle']").val(settings.tagLayoutStyle);
+        });
         // compact, Normal, Rommy Tag Layout
 
         if (/torrents\.php/.test(window.location.href)) {
@@ -980,10 +1057,10 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
             var lineHeight = settings.roomierTags ? "22px" : "18px";
 
             var tagContainer = row.find(".tags")
-                .addClass("s-browse-tag-holder")
-                .css({
-                    "line-height": lineHeight
-                }),
+            .addClass("s-browse-tag-holder")
+            .css({
+                "line-height": lineHeight
+            }),
 
                 origTotalTagNum = tagContainer.find("a").length,
                 totalTagNum = origTotalTagNum,
@@ -1089,18 +1166,20 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
 
 
 
-                        // 💬 Console output - Wrap in an "enable debug" laterf.
+                        // 💬 Console output - Wrap in an "enable debug" later.
                         //console.log(`[TagClassify] ${tag} → ${tagType} → ${rating}`);
                         break; // found match, stop looping through lists
                     }
                 }
 
                 // If it didn't match any tag list => undefined classification
+                // 💬 Console output - Wrap in an "enable debug" later.
+                /*
                 if (!matched) {
                     console.warn(`[TagClassify] ${tag} → not found in any list`);
                     undefinedNum++;
                 }
-
+               */
 
             });
 
@@ -1143,11 +1222,11 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                 $wrap.insertBefore(tagContainer);
 
                 const percentContainer = $j("<div class='s-percent-container'></div>")
-                    .attr(
-                        "title",
-                        `Good: ${goodPercent}%  |  Bad: ${badPercent}%  |  Undefined: ${100 - (goodPercent + badPercent)}%`
-                    )
-                    .appendTo($wrap);
+                .attr(
+                    "title",
+                    `Good: ${goodPercent}%  |  Bad: ${badPercent}%  |  Undefined: ${100 - (goodPercent + badPercent)}%`
+                )
+                .appendTo($wrap);
 
                 // Good (left)
                 if (goodPercent > 0) {
@@ -1170,20 +1249,24 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                 row.css("opacity", (100 - ((badPercent - goodPercent) / 2)) / 100);
             }
 
+            // Dynamic Torrent Colloring Based On Current Theme
             if (settings.useTorrentColoring) {
                 var netPercent = (goodPercent - badPercent * 1.5) / 100;
                 var absPercent = Math.abs(netPercent);
-                var green = [120, 200, 120];
-                var red = [210, 100, 100];
-                var color;
-                if (netPercent > 0) color = green;
-                else if (netPercent < 0) color = red;
+
+                var visual = themeVisualMap[currentTheme] || themeVisualMap["unknown"];
+                var color = null;
+
+                if (netPercent > 0) color = visual.green;
+                else if (netPercent < 0) color = visual.red;
+
+                var alpha = Math.min(absPercent, visual.maxAlpha);
 
                 if (color && !row.hasClass("redbar") &&
                     /torrents\.php/.test(window.location.href) &&
                     !/userid\=/.test(window.location.href)) {
                     row.css({
-                        "background-color": "rgba(" + color[0] + "," + color[1] + "," + color[2] + "," + absPercent + ")"
+                        "background-color": "rgba(" + color[0] + "," + color[1] + "," + color[2] + "," + alpha + ")"
                     });
                 }
             }
@@ -1353,112 +1436,112 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                 if (settings.useTag1aTags) {
                     if (!settings.buttonTag1aTags) {
                         buttons = buttons.add($j("<div class='s-button s-add-Tags1a' title='Mark tag as " + settings.names.Tags1a + "'>+</div>").
-                            data("action", { fn: addTagElement, type: "Tags1a", tag: tag }));
+                                              data("action", { fn: addTagElement, type: "Tags1a", tag: tag }));
                     }
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags1a' title='Un-Mark tag as " + settings.names.Tags1a + "'>–</div>").
-                        data("action", { fn: removeTagElement, type: "Tags1a", tag: tag }));
+                                          data("action", { fn: removeTagElement, type: "Tags1a", tag: tag }));
                 }
                 if (settings.useTag1bTags) {
                     buttons = buttons.add($j("<div class='s-button s-add-Tags1b' title='Upgrade tag to " + settings.names.Tags1b + "'>+</div>").
-                        data("action", { fn: addTags1bTagElement, type: "Tags1b", tag: tag }));
+                                          data("action", { fn: addTags1bTagElement, type: "Tags1b", tag: tag }));
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags1b' title='Downgrade tag from " + settings.names.Tags1b + "'>–</div>").
-                        data("action", { fn: removeTags1bTagElement, type: "Tags1b", tag: tag }));
+                                          data("action", { fn: removeTags1bTagElement, type: "Tags1b", tag: tag }));
                 }
                 if (settings.useTag2aTags) {
                     if (!settings.buttonTag2aTags) {
                         buttons = buttons.add($j("<div class='s-button s-add-Tags2a' title='Mark tag as " + settings.names.Tags2a + "'>+</div>").
-                            data("action", { fn: addTagElement, type: "Tags2a", tag: tag }));
+                                              data("action", { fn: addTagElement, type: "Tags2a", tag: tag }));
                     }
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags2a' title='Un-Mark tag as " + settings.names.Tags2a + "'>–</div>").
-                        data("action", { fn: removeTagElement, type: "Tags2a", tag: tag }));
+                                          data("action", { fn: removeTagElement, type: "Tags2a", tag: tag }));
                 }
                 if (settings.useTag2bTags) {
                     buttons = buttons.add($j("<div class='s-button s-add-Tags2b' title='Upgrade tag to " + settings.names.Tags2b + "'>+</div>").
-                        data("action", { fn: addTags2bTagElement, type: "Tags2b", tag: tag }));
+                                          data("action", { fn: addTags2bTagElement, type: "Tags2b", tag: tag }));
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags2b' title='Downgrade tag from " + settings.names.Tags2b + "'>–</div>").
-                        data("action", { fn: removeTags2bTagElement, type: "Tags2b", tag: tag }));
+                                          data("action", { fn: removeTags2bTagElement, type: "Tags2b", tag: tag }));
                 }
                 if (settings.useTag3aTags) {
                     if (!settings.buttonTag3aTags) {
                         buttons = buttons.add($j("<div class='s-button s-add-Tags3a' title='Mark tag as " + settings.names.Tags3a + "'>+</div>").
-                            data("action", { fn: addTagElement, type: "Tags3a", tag: tag }));
+                                              data("action", { fn: addTagElement, type: "Tags3a", tag: tag }));
                     }
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags3a' title='Un-Mark tag as " + settings.names.Tags3a + "'>–</div>").
-                        data("action", { fn: removeTagElement, type: "Tags3a", tag: tag }));
+                                          data("action", { fn: removeTagElement, type: "Tags3a", tag: tag }));
                 }
                 if (settings.useTag3bTags) {
                     buttons = buttons.add($j("<div class='s-button s-add-Tags3b' title='Upgrade tag to " + settings.names.Tags3b + "'>+</div>").
-                        data("action", { fn: addTags3bTagElement, type: "Tags3b", tag: tag }));
+                                          data("action", { fn: addTags3bTagElement, type: "Tags3b", tag: tag }));
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags3b' title='Downgrade tag from " + settings.names.Tags3b + "'>–</div>").
-                        data("action", { fn: removeTags3bTagElement, type: "Tags3b", tag: tag }));
+                                          data("action", { fn: removeTags3bTagElement, type: "Tags3b", tag: tag }));
                 }
                 if (settings.useTag4aTags) {
                     if (!settings.buttonTag4aTags) {
                         buttons = buttons.add($j("<div class='s-button s-add-Tags4a' title='Mark tag as " + settings.names.Tags4a + "'>+</div>").
-                            data("action", { fn: addTagElement, type: "Tags4a", tag: tag }));
+                                              data("action", { fn: addTagElement, type: "Tags4a", tag: tag }));
                     }
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags4a' title='Un-Mark tag as " + settings.names.Tags4a + "'>–</div>").
-                        data("action", { fn: removeTagElement, type: "Tags4a", tag: tag }));
+                                          data("action", { fn: removeTagElement, type: "Tags4a", tag: tag }));
                 }
                 if (settings.useTag4bTags) {
                     buttons = buttons.add($j("<div class='s-button s-add-Tags4b' title='Upgrade tag to " + settings.names.Tags4b + "'>+</div>").
-                        data("action", { fn: addTags4bTagElement, type: "Tags4b", tag: tag }));
+                                          data("action", { fn: addTags4bTagElement, type: "Tags4b", tag: tag }));
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags4b' title='Downgrade tag from " + settings.names.Tags4b + "'>–</div>").
-                        data("action", { fn: removeTags4bTagElement, type: "Tags4b", tag: tag }));
+                                          data("action", { fn: removeTags4bTagElement, type: "Tags4b", tag: tag }));
                 }
                 if (settings.useTag5aTags) {
                     if (!settings.buttonTag5aTags) {
                         buttons = buttons.add($j("<div class='s-button s-add-Tags5a' title='Mark tag as " + settings.names.Tags5a + "'>+</div>").
-                            data("action", { fn: addTagElement, type: "Tags5a", tag: tag }));
+                                              data("action", { fn: addTagElement, type: "Tags5a", tag: tag }));
                     }
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags5a' title='Un-Mark tag as " + settings.names.Tags5a + "'>–</div>").
-                        data("action", { fn: removeTagElement, type: "Tags5a", tag: tag }));
+                                          data("action", { fn: removeTagElement, type: "Tags5a", tag: tag }));
                 }
                 if (settings.useTag5bTags) {
                     buttons = buttons.add($j("<div class='s-button s-add-Tags5b' title='Upgrade tag to " + settings.names.Tags5b + "'>+</div>").
-                        data("action", { fn: addTags5bTagElement, type: "Tags5b", tag: tag }));
+                                          data("action", { fn: addTags5bTagElement, type: "Tags5b", tag: tag }));
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags5b' title='Downgrade tag from " + settings.names.Tags5b + "'>–</div>").
-                        data("action", { fn: removeTags5bTagElement, type: "Tags5b", tag: tag }));
+                                          data("action", { fn: removeTags5bTagElement, type: "Tags5b", tag: tag }));
                 }
                 if (settings.useTag6aTags) {
                     if (!settings.buttonTag6aTags) {
                         buttons = buttons.add($j("<div class='s-button s-add-Tags6a' title='Mark tag as " + settings.names.Tags6a + "'>+</div>").
-                            data("action", { fn: addTagElement, type: "Tags6a", tag: tag }));
+                                              data("action", { fn: addTagElement, type: "Tags6a", tag: tag }));
                     }
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags6a' title='Un-Mark tag as " + settings.names.Tags6a + "'>–</div>").
-                        data("action", { fn: removeTagElement, type: "Tags6a", tag: tag }));
+                                          data("action", { fn: removeTagElement, type: "Tags6a", tag: tag }));
                 }
                 if (settings.useTag6bTags) {
                     buttons = buttons.add($j("<div class='s-button s-add-Tags6b' title='Upgrade tag to " + settings.names.Tags6b + "'>+</div>").
-                        data("action", { fn: addTags6bTagElement, type: "Tags6b", tag: tag }));
+                                          data("action", { fn: addTags6bTagElement, type: "Tags6b", tag: tag }));
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags6b' title='Downgrade tag from " + settings.names.Tags6b + "'>–</div>").
-                        data("action", { fn: removeTags6bTagElement, type: "Tags6b", tag: tag }));
+                                          data("action", { fn: removeTags6bTagElement, type: "Tags6b", tag: tag }));
                 }
                 if (settings.useTag7aTags) {
                     if (!settings.buttonTag7aTags) {
                         buttons = buttons.add($j("<div class='s-button s-add-Tags7a' title='Mark tag as " + settings.names.Tags7a + "'>×</div>").
-                            data("action", { fn: addTagElement, type: "Tags7a", tag: tag }));
+                                              data("action", { fn: addTagElement, type: "Tags7a", tag: tag }));
                     }
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags7a' title='Un-Mark tag as " + settings.names.Tags7a + "'>–</div>").
-                        data("action", { fn: removeTagElement, type: "Tags7a", tag: tag }));
+                                          data("action", { fn: removeTagElement, type: "Tags7a", tag: tag }));
                 }
                 if (settings.useTag7bTags) {
                     buttons = buttons.add($j("<div class='s-button s-add-Tags7b' title='Mark tag as " + settings.names.Tags7b + "'>×</div>").
-                        data("action", { fn: addTags7bTagElement, type: "Tags7b", tag: tag }));
+                                          data("action", { fn: addTags7bTagElement, type: "Tags7b", tag: tag }));
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags7b' title='Un-Mark tag as " + settings.names.Tags7b + "'>–</div>").
-                        data("action", { fn: removeTags7bTagElement, type: "Tags7b", tag: tag }));
+                                          data("action", { fn: removeTags7bTagElement, type: "Tags7b", tag: tag }));
                 }
                 if (settings.useTag7cTags) {
                     buttons = buttons.add($j("<div class='s-button s-add-Tags7c' title='Mark tag as " + settings.names.Tags7c + ". \nTorrents with this tag will be hidden!'>!</div>").
-                        data("action", { fn: addTags7cTagElement, type: "Tags7c", tag: tag }));
+                                          data("action", { fn: addTags7cTagElement, type: "Tags7c", tag: tag }));
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags7c' title='Un-Mark tag as " + settings.names.Tags7c + "'>–</div>").
-                        data("action", { fn: removeTags7cTagElement, type: "Tags7c", tag: tag }));
+                                          data("action", { fn: removeTags7cTagElement, type: "Tags7c", tag: tag }));
                 }
                 if (settings.useTag7dTags) {
                     buttons = buttons.add($j("<div class='s-button s-add-Tags7d' title='Mark tag as " + settings.names.Tags7d + ". \nThis tag will be hidden from all torrents!'>-</div>").
-                        data("action", { fn: addTags7dTagElement, type: "Tags7d", tag: tag }));
+                                          data("action", { fn: addTags7dTagElement, type: "Tags7d", tag: tag }));
                     buttons = buttons.add($j("<div class='s-button s-remove-Tags7d' title='Un-Mark tag as " + settings.names.Tags7d + "'>–</div>").
-                        data("action", { fn: removeTags7dTagElement, type: "Tags7d", tag: tag }));
+                                          data("action", { fn: removeTags7dTagElement, type: "Tags7d", tag: tag }));
                 }
                 $j(buttons).addClass("s-button").prependTo(tagHolder);
 
@@ -1729,20 +1812,20 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
             if (isAlreadyTagged) {
                 const tagName = settings.names[tagKey] || tagKey;
                 const removeBtn = $j("<div>")
-                    .addClass("s-button s-remove-" + tagKey)
-                    .attr("title", "Remove tag from " + tagName)
-                    .text("–")
-                    .on("click", function (e) {
-                        e.stopPropagation();
-                        removeTags(tagKey, [tag]);
-                        // Refresh visually on tags.php OR call highlight on details
-                        if (window.location.href.indexOf("tags.php") !== -1) {
-                            refreshTagsPageHighlights();
-                        } else if (typeof highlightDetailTags === "function") {
-                            highlightDetailTags();
-                        }
+                .addClass("s-button s-remove-" + tagKey)
+                .attr("title", "Remove tag from " + tagName)
+                .text("–")
+                .on("click", function (e) {
+                    e.stopPropagation();
+                    removeTags(tagKey, [tag]);
+                    // Refresh visually on tags.php OR call highlight on details
+                    if (window.location.href.indexOf("tags.php") !== -1) {
+                        refreshTagsPageHighlights();
+                    } else if (typeof highlightDetailTags === "function") {
+                        highlightDetailTags();
+                    }
 
-                    });
+                });
 
                 tagHolder.append(removeBtn);
             }
@@ -1756,19 +1839,19 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
 
             const tagName = settings.names[tagKey] || tagKey;
             const addBtn = $j("<div>")
-                .addClass("s-button s-add-" + tagKey)
-                .attr("title", "Mark tag as " + tagName)
-                .text("+")
-                .on("click", function (e) {
-                    e.stopPropagation();
-                    addTags(tagKey, [tag]);
-                    if (window.location.href.indexOf("tags.php") !== -1) {
-                        refreshTagsPageHighlights();
-                    } else if (typeof highlightDetailTags === "function") {
-                        highlightDetailTags();
-                    }
+            .addClass("s-button s-add-" + tagKey)
+            .attr("title", "Mark tag as " + tagName)
+            .text("+")
+            .on("click", function (e) {
+                e.stopPropagation();
+                addTags(tagKey, [tag]);
+                if (window.location.href.indexOf("tags.php") !== -1) {
+                    refreshTagsPageHighlights();
+                } else if (typeof highlightDetailTags === "function") {
+                    highlightDetailTags();
+                }
 
-                });
+            });
 
             tagHolder.append(addBtn);
         }
@@ -1850,10 +1933,10 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
 
                 // Build header (aligned exactly with data rows)
                 let out = "<div style='display:flex; align-items:center; font-weight:bold; margin-bottom:6px; line-height:1.3;'>"
-                    + "<div style='width:320px; font-family:monospace;'>Tag</div>"
-                    + "<div style='flex:1;'>Lists</div>"
-                    + "</div>"
-                    + "<div style='border-top:1px solid #666; margin-bottom:8px;'></div>";
+                + "<div style='width:320px; font-family:monospace;'>Tag</div>"
+                + "<div style='flex:1;'>Lists</div>"
+                + "</div>"
+                + "<div style='border-top:1px solid #666; margin-bottom:8px;'></div>";
 
 
                 keys.forEach(function (normTag) {
@@ -2188,7 +2271,7 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                 if (!raw.trim()) {
                     displayStatus && typeof displayStatus === 'function'
                         ? displayStatus("error", "Import failed: import textarea is empty.")
-                        : alert("Import failed: import textarea is empty.");
+                    : alert("Import failed: import textarea is empty.");
                     return;
                 }
 
@@ -2208,11 +2291,11 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                 // Inform user
                 displayStatus && typeof displayStatus === 'function'
                     ? displayStatus("success", "Imported settings successfully.")
-                    : alert("Imported settings successfully. You may need to reload the page to apply changes.");
+                : alert("Imported settings successfully. You may need to reload the page to apply changes.");
             } catch (ex) {
                 displayStatus && typeof displayStatus === 'function'
                     ? displayStatus("error", "Unable to import settings: " + ex.message)
-                    : alert("Unable to import settings: " + ex.message);
+                : alert("Unable to import settings: " + ex.message);
             }
         });
 
@@ -2417,10 +2500,10 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
             for (const [type, c] of Object.entries(settings.colors)) {
                 $j("#sample-" + type)
                     .css({
-                        "background-color": $j("#color-" + type + "-bg").val(),
-                        "color": $j("#color-" + type + "-text").val(),
-                        "border-color": "#000000"
-                    });
+                    "background-color": $j("#color-" + type + "-bg").val(),
+                    "color": $j("#color-" + type + "-text").val(),
+                    "border-color": "#000000"
+                });
             }
         }
 
@@ -2428,47 +2511,47 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
         $j(document)
             .off("click", ".edit-label") // remove any old bindings
             .on("click", ".edit-label", function (e) {
-                e.preventDefault();
-                const $btn = $j(this);
-                const key = $btn.data("name");
-                const $cell = $btn.closest("tr").children(".label-cell[data-name='" + key + "']");
+            e.preventDefault();
+            const $btn = $j(this);
+            const key = $btn.data("name");
+            const $cell = $btn.closest("tr").children(".label-cell[data-name='" + key + "']");
 
-                console.log("🔹 Edit clicked:", key);
-                console.log("🔹 Found cell:", $cell.get(0));
-                console.log("🔹 Cell HTML:", $cell.html());
-                console.log("🔹 Cell text:", JSON.stringify($cell.text()));
-                console.log("Click event count:", e.timeStamp);
+            console.log("🔹 Edit clicked:", key);
+            console.log("🔹 Found cell:", $cell.get(0));
+            console.log("🔹 Cell HTML:", $cell.html());
+            console.log("🔹 Cell text:", JSON.stringify($cell.text()));
+            console.log("Click event count:", e.timeStamp);
 
-                // 🔒 Skip if already editing
-                if ($cell.find("input.label-input").length) {
-                    console.log("🔸 Edit already active for", key);
-                    return;
-                }
+            // 🔒 Skip if already editing
+            if ($cell.find("input.label-input").length) {
+                console.log("🔸 Edit already active for", key);
+                return;
+            }
 
-                const oldValue = $cell.text().trim();
-                console.log("Editing", key, "with initial value:", oldValue);
+            const oldValue = $cell.text().trim();
+            console.log("Editing", key, "with initial value:", oldValue);
 
-                const $input = $j("<input type='text' class='label-input'>")
-                    .val(oldValue)
-                    .css({ width: "90%" });
+            const $input = $j("<input type='text' class='label-input'>")
+            .val(oldValue)
+            .css({ width: "90%" });
 
-                $cell.empty().append($input);
-                $input.focus();
+            $cell.empty().append($input);
+            $input.focus();
 
-                const saveValue = () => {
-                    const newValue = $input.val().trim() || oldValue;
-                    $cell.text(newValue);
-                    settings.names[key] = newValue;
-                    saveSettings();
-                    displayStatus("success", key + " label updated to '" + newValue + "'");
-                };
+            const saveValue = () => {
+                const newValue = $input.val().trim() || oldValue;
+                $cell.text(newValue);
+                settings.names[key] = newValue;
+                saveSettings();
+                displayStatus("success", key + " label updated to '" + newValue + "'");
+            };
 
-                $input.on("blur", saveValue);
-                $input.on("keydown", ev => {
-                    if (ev.key === "Enter") { ev.preventDefault(); saveValue(); }
-                    else if (ev.key === "Escape") $cell.text(oldValue);
-                });
+            $input.on("blur", saveValue);
+            $input.on("keydown", ev => {
+                if (ev.key === "Enter") { ev.preventDefault(); saveValue(); }
+                else if (ev.key === "Escape") $cell.text(oldValue);
             });
+        });
 
         // === Info modal popups ===
         $j(document).on("click", ".info-btn", function (e) {
@@ -2880,12 +2963,12 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                 } else {
                     // different family → record conflict for manual review
                     const overlap = otherTags.filter(t =>
-                        currentTags.includes(normalize(t))
-                    );
+                                                     currentTags.includes(normalize(t))
+                                                    );
                     if (overlap.length > 0) {
                         overlap.forEach(tag =>
-                            conflicts.push({ tag, lists: [current, other] })
-                        );
+                                        conflicts.push({ tag, lists: [current, other] })
+                                       );
                     }
                 }
             }
@@ -3028,7 +3111,7 @@ function addJQuery(callback) {
         cols[2].append(...allItems.slice(perCol * 2));
 
         const hiddenBlocks = Array.from(tagList.children)
-            .filter(c => c.classList && c.classList.contains('s-Tag7d-tags'));
+        .filter(c => c.classList && c.classList.contains('s-Tag7d-tags'));
 
         tagList.textContent = '';
         cols.forEach(c => tagList.appendChild(c));
