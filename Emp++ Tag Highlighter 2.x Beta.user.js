@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.x Beta
 // @namespace    http://tampermonkey.net/
-// @version      2.0.54
+// @version      2.0.55
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -123,22 +123,22 @@ function runScript() {
 
         // Color default settings - matches colors from 0.7.9b
         colors: {
-            Tags1a: { background: "#A9DF9C", border: "#000000", text: "#000000" },
-            Tags1b: { background: "#3D9949", border: "#000000", text: "#000000" },
-            Tags2a: { background: "#769dc9", border: "#000000", text: "#000000" },
-            Tags2b: { background: "#3a6392", border: "#000000", text: "#ffffff" },
-            Tags3a: { background: "#f7d600", border: "#000000", text: "#000000" },
-            Tags3b: { background: "#ccc870", border: "#000000", text: "#000000" }, //new
-            Tags4a: { background: "#cfd9e2", border: "#000000", text: "#000000" },
-            Tags4b: { background: "#afc0cf", border: "#000000", text: "#ffffff" },
-            Tags5a: { background: "#f3af58", border: "#000000", text: "#000000" },
-            Tags5b: { background: "#e58306", border: "#000000", text: "#ffffff" },
-            Tags6a: { background: "#e86eed", border: "#000000", text: "#000000" },
-            Tags6b: { background: "#d01dd7", border: "#000000", text: "#ffffff" },
-            Tags7a: { background: "#F3AAAA", border: "#000000", text: "#000000" },
-            Tags7b: { background: "#840000", border: "#000000", text: "#ffffff" },
-            Tags7c: { background: "#222222", border: "#000000", text: "#EEEEEE" },
-            Tags7d: { background: "#999999", border: "#000000", text: "#000000" }
+            Tags1a: { background: "#A9DF9C", border: "#000000", text: "#000000", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags1b: { background: "#3D9949", border: "#000000", text: "#000000", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags2a: { background: "#769dc9", border: "#000000", text: "#000000", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags2b: { background: "#3a6392", border: "#000000", text: "#ffffff", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags3a: { background: "#f7d600", border: "#000000", text: "#000000", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags3b: { background: "#ccc870", border: "#000000", text: "#000000", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" }, //new
+            Tags4a: { background: "#cfd9e2", border: "#000000", text: "#000000", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags4b: { background: "#afc0cf", border: "#000000", text: "#ffffff", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags5a: { background: "#f3af58", border: "#000000", text: "#000000", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags5b: { background: "#e58306", border: "#000000", text: "#ffffff", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags6a: { background: "#e86eed", border: "#000000", text: "#000000", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags6b: { background: "#d01dd7", border: "#000000", text: "#ffffff", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags7a: { background: "#F3AAAA", border: "#000000", text: "#000000", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags7b: { background: "#840000", border: "#000000", text: "#ffffff", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags7c: { background: "#222222", border: "#000000", text: "#EEEEEE", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" },
+            Tags7d: { background: "#999999", border: "#000000", text: "#000000", outlineColor: "#000000", outlineStyle: "solid", outlineWeight: "0px" }
         },
 
         // Category Name default settings - matches names from 0.7.9b
@@ -316,21 +316,21 @@ function runScript() {
     console.log("🧩 Detected theme from stylesheet:", currentTheme);
 
 
-// === Theme-based color and saturation overrides ===
-const themeVisualMap = {
-  Afterdark:   { green: [100, 180, 100], red: [180, 80, 80], maxAlpha: 0.25 },
-  Deviloid:    { green: [110, 190, 110], red: [190, 90, 90], maxAlpha: 0.35 },
-  WatchDogs:   { green: [120, 200, 120], red: [200, 100, 100], maxAlpha: 0.4 },
-  Hempornium:  { green: [130, 210, 130], red: [210, 110, 110], maxAlpha: 0.25 },
-  Light:       { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 },
-  Minimal:     { green: [125, 205, 125], red: [215, 105, 105], maxAlpha: 0.5 },
-  Modern:      { green: [110, 160, 110], red: [220, 110, 110], maxAlpha: 0.6 },
-  ModernRed:   { green: [140, 220, 140], red: [230, 120, 120], maxAlpha: 0.5 },
-  Rochelle:    { green: [135, 215, 135], red: [225, 115, 115], maxAlpha: 0.5 },
-  Sarandafl:   { green: [130, 210, 130], red: [220, 110, 110], maxAlpha: 0.5 },
-  Empornium:   { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.7 },
-  unknown:     { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 }
-};
+    // === Theme-based color and saturation overrides ===
+    const themeVisualMap = {
+        Afterdark:   { green: [100, 180, 100], red: [180, 80, 80], maxAlpha: 0.25 },
+        Deviloid:    { green: [110, 190, 110], red: [190, 90, 90], maxAlpha: 0.35 },
+        WatchDogs:   { green: [120, 200, 120], red: [200, 100, 100], maxAlpha: 0.4 },
+        Hempornium:  { green: [130, 210, 130], red: [210, 110, 110], maxAlpha: 0.25 },
+        Light:       { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 },
+        Minimal:     { green: [125, 205, 125], red: [215, 105, 105], maxAlpha: 0.5 },
+        Modern:      { green: [110, 160, 110], red: [220, 110, 110], maxAlpha: 0.6 },
+        ModernRed:   { green: [140, 220, 140], red: [230, 120, 120], maxAlpha: 0.5 },
+        Rochelle:    { green: [135, 215, 135], red: [225, 115, 115], maxAlpha: 0.5 },
+        Sarandafl:   { green: [130, 210, 130], red: [220, 110, 110], maxAlpha: 0.5 },
+        Empornium:   { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.7 },
+        unknown:     { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 }
+    };
 
     // Default values for the tag effect on the percent bar and torrent good / bad color
     if (!settings.tagValues) {
@@ -568,6 +568,12 @@ const themeVisualMap = {
             "<td class='label-cell' data-name='" + tagKey + "'>" + name + "</td>" +
             "<td><input type='color' id='color-" + tagKey + "-bg' value='" + bg + "'></td>" +
             "<td><input type='color' id='color-" + tagKey + "-text' value='" + txt + "'></td>" +
+            "<td><input type='color' id='outline-" + tagKey + "-color' value='" + colorObj.outlineColor + "'></td>" +
+            "<td><select id='outline-" + tagKey + "-style'>" +
+            "<option value='solid'" + (colorObj.outlineStyle === "solid" ? " selected" : "") + ">Solid</option>" +
+            "<option value='dashed'" + (colorObj.outlineStyle === "dashed" ? " selected" : "") + ">Dashed</option>" +
+            "</select></td>" +
+            "<td><input type='text' id='outline-" + tagKey + "-weight' value='" + colorObj.outlineWeight + "' size='4'></td>"+
             "<td><span id='sample-" + tagKey + "' class='sample-tag'>Sample.Tag" +
             "<div class='s-button s-remove-" + tagKey + "' title='Un-Mark tag as " + name + "'>–</div>" +
             "</span></td>" +
@@ -782,7 +788,9 @@ const themeVisualMap = {
             "</div>" +
 
             "<div class='s-conf-buttons'>" +
-            "<input id='s-conf-save' type='button' value='Save Settings'/>" +
+            //"<input id='s-conf-save' type='button' value='Save Settings'/>" +
+            "<input id='s-conf-save-general' class='s-conf-save' data-page='s-conf-general' type='button' value='Save Settings'/>" +
+
             "</div>" +
             "</div>";
 
@@ -801,28 +809,16 @@ const themeVisualMap = {
         configHTML +=
             "<div class='s-conf-page' id='s-conf-colors'>" +
             "<h2>Customize Tag Colors</h2>" +
-            "<div class='s-conf-color-columns'>";
+            "<div class='s-conf-color-single'>";
 
-        (function () {
-            // Split the master tag list roughly in half for two color tables
-            const midIndex = Math.ceil(ALL_TAG_KEYS.length / 2);
-            const halves = [ALL_TAG_KEYS.slice(0, midIndex), ALL_TAG_KEYS.slice(midIndex)];
+        configHTML += "<table class='s-conf-color-table'>" +
+            "<tr><th></th><th>Name</th><th>Background</th><th>Text</th><th>Outline Color</th><th>Style</th><th>Weight</th><th>Sample</th></tr>";
 
-            for (const tagSet of halves) {
-                // Start new table
-                configHTML += "<table class='s-conf-color-table'>" +
-                    "<tr><th></th><th>Name</th><th>Background</th><th>Text</th><th>Sample</th></tr>";
+        for (const key of ALL_TAG_KEYS) {
+            configHTML += buildColorRow(key);
+        }
 
-                for (const key of tagSet) {
-                    var colorHTML = buildColorRow(key);
-                    // console.log('Generated HTML for ' + key + ':\n', colorHTML); // 🐞 Debug Output
-                    configHTML += colorHTML;
-                }
-
-                // Close current table
-                configHTML += "</table>";
-            }
-        })();
+        configHTML += "</table>";
 
 
         configHTML +=
@@ -830,7 +826,8 @@ const themeVisualMap = {
 
 
             "<div class='s-conf-buttons'>" +
-            "<input id='s-conf-save' type='button' value='Save Settings'/>" +
+            //"<input id='s-conf-save' type='button' value='Save Settings'/>" +
+            "<input id='s-conf-save-colors' class='s-conf-save' data-page='s-conf-colors' type='button' value='Save Settings'/>" +
             "</div>" +
             "</div>" +
             // Import/Export panel
@@ -923,10 +920,10 @@ const themeVisualMap = {
 .s-conf-tag-txtarea{width:95%; height:300px; background:#ddd; word-spacing:10px; line-height:18px;box-sizing:border-box;}
 .s-conf-add-tags, .s-conf-remove-tags{width:950px;}
 .s-conf-add-btn, .s-conf-remove-btn{width:110px;}
-.s-conf-color-columns { display:flex; gap:20px; }
-.s-conf-color-table { width:50%; border-collapse:collapse; margin-top:10px; }
-.s-conf-color-table th, .s-conf-color-table td { border:1px solid #ccc; padding:4px; text-align:center; }
-.sample-tag { display:inline-block; padding:2px 6px; border:1px solid #000; border-radius:8px; font-weight:normal; }
+.s-conf-color-columns { display:block; width:100%; }
+.s-conf-color-table { width:100%; border-collapse:collapse; margin-top:6px; }
+.s-conf-color-table th, .s-conf-color-table td { border:1px solid #ccc; padding:2px 4px; line-height:1.2; font-size:13px; text-align:center; }
+.sample-tag { display:inline-block; padding:2px 6px; border-radius:8px; font-weight:normal; }
 .sample-tag .sample-remove { margin-left:4px; color:#000; text-decoration:none; cursor:default; }
 .sample-tag .sample-remove:hover { text-decoration:none; }
 ul.s-Tag7d-tags span.s-tag.s-Tag7d{display:inline-block !important; float:none; background:#AAA; border-bottom:1px solid #444; padding:0px 4px; border-radius:16px;font-weight:normal;}
@@ -1887,6 +1884,7 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
             }
         }
 
+
         //Init Listeners
         $j(".s-conf-tab").parent().on("click", function () {
             var tab = $j(this);
@@ -2120,122 +2118,187 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
         });
 
 
-        $j(document).on("click", "#s-conf-save", function (e) {
-            e.preventDefault();
-            console.log("🟢 Save button clicked");
-            // Ensure colors object exists
-            if (!settings.colors) settings.colors = {};
+        // On Click Save (true drop-in replacement)
+        // remove any old bindings that target #s-conf-save to avoid duplicates
+        $j(document).off("click", "#s-conf-save, .s-conf-save");
 
+        // New delegated binding for any Save button using the shared class
+        $j(document).on("click", ".s-conf-save", function (e) {
+            // Prevent default and stop bubbling so tab logic won't mistakenly fire
+            e.preventDefault();
+            e.stopPropagation();
+
+            console.log("🟢 Save button clicked");
+
+            // Capture active tab before teardown
+            const activeTabId = $j('.tab-row-container li.s-selected').data('page') || $j('.tab-row-container li.s-selected .s-conf-tab').data('page') || "s-conf-general";
+
+
+            // Defensive init
+            if (!window.settings) window.settings = {};
+            if (!settings.colors) settings.colors = {};
+            if (!settings.names) settings.names = {};
+
+            // --- Explicit per-tag assignments (exact reads you had originally) ---
             // Tags1a
-            settings.colors.Tags1a.background = $j("#color-Tags1a-bg").val();
-            settings.colors.Tags1a.text = $j("#color-Tags1a-text").val();
+            settings.colors.Tags1a = settings.colors.Tags1a || {};
+            settings.colors.Tags1a.background = $j("#color-Tags1a-bg").length ? $j("#color-Tags1a-bg").val() : (settings.colors.Tags1a.background || "");
+            settings.colors.Tags1a.text = $j("#color-Tags1a-text").length ? $j("#color-Tags1a-text").val() : (settings.colors.Tags1a.text || "");
             settings.colors.Tags1a.border = "#000000";
+            settings.colors.Tags1a.outlineColor = $j("#outline-Tags1a-color").length ? $j("#outline-Tags1a-color").val() : (settings.colors.Tags1a.outlineColor || "");
+            settings.colors.Tags1a.outlineStyle = $j("#outline-Tags1a-style").length ? $j("#outline-Tags1a-style").val() : (settings.colors.Tags1a.outlineStyle || "");
+            settings.colors.Tags1a.outlineWeight = $j("#outline-Tags1a-weight").length ? $j("#outline-Tags1a-weight").val() : (settings.colors.Tags1a.outlineWeight || "");
 
             // Tags1b
-            settings.colors.Tags1b.background = $j("#color-Tags1b-bg").val();
-            settings.colors.Tags1b.text = $j("#color-Tags1b-text").val();
+            settings.colors.Tags1b = settings.colors.Tags1b || {};
+            settings.colors.Tags1b.background = $j("#color-Tags1b-bg").length ? $j("#color-Tags1b-bg").val() : (settings.colors.Tags1b.background || "");
+            settings.colors.Tags1b.text = $j("#color-Tags1b-text").length ? $j("#color-Tags1b-text").val() : (settings.colors.Tags1b.text || "");
             settings.colors.Tags1b.border = "#000000";
+            settings.colors.Tags1b.outlineColor = $j("#outline-Tags1b-color").length ? $j("#outline-Tags1b-color").val() : (settings.colors.Tags1b.outlineColor || "");
+            settings.colors.Tags1b.outlineStyle = $j("#outline-Tags1b-style").length ? $j("#outline-Tags1b-style").val() : (settings.colors.Tags1b.outlineStyle || "");
+            settings.colors.Tags1b.outlineWeight = $j("#outline-Tags1b-weight").length ? $j("#outline-Tags1b-weight").val() : (settings.colors.Tags1b.outlineWeight || "");
 
             // Tags2a
-            settings.colors.Tags2a.background = $j("#color-Tags2a-bg").val();
-            settings.colors.Tags2a.text = $j("#color-Tags2a-text").val();
+            settings.colors.Tags2a = settings.colors.Tags2a || {};
+            settings.colors.Tags2a.background = $j("#color-Tags2a-bg").length ? $j("#color-Tags2a-bg").val() : (settings.colors.Tags2a.background || "");
+            settings.colors.Tags2a.text = $j("#color-Tags2a-text").length ? $j("#color-Tags2a-text").val() : (settings.colors.Tags2a.text || "");
             settings.colors.Tags2a.border = "#000000";
+            settings.colors.Tags2a.outlineColor = $j("#outline-Tags2a-color").length ? $j("#outline-Tags2a-color").val() : (settings.colors.Tags2a.outlineColor || "");
+            settings.colors.Tags2a.outlineStyle = $j("#outline-Tags2a-style").length ? $j("#outline-Tags2a-style").val() : (settings.colors.Tags2a.outlineStyle || "");
+            settings.colors.Tags2a.outlineWeight = $j("#outline-Tags2a-weight").length ? $j("#outline-Tags2a-weight").val() : (settings.colors.Tags2a.outlineWeight || "");
 
             // Tags2b
-            settings.colors.Tags2b.background = $j("#color-Tags2b-bg").val();
-            settings.colors.Tags2b.text = $j("#color-Tags2b-text").val();
+            settings.colors.Tags2b = settings.colors.Tags2b || {};
+            settings.colors.Tags2b.background = $j("#color-Tags2b-bg").length ? $j("#color-Tags2b-bg").val() : (settings.colors.Tags2b.background || "");
+            settings.colors.Tags2b.text = $j("#color-Tags2b-text").length ? $j("#color-Tags2b-text").val() : (settings.colors.Tags2b.text || "");
             settings.colors.Tags2b.border = "#000000";
+            settings.colors.Tags2b.outlineColor = $j("#outline-Tags2b-color").length ? $j("#outline-Tags2b-color").val() : (settings.colors.Tags2b.outlineColor || "");
+            settings.colors.Tags2b.outlineStyle = $j("#outline-Tags2b-style").length ? $j("#outline-Tags2b-style").val() : (settings.colors.Tags2b.outlineStyle || "");
+            settings.colors.Tags2b.outlineWeight = $j("#outline-Tags2b-weight").length ? $j("#outline-Tags2b-weight").val() : (settings.colors.Tags2b.outlineWeight || "");
 
             // Tags3a
-            settings.colors.Tags3a.background = $j("#color-Tags3a-bg").val();
-            settings.colors.Tags3a.text = $j("#color-Tags3a-text").val();
+            settings.colors.Tags3a = settings.colors.Tags3a || {};
+            settings.colors.Tags3a.background = $j("#color-Tags3a-bg").length ? $j("#color-Tags3a-bg").val() : (settings.colors.Tags3a.background || "");
+            settings.colors.Tags3a.text = $j("#color-Tags3a-text").length ? $j("#color-Tags3a-text").val() : (settings.colors.Tags3a.text || "");
             settings.colors.Tags3a.border = "#000000";
+            settings.colors.Tags3a.outlineColor = $j("#outline-Tags3a-color").length ? $j("#outline-Tags3a-color").val() : (settings.colors.Tags3a.outlineColor || "");
+            settings.colors.Tags3a.outlineStyle = $j("#outline-Tags3a-style").length ? $j("#outline-Tags3a-style").val() : (settings.colors.Tags3a.outlineStyle || "");
+            settings.colors.Tags3a.outlineWeight = $j("#outline-Tags3a-weight").length ? $j("#outline-Tags3a-weight").val() : (settings.colors.Tags3a.outlineWeight || "");
 
             // Tags3b
-            settings.colors.Tags3b.background = $j("#color-Tags3b-bg").val();
-            settings.colors.Tags3b.text = $j("#color-Tags3b-text").val();
-            settings.colors.Tags3b.border = "#000000"
+            settings.colors.Tags3b = settings.colors.Tags3b || {};
+            settings.colors.Tags3b.background = $j("#color-Tags3b-bg").length ? $j("#color-Tags3b-bg").val() : (settings.colors.Tags3b.background || "");
+            settings.colors.Tags3b.text = $j("#color-Tags3b-text").length ? $j("#color-Tags3b-text").val() : (settings.colors.Tags3b.text || "");
+            settings.colors.Tags3b.border = "#000000";
+            settings.colors.Tags3b.outlineColor = $j("#outline-Tags3b-color").length ? $j("#outline-Tags3b-color").val() : (settings.colors.Tags3b.outlineColor || "");
+            settings.colors.Tags3b.outlineStyle = $j("#outline-Tags3b-style").length ? $j("#outline-Tags3b-style").val() : (settings.colors.Tags3b.outlineStyle || "");
+            settings.colors.Tags3b.outlineWeight = $j("#outline-Tags3b-weight").length ? $j("#outline-Tags3b-weight").val() : (settings.colors.Tags3b.outlineWeight || "");
 
             // Tags4a
-            settings.colors.Tags4a.background = $j("#color-Tags4a-bg").val();
-            settings.colors.Tags4a.text = $j("#color-Tags4a-text").val();
+            settings.colors.Tags4a = settings.colors.Tags4a || {};
+            settings.colors.Tags4a.background = $j("#color-Tags4a-bg").length ? $j("#color-Tags4a-bg").val() : (settings.colors.Tags4a.background || "");
+            settings.colors.Tags4a.text = $j("#color-Tags4a-text").length ? $j("#color-Tags4a-text").val() : (settings.colors.Tags4a.text || "");
             settings.colors.Tags4a.border = "#000000";
+            settings.colors.Tags4a.outlineColor = $j("#outline-Tags4a-color").length ? $j("#outline-Tags4a-color").val() : (settings.colors.Tags4a.outlineColor || "");
+            settings.colors.Tags4a.outlineStyle = $j("#outline-Tags4a-style").length ? $j("#outline-Tags4a-style").val() : (settings.colors.Tags4a.outlineStyle || "");
+            settings.colors.Tags4a.outlineWeight = $j("#outline-Tags4a-weight").length ? $j("#outline-Tags4a-weight").val() : (settings.colors.Tags4a.outlineWeight || "");
 
             // Tags4b
-            settings.colors.Tags4b.background = $j("#color-Tags4b-bg").val();
-            settings.colors.Tags4b.text = $j("#color-Tags4b-text").val();
+            settings.colors.Tags4b = settings.colors.Tags4b || {};
+            settings.colors.Tags4b.background = $j("#color-Tags4b-bg").length ? $j("#color-Tags4b-bg").val() : (settings.colors.Tags4b.background || "");
+            settings.colors.Tags4b.text = $j("#color-Tags4b-text").length ? $j("#color-Tags4b-text").val() : (settings.colors.Tags4b.text || "");
             settings.colors.Tags4b.border = "#000000";
+            settings.colors.Tags4b.outlineColor = $j("#outline-Tags4b-color").length ? $j("#outline-Tags4b-color").val() : (settings.colors.Tags4b.outlineColor || "");
+            settings.colors.Tags4b.outlineStyle = $j("#outline-Tags4b-style").length ? $j("#outline-Tags4b-style").val() : (settings.colors.Tags4b.outlineStyle || "");
+            settings.colors.Tags4b.outlineWeight = $j("#outline-Tags4b-weight").length ? $j("#outline-Tags4b-weight").val() : (settings.colors.Tags4b.outlineWeight || "");
 
             // Tags5a
-            settings.colors.Tags5a.background = $j("#color-Tags5a-bg").val();
-            settings.colors.Tags5a.text = $j("#color-Tags5a-text").val();
+            settings.colors.Tags5a = settings.colors.Tags5a || {};
+            settings.colors.Tags5a.background = $j("#color-Tags5a-bg").length ? $j("#color-Tags5a-bg").val() : (settings.colors.Tags5a.background || "");
+            settings.colors.Tags5a.text = $j("#color-Tags5a-text").length ? $j("#color-Tags5a-text").val() : (settings.colors.Tags5a.text || "");
             settings.colors.Tags5a.border = "#000000";
+            settings.colors.Tags5a.outlineColor = $j("#outline-Tags5a-color").length ? $j("#outline-Tags5a-color").val() : (settings.colors.Tags5a.outlineColor || "");
+            settings.colors.Tags5a.outlineStyle = $j("#outline-Tags5a-style").length ? $j("#outline-Tags5a-style").val() : (settings.colors.Tags5a.outlineStyle || "");
+            settings.colors.Tags5a.outlineWeight = $j("#outline-Tags5a-weight").length ? $j("#outline-Tags5a-weight").val() : (settings.colors.Tags5a.outlineWeight || "");
 
             // Tags5b
-            settings.colors.Tags5b.background = $j("#color-Tags5b-bg").val();
-            settings.colors.Tags5b.text = $j("#color-Tags5b-text").val();
+            settings.colors.Tags5b = settings.colors.Tags5b || {};
+            settings.colors.Tags5b.background = $j("#color-Tags5b-bg").length ? $j("#color-Tags5b-bg").val() : (settings.colors.Tags5b.background || "");
+            settings.colors.Tags5b.text = $j("#color-Tags5b-text").length ? $j("#color-Tags5b-text").val() : (settings.colors.Tags5b.text || "");
             settings.colors.Tags5b.border = "#000000";
+            settings.colors.Tags5b.outlineColor = $j("#outline-Tags5b-color").length ? $j("#outline-Tags5b-color").val() : (settings.colors.Tags5b.outlineColor || "");
+            settings.colors.Tags5b.outlineStyle = $j("#outline-Tags5b-style").length ? $j("#outline-Tags5b-style").val() : (settings.colors.Tags5b.outlineStyle || "");
+            settings.colors.Tags5b.outlineWeight = $j("#outline-Tags5b-weight").length ? $j("#outline-Tags5b-weight").val() : (settings.colors.Tags5b.outlineWeight || "");
 
             // Tags6a
-            settings.colors.Tags6a.background = $j("#color-Tags6a-bg").val();
-            settings.colors.Tags6a.text = $j("#color-Tags6a-text").val();
+            settings.colors.Tags6a = settings.colors.Tags6a || {};
+            settings.colors.Tags6a.background = $j("#color-Tags6a-bg").length ? $j("#color-Tags6a-bg").val() : (settings.colors.Tags6a.background || "");
+            settings.colors.Tags6a.text = $j("#color-Tags6a-text").length ? $j("#color-Tags6a-text").val() : (settings.colors.Tags6a.text || "");
             settings.colors.Tags6a.border = "#000000";
+            settings.colors.Tags6a.outlineColor = $j("#outline-Tags6a-color").length ? $j("#outline-Tags6a-color").val() : (settings.colors.Tags6a.outlineColor || "");
+            settings.colors.Tags6a.outlineStyle = $j("#outline-Tags6a-style").length ? $j("#outline-Tags6a-style").val() : (settings.colors.Tags6a.outlineStyle || "");
+            settings.colors.Tags6a.outlineWeight = $j("#outline-Tags6a-weight").length ? $j("#outline-Tags6a-weight").val() : (settings.colors.Tags6a.outlineWeight || "");
 
             // Tags6b
-            settings.colors.Tags6b.background = $j("#color-Tags6b-bg").val();
-            settings.colors.Tags6b.text = $j("#color-Tags6b-text").val();
+            settings.colors.Tags6b = settings.colors.Tags6b || {};
+            settings.colors.Tags6b.background = $j("#color-Tags6b-bg").length ? $j("#color-Tags6b-bg").val() : (settings.colors.Tags6b.background || "");
+            settings.colors.Tags6b.text = $j("#color-Tags6b-text").length ? $j("#color-Tags6b-text").val() : (settings.colors.Tags6b.text || "");
             settings.colors.Tags6b.border = "#000000";
+            settings.colors.Tags6b.outlineColor = $j("#outline-Tags6b-color").length ? $j("#outline-Tags6b-color").val() : (settings.colors.Tags6b.outlineColor || "");
+            settings.colors.Tags6b.outlineStyle = $j("#outline-Tags6b-style").length ? $j("#outline-Tags6b-style").val() : (settings.colors.Tags6b.outlineStyle || "");
+            settings.colors.Tags6b.outlineWeight = $j("#outline-Tags6b-weight").length ? $j("#outline-Tags6b-weight").val() : (settings.colors.Tags6b.outlineWeight || "");
 
             // Tags7a
-            settings.colors.Tags7a.background = $j("#color-Tags7a-bg").val();
-            settings.colors.Tags7a.text = $j("#color-Tags7a-text").val();
+            settings.colors.Tags7a = settings.colors.Tags7a || {};
+            settings.colors.Tags7a.background = $j("#color-Tags7a-bg").length ? $j("#color-Tags7a-bg").val() : (settings.colors.Tags7a.background || "");
+            settings.colors.Tags7a.text = $j("#color-Tags7a-text").length ? $j("#color-Tags7a-text").val() : (settings.colors.Tags7a.text || "");
             settings.colors.Tags7a.border = "#000000";
+            settings.colors.Tags7a.outlineColor = $j("#outline-Tags7a-color").length ? $j("#outline-Tags7a-color").val() : (settings.colors.Tags7a.outlineColor || "");
+            settings.colors.Tags7a.outlineStyle = $j("#outline-Tags7a-style").length ? $j("#outline-Tags7a-style").val() : (settings.colors.Tags7a.outlineStyle || "");
+            settings.colors.Tags7a.outlineWeight = $j("#outline-Tags7a-weight").length ? $j("#outline-Tags7a-weight").val() : (settings.colors.Tags7a.outlineWeight || "");
 
             // Tags7b
-            settings.colors.Tags7b.background = $j("#color-Tags7b-bg").val();
-            settings.colors.Tags7b.text = $j("#color-Tags7b-text").val();
+            settings.colors.Tags7b = settings.colors.Tags7b || {};
+            settings.colors.Tags7b.background = $j("#color-Tags7b-bg").length ? $j("#color-Tags7b-bg").val() : (settings.colors.Tags7b.background || "");
+            settings.colors.Tags7b.text = $j("#color-Tags7b-text").length ? $j("#color-Tags7b-text").val() : (settings.colors.Tags7b.text || "");
             settings.colors.Tags7b.border = "#000000";
+            settings.colors.Tags7b.outlineColor = $j("#outline-Tags7b-color").length ? $j("#outline-Tags7b-color").val() : (settings.colors.Tags7b.outlineColor || "");
+            settings.colors.Tags7b.outlineStyle = $j("#outline-Tags7b-style").length ? $j("#outline-Tags7b-style").val() : (settings.colors.Tags7b.outlineStyle || "");
+            settings.colors.Tags7b.outlineWeight = $j("#outline-Tags7b-weight").length ? $j("#outline-Tags7b-weight").val() : (settings.colors.Tags7b.outlineWeight || "");
 
             // Tags7c
-            settings.colors.Tags7c.background = $j("#color-Tags7c-bg").val();
-            settings.colors.Tags7c.text = $j("#color-Tags7c-text").val();
+            settings.colors.Tags7c = settings.colors.Tags7c || {};
+            settings.colors.Tags7c.background = $j("#color-Tags7c-bg").length ? $j("#color-Tags7c-bg").val() : (settings.colors.Tags7c.background || "");
+            settings.colors.Tags7c.text = $j("#color-Tags7c-text").length ? $j("#color-Tags7c-text").val() : (settings.colors.Tags7c.text || "");
             settings.colors.Tags7c.border = "#000000";
+            settings.colors.Tags7c.outlineColor = $j("#outline-Tags7c-color").length ? $j("#outline-Tags7c-color").val() : (settings.colors.Tags7c.outlineColor || "");
+            settings.colors.Tags7c.outlineStyle = $j("#outline-Tags7c-style").length ? $j("#outline-Tags7c-style").val() : (settings.colors.Tags7c.outlineStyle || "");
+            settings.colors.Tags7c.outlineWeight = $j("#outline-Tags7c-weight").length ? $j("#outline-Tags7c-weight").val() : (settings.colors.Tags7c.outlineWeight || "");
 
             // Tags7d
-            settings.colors.Tags7d.background = $j("#color-Tags7d-bg").val();
-            settings.colors.Tags7d.text = $j("#color-Tags7d-text").val();
+            settings.colors.Tags7d = settings.colors.Tags7d || {};
+            settings.colors.Tags7d.background = $j("#color-Tags7d-bg").length ? $j("#color-Tags7d-bg").val() : (settings.colors.Tags7d.background || "");
+            settings.colors.Tags7d.text = $j("#color-Tags7d-text").length ? $j("#color-Tags7d-text").val() : (settings.colors.Tags7d.text || "");
             settings.colors.Tags7d.border = "#000000";
+            settings.colors.Tags7d.outlineColor = $j("#outline-Tags7d-color").length ? $j("#outline-Tags7d-color").val() : (settings.colors.Tags7d.outlineColor || "");
+            settings.colors.Tags7d.outlineStyle = $j("#outline-Tags7d-style").length ? $j("#outline-Tags7d-style").val() : (settings.colors.Tags7d.outlineStyle || "");
+            settings.colors.Tags7d.outlineWeight = $j("#outline-Tags7d-weight").length ? $j("#outline-Tags7d-weight").val() : (settings.colors.Tags7d.outlineWeight || "");
 
             // --- FIXED: Capture updated display names from color table ---
             if (!settings.names) settings.names = {};
-
             $j(".s-conf-color-table tr").each(function () {
                 const $tr = $j(this);
                 const $labelSpan = $tr.find("td:first .name-display");
                 if (!$labelSpan.length) return;
 
                 const label = $labelSpan.text().trim();
-                // Identify the color row type via the color input ID pattern
                 const id = $tr.find("input[id^='color-'][id$='-bg']").attr("id") || "";
                 const match = id.match(/^color-(.+?)-bg$/);
                 if (!match) return;
 
                 const type = match[1];
-                // Map UI types to settings.names keys
-                const nameMap = {
-                    Tags1a: "Tags1a", Tags1b: "Tags1b",
-                    Tags2a: "Tags2a", Tags2b: "Tags2b",
-                    Tags3a: "Tags3a", Tags3b: "Tags3b",
-                    Tags4a: "Tags4a", Tags4b: "Tags4b",
-                    Tags5a: "Tags5a", Tags5b: "Tags5b",
-                    Tags6a: "Tags6a", Tags6b: "Tags6b",
-                    Tags7a: "Tags7a", Tags7b: "Tags7b",
-                    Tags7c: "Tags7c", Tags7d: "Tags7d"
-                };
-
-                const mappedKey = nameMap[type];
-                if (mappedKey && label.length) {
-                    settings.names[mappedKey] = label;
+                if (type && label.length) {
+                    settings.names[type] = label;
                 }
             });
 
@@ -2250,17 +2313,102 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
             //Tag Layout Compact, Normal, Roomy
             settings.tagLayoutStyle = $j("select[name='tagLayoutStyle']").val();
 
-
             // Save and apply
             saveSettings();
             applyCustomColors();
+
+            // Rebuild UI and reliably restore the active tab
+            if (typeof refreshUI === "function") {
+                try {
+                    if (refreshUI.length >= 1) {
+                        // Rebuild UI and reliably restore the active tab
+if (typeof refreshUI === "function") {
+    try {
+        if (refreshUI.length >= 1) {
+            refreshUI(activeTabId);
+        } else {
             refreshUI();
+            // explicit restore if refreshUI can't accept an arg
+            const $liMatch = $j(`.tab-row-container li[data-page="${activeTabId}"]`);
+            if ($liMatch.length) {
+                $liMatch.addClass('s-selected');
+            } else {
+                const $tabMatch = $j(`.s-conf-tab[data-page="${activeTabId}"]`);
+                if ($tabMatch.length) $tabMatch.parent().addClass('s-selected');
+            }
+            if ($j(`#${activeTabId}`).length) {
+                $j(`#${activeTabId}`).addClass('s-selected');
+            } else {
+                $j(`.tab-row-container li[data-page="s-conf-general"]`).addClass('s-selected');
+                $j('#s-conf-general').addClass('s-selected');
+            }
+        }
+    } catch (err) {
+        console.warn("refreshUI call failed, attempting manual restore", err);
+        // manual restore same as fallback above
+        const $liMatch = $j(`.tab-row-container li[data-page="${activeTabId}"]`);
+        if ($liMatch.length) {
+            $liMatch.addClass('s-selected');
+        } else {
+            const $tabMatch = $j(`.s-conf-tab[data-page="${activeTabId}"]`);
+            if ($tabMatch.length) $tabMatch.parent().addClass('s-selected');
+        }
+        if ($j(`#${activeTabId}`).length) {
+            $j(`#${activeTabId}`).addClass('s-selected');
+        } else {
+            $j(`.tab-row-container li[data-page="s-conf-general"]`).addClass('s-selected');
+            $j('#s-conf-general').addClass('s-selected');
+        }
+    }
+}
+                    } else {
+                        refreshUI();
+                        // explicit restore
+                        if (activeTabId) {
+                            $j('.tab-row-container li').removeClass('s-selected');
+                            $j('.s-conf-page').removeClass('s-selected');
+                            // try to select the li with matching data-page first, then the .s-conf-tab, then fallback by id
+                            const $liMatch = $j(`.tab-row-container li[data-page="${activeTabId}"]`);
+                            if ($liMatch.length) {
+                                $liMatch.addClass('s-selected');
+                            } else {
+                                const $tabMatch = $j(`.s-conf-tab[data-page="${activeTabId}"]`);
+                                if ($tabMatch.length) $tabMatch.parent().addClass('s-selected');
+                            }
+                            // restore the page content by id if present, otherwise fallback to general
+                            if ($j(`#${activeTabId}`).length) {
+                                $j(`#${activeTabId}`).addClass('s-selected');
+                            } else {
+                                $j(`.tab-row-container li[data-page="s-conf-general"]`).addClass('s-selected');
+                                $j('#s-conf-general').addClass('s-selected');
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn("refreshUI call failed, attempting manual restore", err);
+                    $j('.tab-row-container li').removeClass('s-selected');
+                    $j('.s-conf-page').removeClass('s-selected');
+                    // try to select the li with matching data-page first, then the .s-conf-tab, then fallback by id
+                    const $liMatch = $j(`.tab-row-container li[data-page="${activeTabId}"]`);
+                    if ($liMatch.length) {
+                        $liMatch.addClass('s-selected');
+                    } else {
+                        const $tabMatch = $j(`.s-conf-tab[data-page="${activeTabId}"]`);
+                        if ($tabMatch.length) $tabMatch.parent().addClass('s-selected');
+                    }
+                    // restore the page content by id if present, otherwise fallback to general
+                    if ($j(`#${activeTabId}`).length) {
+                        $j(`#${activeTabId}`).addClass('s-selected');
+                    } else {
+                        $j(`.tab-row-container li[data-page="s-conf-general"]`).addClass('s-selected');
+                        $j('#s-conf-general').addClass('s-selected');
+                    }
+                }
+            }
 
             $j("select[name='tagLayoutStyle']").val(settings.tagLayoutStyle);
-            // Update Export textarea immediately so it reflects the new settings
             const ta = document.querySelector('#export-settings-textarea');
             if (ta) ta.textContent = JSON.stringify(getSettings());
-
             displayStatus("success", "Settings updated successfully");
         });
         // --- Import button wiring: read textarea, import, refresh UI & export box ---
@@ -2373,51 +2521,84 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
             });
         }
 
-        function refreshUI() {
+        function refreshUI(activeTabId) {
+            // fallback if caller didn't pass an id
+            activeTabId = activeTabId || $j('.tab-row-container li.s-selected .s-conf-tab').data('page') || "s-conf-general";
+
+            // remove old UI and rebuild
             $j('#s-conf-background').remove();
-            initConfig($j(buildSettingsHTML()).prependTo("body"));
-            console.log("🟣 Running refreshUI()"); //debug - Should wrap in toggle
+
+            const rebuilt = $j(buildSettingsHTML()).prependTo("body");
+            initConfig(rebuilt);
+
+            // explicit, deterministic restore of the active tab
+            $j('.tab-row-container li').removeClass('s-selected');
+            $j('.s-conf-page').removeClass('s-selected');
+
+            const $tab = $j(`.s-conf-tab[data-page="${activeTabId}"]`);
+            if ($tab.length) {
+                $tab.parent().addClass('s-selected');
+                $j(`#${activeTabId}`).addClass('s-selected');
+            } else {
+                // fallback to General if the requested tab doesn't exist
+                $j(`.s-conf-tab[data-page="s-conf-general"]`).parent().addClass('s-selected');
+                $j('#s-conf-general').addClass('s-selected');
+            }
+
+            console.log("🟣 Running refreshUI() - restored", activeTabId);
         }
 
 
-
-        // === Real-time color preview updates (fixed) ===
-        $j(document).off("input", "input[type='color']").on("input", "input[type='color']", function () {
+        // === Real-time color and outline preview updates (complete) ===
+        $j(document).off("input change", "input[type='color'], select[id^='outline-'], input[id^='outline-']")
+            .on("input change", "input[type='color'], select[id^='outline-'], input[id^='outline-']", function () {
             const inputId = $j(this).attr("id");
-            const match = inputId.match(/^color-(Tags\d+[a-d])-(bg|text)$/);
-            if (!match) return;
 
-            const [_, tagType, colorType] = match;
+            // Match background/text color
+            const colorMatch = inputId.match(/^color-(Tags\d+[a-d])-(bg|text)$/);
+            // Match outline color/style/weight
+            const outlineMatch = inputId.match(/^outline-(Tags\d+[a-d])-(color|style|weight)$/);
 
-            // Read current picker values
+            if (!colorMatch && !outlineMatch) return;
+
+            const tagType = colorMatch ? colorMatch[1] : outlineMatch[1];
+
+            // Read current values
             const bg = $j(`#color-${tagType}-bg`).val();
             const text = $j(`#color-${tagType}-text`).val();
+            const outlineColor = $j(`#outline-${tagType}-color`).val();
+            const outlineStyle = $j(`#outline-${tagType}-style`).val();
+            const outlineWeight = $j(`#outline-${tagType}-weight`).val();
 
-            // Keep settings in sync immediately
+            // Sync settings
             if (!settings.colors) settings.colors = {};
-            if (!settings.colors[tagType]) settings.colors[tagType] = { background: bg, text: text, border: "#000000" };
+            if (!settings.colors[tagType]) settings.colors[tagType] = {};
             settings.colors[tagType].background = bg;
             settings.colors[tagType].text = text;
-            // border remains whatever is set (save handler sets border to #000)
+            settings.colors[tagType].border = settings.colors[tagType].border || "#000000";
+            settings.colors[tagType].outlineColor = outlineColor;
+            settings.colors[tagType].outlineStyle = outlineStyle;
+            settings.colors[tagType].outlineWeight = outlineWeight;
 
-            // Update the visual sample span (instant)
+            // Update sample tag
             const $sample = $j(`#sample-${tagType}`);
             if ($sample.length) {
                 $sample.css({
                     backgroundColor: bg,
                     color: text,
-                    borderColor: settings.colors[tagType].border || "#000000"
+                    outline: `${outlineWeight} ${outlineStyle} ${outlineColor}`,
+                    outlineOffset: "1px"
                 });
             }
 
-            // Update any buttons that use these classes across the whole page
+            // Update buttons
             $j(".s-add-" + tagType + ", .s-remove-" + tagType).css({
                 backgroundColor: bg,
                 borderColor: settings.colors[tagType].border || "#000000",
                 color: text
             });
 
-            // Rebuild the stylesheet so rules with !important reflect the new colors everywhere
+            // Rebuild stylesheet
             if (typeof applyCustomColors === "function") {
                 applyCustomColors();
             }
@@ -2498,12 +2679,14 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
 
         function updateSamples() {
             for (const [type, c] of Object.entries(settings.colors)) {
-                $j("#sample-" + type)
-                    .css({
+                $j("#sample-" + type).css({
                     "background-color": $j("#color-" + type + "-bg").val(),
                     "color": $j("#color-" + type + "-text").val(),
-                    "border-color": "#000000"
+                    "outline": $j("#outline-" + type + "-weight").val() + " " +
+                    $j("#outline-" + type + "-style").val() + " " +
+                    $j("#outline-" + type + "-color").val()
                 });
+
             }
         }
 
@@ -2990,14 +3173,15 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
 
             // Tag styling (use styleKey so DOM classes .s-Tag1a are targeted)
             css += `
-    span.s-tag.s-${styleKey} {
-        background: ${c.background} !important;
-        border-bottom: 1px solid ${c.border}
-    }
-    span.s-tag.s-${styleKey} > a {
-        color: ${c.text} !important;
-    }
-    `;
+span.s-tag.s-${styleKey} {
+  background: ${c.background} !important;
+  border-bottom: 1px solid ${c.border};
+  outline: ${c.outlineWeight} ${c.outlineStyle} ${c.outlineColor} !important;
+}
+span.s-tag.s-${styleKey} > a {
+  color: ${c.text} !important;
+}
+`;
 
             // Button styling should continue to target the .s-add-<TagsX> / .s-remove-<TagsX> classes
             css += `
