@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.x Beta
 // @namespace    http://tampermonkey.net/
-// @version      2.0.55
+// @version      2.0.57
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -319,7 +319,7 @@ function runScript() {
     // === Theme-based color and saturation overrides ===
     const themeVisualMap = {
         Afterdark:   { green: [100, 180, 100], red: [180, 80, 80], maxAlpha: 0.25 },
-        Deviloid:    { green: [110, 190, 110], red: [190, 90, 90], maxAlpha: 0.35 },
+        Deviloid:    { green: [100, 190, 100], red: [190, 85, 85], maxAlpha: 0.5 },
         WatchDogs:   { green: [120, 200, 120], red: [200, 100, 100], maxAlpha: 0.4 },
         Hempornium:  { green: [130, 210, 130], red: [210, 110, 110], maxAlpha: 0.25 },
         Light:       { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 },
@@ -433,19 +433,18 @@ function runScript() {
 
                 .s-browse-tag-holder .s-tag {
                     display: inline-block;
-                    padding: 1px 2px !important;
+                    padding: 0px 2px !important;
                     margin: 1px 2px !important;
                     font-size: 13px !important;
                     line-height: 1.4 !important;
                     vertical-align: baseline !important;
                     box-sizing: border-box !important;
-                    border-bottom: 0px !important;
                     outline: 0px solid gray !important;
                 }
 
                 .s-tag a {
                     display: inline-block;
-                    padding: 0px !important;
+                    padding: 0px 2px !important;
                     margin: 3px 0px !important;
                     font-size: 13px !important;
                     line-height: 1.4 !important;
@@ -472,19 +471,18 @@ function runScript() {
 
                 .s-browse-tag-holder .s-tag {
                     display: inline-block;
-                    padding: 1px 2px !important;
+                    padding: 0px 2px !important;
                     margin: 1px 1px !important;
                     font-size: 13px !important;
                     line-height: 1.3 !important;
                     vertical-align: baseline !important;
                     box-sizing: border-box !important;
-                    border-bottom: 0px !important;
                     outline: 0px solid gray !important;
                 }
 
                 .s-tag a {
                     display: inline-block;
-                    padding: 0px !important;
+                    padding: 0px 2px !important;
                     margin: 3px 0px !important;
                     font-size: 13px !important;
                     line-height: 1.3 !important;
@@ -1042,6 +1040,57 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
         }
     }());
 
+    // === Unified UI Refresh ===
+    // Rebuilds the settings UI and restores the currently active tab safely.
+    let isRefreshing = false;
+    function refreshUI(activeTabId) {
+        if (isRefreshing) {
+            console.warn("⏳ refreshUI() called while already refreshing — skipped.");
+            return;
+        }
+        isRefreshing = true;
+
+        try {
+            // Default to currently selected tab, or fall back to General
+            activeTabId =
+                activeTabId ||
+                $j(".tab-row-container li.s-selected").data("page") ||
+                "s-conf-general";
+
+            console.group("🔄 refreshUI()");
+            console.log("Restoring active tab:", activeTabId);
+
+            // Remove old config panel to prevent duplicates
+            $j("#s-conf-background").remove();
+
+            // Rebuild settings HTML and reinitialize
+            const rebuilt = $j(buildSettingsHTML()).prependTo("body");
+            initConfig(rebuilt);
+
+            // Restore tab state
+            $j(".tab-row-container li, .s-conf-page").removeClass("s-selected");
+            const $tab = $j(`.tab-row-container li[data-page='${activeTabId}']`);
+            const $page = $j(`#${activeTabId}`);
+
+            if ($tab.length && $page.length) {
+                $tab.addClass("s-selected");
+                $page.addClass("s-selected");
+            } else {
+                console.warn("⚠️ Could not restore tab:", activeTabId, "— defaulting to General");
+                $j(".tab-row-container li[data-page='s-conf-general']").addClass("s-selected");
+                $j("#s-conf-general").addClass("s-selected");
+            }
+
+            console.log("✅ UI rebuild complete");
+            console.groupEnd();
+        } catch (err) {
+            console.error("💥 refreshUI() failed:", err);
+        } finally {
+            isRefreshing = false;
+        }
+    }
+
+
     // --- Page Processor: Browse/Lists ---
     // Handles torrent, collage, and request listing pages.
     // Highlights tags, applies coloring, and hides blacklisted/ignored torrents.
@@ -1267,6 +1316,7 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                     });
                 }
             }
+
 
             if (settings.disableItalics) {
                 document.querySelectorAll(".tags.s-browse-tag-holder").forEach(div => {
@@ -2140,150 +2190,31 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
             if (!settings.names) settings.names = {};
 
             // --- Explicit per-tag assignments (exact reads you had originally) ---
-            // Tags1a
-            settings.colors.Tags1a = settings.colors.Tags1a || {};
-            settings.colors.Tags1a.background = $j("#color-Tags1a-bg").length ? $j("#color-Tags1a-bg").val() : (settings.colors.Tags1a.background || "");
-            settings.colors.Tags1a.text = $j("#color-Tags1a-text").length ? $j("#color-Tags1a-text").val() : (settings.colors.Tags1a.text || "");
-            settings.colors.Tags1a.border = "#000000";
-            settings.colors.Tags1a.outlineColor = $j("#outline-Tags1a-color").length ? $j("#outline-Tags1a-color").val() : (settings.colors.Tags1a.outlineColor || "");
-            settings.colors.Tags1a.outlineStyle = $j("#outline-Tags1a-style").length ? $j("#outline-Tags1a-style").val() : (settings.colors.Tags1a.outlineStyle || "");
-            settings.colors.Tags1a.outlineWeight = $j("#outline-Tags1a-weight").length ? $j("#outline-Tags1a-weight").val() : (settings.colors.Tags1a.outlineWeight || "");
+            // list of tags you want to persist (keeps ordering explicit and auditable)
+            const tagKeys = [
+                "Tags1a","Tags1b","Tags2a","Tags2b","Tags3a","Tags3b",
+                "Tags4a","Tags4b","Tags5a","Tags5b","Tags6a","Tags6b",
+                "Tags7a","Tags7b","Tags7c","Tags7d"
+            ];
 
-            // Tags1b
-            settings.colors.Tags1b = settings.colors.Tags1b || {};
-            settings.colors.Tags1b.background = $j("#color-Tags1b-bg").length ? $j("#color-Tags1b-bg").val() : (settings.colors.Tags1b.background || "");
-            settings.colors.Tags1b.text = $j("#color-Tags1b-text").length ? $j("#color-Tags1b-text").val() : (settings.colors.Tags1b.text || "");
-            settings.colors.Tags1b.border = "#000000";
-            settings.colors.Tags1b.outlineColor = $j("#outline-Tags1b-color").length ? $j("#outline-Tags1b-color").val() : (settings.colors.Tags1b.outlineColor || "");
-            settings.colors.Tags1b.outlineStyle = $j("#outline-Tags1b-style").length ? $j("#outline-Tags1b-style").val() : (settings.colors.Tags1b.outlineStyle || "");
-            settings.colors.Tags1b.outlineWeight = $j("#outline-Tags1b-weight").length ? $j("#outline-Tags1b-weight").val() : (settings.colors.Tags1b.outlineWeight || "");
+            // small helper to read an input value or keep the existing fallback
+            function readOrKeep(selector, fallback) {
+                const $el = $j(selector);
+                return $el.length ? $el.val() : (fallback || "");
+            }
 
-            // Tags2a
-            settings.colors.Tags2a = settings.colors.Tags2a || {};
-            settings.colors.Tags2a.background = $j("#color-Tags2a-bg").length ? $j("#color-Tags2a-bg").val() : (settings.colors.Tags2a.background || "");
-            settings.colors.Tags2a.text = $j("#color-Tags2a-text").length ? $j("#color-Tags2a-text").val() : (settings.colors.Tags2a.text || "");
-            settings.colors.Tags2a.border = "#000000";
-            settings.colors.Tags2a.outlineColor = $j("#outline-Tags2a-color").length ? $j("#outline-Tags2a-color").val() : (settings.colors.Tags2a.outlineColor || "");
-            settings.colors.Tags2a.outlineStyle = $j("#outline-Tags2a-style").length ? $j("#outline-Tags2a-style").val() : (settings.colors.Tags2a.outlineStyle || "");
-            settings.colors.Tags2a.outlineWeight = $j("#outline-Tags2a-weight").length ? $j("#outline-Tags2a-weight").val() : (settings.colors.Tags2a.outlineWeight || "");
+            // ensure settings.colors exists
+            settings.colors = settings.colors || {};
 
-            // Tags2b
-            settings.colors.Tags2b = settings.colors.Tags2b || {};
-            settings.colors.Tags2b.background = $j("#color-Tags2b-bg").length ? $j("#color-Tags2b-bg").val() : (settings.colors.Tags2b.background || "");
-            settings.colors.Tags2b.text = $j("#color-Tags2b-text").length ? $j("#color-Tags2b-text").val() : (settings.colors.Tags2b.text || "");
-            settings.colors.Tags2b.border = "#000000";
-            settings.colors.Tags2b.outlineColor = $j("#outline-Tags2b-color").length ? $j("#outline-Tags2b-color").val() : (settings.colors.Tags2b.outlineColor || "");
-            settings.colors.Tags2b.outlineStyle = $j("#outline-Tags2b-style").length ? $j("#outline-Tags2b-style").val() : (settings.colors.Tags2b.outlineStyle || "");
-            settings.colors.Tags2b.outlineWeight = $j("#outline-Tags2b-weight").length ? $j("#outline-Tags2b-weight").val() : (settings.colors.Tags2b.outlineWeight || "");
-
-            // Tags3a
-            settings.colors.Tags3a = settings.colors.Tags3a || {};
-            settings.colors.Tags3a.background = $j("#color-Tags3a-bg").length ? $j("#color-Tags3a-bg").val() : (settings.colors.Tags3a.background || "");
-            settings.colors.Tags3a.text = $j("#color-Tags3a-text").length ? $j("#color-Tags3a-text").val() : (settings.colors.Tags3a.text || "");
-            settings.colors.Tags3a.border = "#000000";
-            settings.colors.Tags3a.outlineColor = $j("#outline-Tags3a-color").length ? $j("#outline-Tags3a-color").val() : (settings.colors.Tags3a.outlineColor || "");
-            settings.colors.Tags3a.outlineStyle = $j("#outline-Tags3a-style").length ? $j("#outline-Tags3a-style").val() : (settings.colors.Tags3a.outlineStyle || "");
-            settings.colors.Tags3a.outlineWeight = $j("#outline-Tags3a-weight").length ? $j("#outline-Tags3a-weight").val() : (settings.colors.Tags3a.outlineWeight || "");
-
-            // Tags3b
-            settings.colors.Tags3b = settings.colors.Tags3b || {};
-            settings.colors.Tags3b.background = $j("#color-Tags3b-bg").length ? $j("#color-Tags3b-bg").val() : (settings.colors.Tags3b.background || "");
-            settings.colors.Tags3b.text = $j("#color-Tags3b-text").length ? $j("#color-Tags3b-text").val() : (settings.colors.Tags3b.text || "");
-            settings.colors.Tags3b.border = "#000000";
-            settings.colors.Tags3b.outlineColor = $j("#outline-Tags3b-color").length ? $j("#outline-Tags3b-color").val() : (settings.colors.Tags3b.outlineColor || "");
-            settings.colors.Tags3b.outlineStyle = $j("#outline-Tags3b-style").length ? $j("#outline-Tags3b-style").val() : (settings.colors.Tags3b.outlineStyle || "");
-            settings.colors.Tags3b.outlineWeight = $j("#outline-Tags3b-weight").length ? $j("#outline-Tags3b-weight").val() : (settings.colors.Tags3b.outlineWeight || "");
-
-            // Tags4a
-            settings.colors.Tags4a = settings.colors.Tags4a || {};
-            settings.colors.Tags4a.background = $j("#color-Tags4a-bg").length ? $j("#color-Tags4a-bg").val() : (settings.colors.Tags4a.background || "");
-            settings.colors.Tags4a.text = $j("#color-Tags4a-text").length ? $j("#color-Tags4a-text").val() : (settings.colors.Tags4a.text || "");
-            settings.colors.Tags4a.border = "#000000";
-            settings.colors.Tags4a.outlineColor = $j("#outline-Tags4a-color").length ? $j("#outline-Tags4a-color").val() : (settings.colors.Tags4a.outlineColor || "");
-            settings.colors.Tags4a.outlineStyle = $j("#outline-Tags4a-style").length ? $j("#outline-Tags4a-style").val() : (settings.colors.Tags4a.outlineStyle || "");
-            settings.colors.Tags4a.outlineWeight = $j("#outline-Tags4a-weight").length ? $j("#outline-Tags4a-weight").val() : (settings.colors.Tags4a.outlineWeight || "");
-
-            // Tags4b
-            settings.colors.Tags4b = settings.colors.Tags4b || {};
-            settings.colors.Tags4b.background = $j("#color-Tags4b-bg").length ? $j("#color-Tags4b-bg").val() : (settings.colors.Tags4b.background || "");
-            settings.colors.Tags4b.text = $j("#color-Tags4b-text").length ? $j("#color-Tags4b-text").val() : (settings.colors.Tags4b.text || "");
-            settings.colors.Tags4b.border = "#000000";
-            settings.colors.Tags4b.outlineColor = $j("#outline-Tags4b-color").length ? $j("#outline-Tags4b-color").val() : (settings.colors.Tags4b.outlineColor || "");
-            settings.colors.Tags4b.outlineStyle = $j("#outline-Tags4b-style").length ? $j("#outline-Tags4b-style").val() : (settings.colors.Tags4b.outlineStyle || "");
-            settings.colors.Tags4b.outlineWeight = $j("#outline-Tags4b-weight").length ? $j("#outline-Tags4b-weight").val() : (settings.colors.Tags4b.outlineWeight || "");
-
-            // Tags5a
-            settings.colors.Tags5a = settings.colors.Tags5a || {};
-            settings.colors.Tags5a.background = $j("#color-Tags5a-bg").length ? $j("#color-Tags5a-bg").val() : (settings.colors.Tags5a.background || "");
-            settings.colors.Tags5a.text = $j("#color-Tags5a-text").length ? $j("#color-Tags5a-text").val() : (settings.colors.Tags5a.text || "");
-            settings.colors.Tags5a.border = "#000000";
-            settings.colors.Tags5a.outlineColor = $j("#outline-Tags5a-color").length ? $j("#outline-Tags5a-color").val() : (settings.colors.Tags5a.outlineColor || "");
-            settings.colors.Tags5a.outlineStyle = $j("#outline-Tags5a-style").length ? $j("#outline-Tags5a-style").val() : (settings.colors.Tags5a.outlineStyle || "");
-            settings.colors.Tags5a.outlineWeight = $j("#outline-Tags5a-weight").length ? $j("#outline-Tags5a-weight").val() : (settings.colors.Tags5a.outlineWeight || "");
-
-            // Tags5b
-            settings.colors.Tags5b = settings.colors.Tags5b || {};
-            settings.colors.Tags5b.background = $j("#color-Tags5b-bg").length ? $j("#color-Tags5b-bg").val() : (settings.colors.Tags5b.background || "");
-            settings.colors.Tags5b.text = $j("#color-Tags5b-text").length ? $j("#color-Tags5b-text").val() : (settings.colors.Tags5b.text || "");
-            settings.colors.Tags5b.border = "#000000";
-            settings.colors.Tags5b.outlineColor = $j("#outline-Tags5b-color").length ? $j("#outline-Tags5b-color").val() : (settings.colors.Tags5b.outlineColor || "");
-            settings.colors.Tags5b.outlineStyle = $j("#outline-Tags5b-style").length ? $j("#outline-Tags5b-style").val() : (settings.colors.Tags5b.outlineStyle || "");
-            settings.colors.Tags5b.outlineWeight = $j("#outline-Tags5b-weight").length ? $j("#outline-Tags5b-weight").val() : (settings.colors.Tags5b.outlineWeight || "");
-
-            // Tags6a
-            settings.colors.Tags6a = settings.colors.Tags6a || {};
-            settings.colors.Tags6a.background = $j("#color-Tags6a-bg").length ? $j("#color-Tags6a-bg").val() : (settings.colors.Tags6a.background || "");
-            settings.colors.Tags6a.text = $j("#color-Tags6a-text").length ? $j("#color-Tags6a-text").val() : (settings.colors.Tags6a.text || "");
-            settings.colors.Tags6a.border = "#000000";
-            settings.colors.Tags6a.outlineColor = $j("#outline-Tags6a-color").length ? $j("#outline-Tags6a-color").val() : (settings.colors.Tags6a.outlineColor || "");
-            settings.colors.Tags6a.outlineStyle = $j("#outline-Tags6a-style").length ? $j("#outline-Tags6a-style").val() : (settings.colors.Tags6a.outlineStyle || "");
-            settings.colors.Tags6a.outlineWeight = $j("#outline-Tags6a-weight").length ? $j("#outline-Tags6a-weight").val() : (settings.colors.Tags6a.outlineWeight || "");
-
-            // Tags6b
-            settings.colors.Tags6b = settings.colors.Tags6b || {};
-            settings.colors.Tags6b.background = $j("#color-Tags6b-bg").length ? $j("#color-Tags6b-bg").val() : (settings.colors.Tags6b.background || "");
-            settings.colors.Tags6b.text = $j("#color-Tags6b-text").length ? $j("#color-Tags6b-text").val() : (settings.colors.Tags6b.text || "");
-            settings.colors.Tags6b.border = "#000000";
-            settings.colors.Tags6b.outlineColor = $j("#outline-Tags6b-color").length ? $j("#outline-Tags6b-color").val() : (settings.colors.Tags6b.outlineColor || "");
-            settings.colors.Tags6b.outlineStyle = $j("#outline-Tags6b-style").length ? $j("#outline-Tags6b-style").val() : (settings.colors.Tags6b.outlineStyle || "");
-            settings.colors.Tags6b.outlineWeight = $j("#outline-Tags6b-weight").length ? $j("#outline-Tags6b-weight").val() : (settings.colors.Tags6b.outlineWeight || "");
-
-            // Tags7a
-            settings.colors.Tags7a = settings.colors.Tags7a || {};
-            settings.colors.Tags7a.background = $j("#color-Tags7a-bg").length ? $j("#color-Tags7a-bg").val() : (settings.colors.Tags7a.background || "");
-            settings.colors.Tags7a.text = $j("#color-Tags7a-text").length ? $j("#color-Tags7a-text").val() : (settings.colors.Tags7a.text || "");
-            settings.colors.Tags7a.border = "#000000";
-            settings.colors.Tags7a.outlineColor = $j("#outline-Tags7a-color").length ? $j("#outline-Tags7a-color").val() : (settings.colors.Tags7a.outlineColor || "");
-            settings.colors.Tags7a.outlineStyle = $j("#outline-Tags7a-style").length ? $j("#outline-Tags7a-style").val() : (settings.colors.Tags7a.outlineStyle || "");
-            settings.colors.Tags7a.outlineWeight = $j("#outline-Tags7a-weight").length ? $j("#outline-Tags7a-weight").val() : (settings.colors.Tags7a.outlineWeight || "");
-
-            // Tags7b
-            settings.colors.Tags7b = settings.colors.Tags7b || {};
-            settings.colors.Tags7b.background = $j("#color-Tags7b-bg").length ? $j("#color-Tags7b-bg").val() : (settings.colors.Tags7b.background || "");
-            settings.colors.Tags7b.text = $j("#color-Tags7b-text").length ? $j("#color-Tags7b-text").val() : (settings.colors.Tags7b.text || "");
-            settings.colors.Tags7b.border = "#000000";
-            settings.colors.Tags7b.outlineColor = $j("#outline-Tags7b-color").length ? $j("#outline-Tags7b-color").val() : (settings.colors.Tags7b.outlineColor || "");
-            settings.colors.Tags7b.outlineStyle = $j("#outline-Tags7b-style").length ? $j("#outline-Tags7b-style").val() : (settings.colors.Tags7b.outlineStyle || "");
-            settings.colors.Tags7b.outlineWeight = $j("#outline-Tags7b-weight").length ? $j("#outline-Tags7b-weight").val() : (settings.colors.Tags7b.outlineWeight || "");
-
-            // Tags7c
-            settings.colors.Tags7c = settings.colors.Tags7c || {};
-            settings.colors.Tags7c.background = $j("#color-Tags7c-bg").length ? $j("#color-Tags7c-bg").val() : (settings.colors.Tags7c.background || "");
-            settings.colors.Tags7c.text = $j("#color-Tags7c-text").length ? $j("#color-Tags7c-text").val() : (settings.colors.Tags7c.text || "");
-            settings.colors.Tags7c.border = "#000000";
-            settings.colors.Tags7c.outlineColor = $j("#outline-Tags7c-color").length ? $j("#outline-Tags7c-color").val() : (settings.colors.Tags7c.outlineColor || "");
-            settings.colors.Tags7c.outlineStyle = $j("#outline-Tags7c-style").length ? $j("#outline-Tags7c-style").val() : (settings.colors.Tags7c.outlineStyle || "");
-            settings.colors.Tags7c.outlineWeight = $j("#outline-Tags7c-weight").length ? $j("#outline-Tags7c-weight").val() : (settings.colors.Tags7c.outlineWeight || "");
-
-            // Tags7d
-            settings.colors.Tags7d = settings.colors.Tags7d || {};
-            settings.colors.Tags7d.background = $j("#color-Tags7d-bg").length ? $j("#color-Tags7d-bg").val() : (settings.colors.Tags7d.background || "");
-            settings.colors.Tags7d.text = $j("#color-Tags7d-text").length ? $j("#color-Tags7d-text").val() : (settings.colors.Tags7d.text || "");
-            settings.colors.Tags7d.border = "#000000";
-            settings.colors.Tags7d.outlineColor = $j("#outline-Tags7d-color").length ? $j("#outline-Tags7d-color").val() : (settings.colors.Tags7d.outlineColor || "");
-            settings.colors.Tags7d.outlineStyle = $j("#outline-Tags7d-style").length ? $j("#outline-Tags7d-style").val() : (settings.colors.Tags7d.outlineStyle || "");
-            settings.colors.Tags7d.outlineWeight = $j("#outline-Tags7d-weight").length ? $j("#outline-Tags7d-weight").val() : (settings.colors.Tags7d.outlineWeight || "");
-
+            tagKeys.forEach(key => {
+                const node = settings.colors[key] = settings.colors[key] || {};
+                node.background = readOrKeep(`#color-${key}-bg`, node.background);
+                node.text = readOrKeep(`#color-${key}-text`, node.text);
+                node.border = "#000000"; // constant as before
+                node.outlineColor = readOrKeep(`#outline-${key}-color`, node.outlineColor);
+                node.outlineStyle = readOrKeep(`#outline-${key}-style`, node.outlineStyle);
+                node.outlineWeight = readOrKeep(`#outline-${key}-weight`, node.outlineWeight);
+            });
             // --- FIXED: Capture updated display names from color table ---
             if (!settings.names) settings.names = {};
             $j(".s-conf-color-table tr").each(function () {
@@ -2317,94 +2248,6 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
             saveSettings();
             applyCustomColors();
 
-            // Rebuild UI and reliably restore the active tab
-            if (typeof refreshUI === "function") {
-                try {
-                    if (refreshUI.length >= 1) {
-                        // Rebuild UI and reliably restore the active tab
-if (typeof refreshUI === "function") {
-    try {
-        if (refreshUI.length >= 1) {
-            refreshUI(activeTabId);
-        } else {
-            refreshUI();
-            // explicit restore if refreshUI can't accept an arg
-            const $liMatch = $j(`.tab-row-container li[data-page="${activeTabId}"]`);
-            if ($liMatch.length) {
-                $liMatch.addClass('s-selected');
-            } else {
-                const $tabMatch = $j(`.s-conf-tab[data-page="${activeTabId}"]`);
-                if ($tabMatch.length) $tabMatch.parent().addClass('s-selected');
-            }
-            if ($j(`#${activeTabId}`).length) {
-                $j(`#${activeTabId}`).addClass('s-selected');
-            } else {
-                $j(`.tab-row-container li[data-page="s-conf-general"]`).addClass('s-selected');
-                $j('#s-conf-general').addClass('s-selected');
-            }
-        }
-    } catch (err) {
-        console.warn("refreshUI call failed, attempting manual restore", err);
-        // manual restore same as fallback above
-        const $liMatch = $j(`.tab-row-container li[data-page="${activeTabId}"]`);
-        if ($liMatch.length) {
-            $liMatch.addClass('s-selected');
-        } else {
-            const $tabMatch = $j(`.s-conf-tab[data-page="${activeTabId}"]`);
-            if ($tabMatch.length) $tabMatch.parent().addClass('s-selected');
-        }
-        if ($j(`#${activeTabId}`).length) {
-            $j(`#${activeTabId}`).addClass('s-selected');
-        } else {
-            $j(`.tab-row-container li[data-page="s-conf-general"]`).addClass('s-selected');
-            $j('#s-conf-general').addClass('s-selected');
-        }
-    }
-}
-                    } else {
-                        refreshUI();
-                        // explicit restore
-                        if (activeTabId) {
-                            $j('.tab-row-container li').removeClass('s-selected');
-                            $j('.s-conf-page').removeClass('s-selected');
-                            // try to select the li with matching data-page first, then the .s-conf-tab, then fallback by id
-                            const $liMatch = $j(`.tab-row-container li[data-page="${activeTabId}"]`);
-                            if ($liMatch.length) {
-                                $liMatch.addClass('s-selected');
-                            } else {
-                                const $tabMatch = $j(`.s-conf-tab[data-page="${activeTabId}"]`);
-                                if ($tabMatch.length) $tabMatch.parent().addClass('s-selected');
-                            }
-                            // restore the page content by id if present, otherwise fallback to general
-                            if ($j(`#${activeTabId}`).length) {
-                                $j(`#${activeTabId}`).addClass('s-selected');
-                            } else {
-                                $j(`.tab-row-container li[data-page="s-conf-general"]`).addClass('s-selected');
-                                $j('#s-conf-general').addClass('s-selected');
-                            }
-                        }
-                    }
-                } catch (err) {
-                    console.warn("refreshUI call failed, attempting manual restore", err);
-                    $j('.tab-row-container li').removeClass('s-selected');
-                    $j('.s-conf-page').removeClass('s-selected');
-                    // try to select the li with matching data-page first, then the .s-conf-tab, then fallback by id
-                    const $liMatch = $j(`.tab-row-container li[data-page="${activeTabId}"]`);
-                    if ($liMatch.length) {
-                        $liMatch.addClass('s-selected');
-                    } else {
-                        const $tabMatch = $j(`.s-conf-tab[data-page="${activeTabId}"]`);
-                        if ($tabMatch.length) $tabMatch.parent().addClass('s-selected');
-                    }
-                    // restore the page content by id if present, otherwise fallback to general
-                    if ($j(`#${activeTabId}`).length) {
-                        $j(`#${activeTabId}`).addClass('s-selected');
-                    } else {
-                        $j(`.tab-row-container li[data-page="s-conf-general"]`).addClass('s-selected');
-                        $j('#s-conf-general').addClass('s-selected');
-                    }
-                }
-            }
 
             $j("select[name='tagLayoutStyle']").val(settings.tagLayoutStyle);
             const ta = document.querySelector('#export-settings-textarea');
@@ -3714,3 +3557,4 @@ function addJQuery(callback) {
 
 
 })();
+// This is the end of this file.
