@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.5.x Beta
 // @namespace    http://tampermonkey.net/
-// @version      2.5.43
+// @version      2.5.50
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -90,6 +90,21 @@ function runScript() {
     const isPornbay = currentHost.includes('pornbay');
 
 
+    // Hosts that should NOT use 3-column tag splitting on detials page.
+    const EXCLUDED_SPLIT_HOSTS = new Set([
+        'happyfappy.org',
+        'www.happyfappy.org',
+    ]);
+
+
+    // Define globally so all IIFEs/functions can access
+    window.shouldSkipTagSplit = function () {
+        const host = (window.location.hostname || '').toLowerCase();
+        // Skip the 3-column split on happyfappy.org and any subdomain
+        return host === 'happyfappy.org' || host.endsWith('.happyfappy.org');
+    };
+
+
     // === Global list of all tag keys (used for dynamic code generation) ===
     const ALL_TAGS_KEYS = [
         "Tags1a", "Tags1b", "Tags1c", "Tags2a", "Tags2b", "Tags2c", "Tags3a", "Tags3b", "Tags3c", "Tags4a", "Tags4b", "Tags4c",
@@ -153,6 +168,8 @@ function runScript() {
         disableItalics: false,
         roomierTags: false,
         tagLayoutStyle: "normal",
+        //Site Specific
+        hfBetterBubblegum: false,
 
 
         //--- Tag types to enable - Dynamically generated above - Default: false ---
@@ -477,6 +494,9 @@ function runScript() {
     themeStyles.find(url => url.includes("/rochelle/style.css")) ? "Rochelle" :
     themeStyles.find(url => url.includes("/sarandafl/style.css")) ? "Sarandafl" :
     themeStyles.find(url => url.includes("/empornium/style.css")) ? "Empornium" :
+    // HappyFappy
+    themeStyles.find(url => url.includes("/standard/style.css")) ? "Standard" :
+    themeStyles.find(url => url.includes("/bubblegum/style.css")) ? "Bubblegum" :
     "unknown";
     // Debug - Output Theme to Console
     console.log("🧩 Detected theme from stylesheet:", currentTheme);
@@ -495,9 +515,24 @@ function runScript() {
         Rochelle:    { green: [135, 215, 135], red: [225, 115, 115], maxAlpha: 0.5 },
         Sarandafl:   { green: [130, 210, 130], red: [220, 110, 110], maxAlpha: 0.5 },
         Empornium:   { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.7 },
+        Standard:    { green: [50, 90, 50], red: [100, 50, 50], maxAlpha: 0.5 },
         unknown:     { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 }
     };
 
+        // --- HappyFappy - Adjust Bublegum Theme Colors
+    if (settings.hfBetterBubblegum) {
+        if (currentTheme === "Bubblegum") {
+            const style = document.createElement("style");
+            style.id = "Bubblegum-theme-fix";
+            style.textContent = `body {background-color: #FCFCFC;}
+            input[type=submit], input[type=button], button {background: #eee};
+            input[type=submit]:hover, input[type=button]:hover, button:hover {background: #eee !important}
+            input[type=submit]:hover, input[type=button]:hover, button:hover {background-color:#dadada !important; background-image:none !important; color:#111 !important;}
+            #header, #modal_content {background-color: rgba(70,120,170,1);}
+            #searchbars input.searchbox::-webkit-input-placeholder { color: #fff; opacity: 1;}`;
+            document.head.appendChild(style);
+        }
+    }
 
     // Default numeric values for tag effect on percent bar and torrent coloring
     // Migration: old categories → numeric values From 2.0
@@ -565,6 +600,8 @@ function runScript() {
     })();
 
 
+
+
     // === Adjust Tags for Compact, Normal, or Roomy layouts. ===
     // --- Compact is most similat to 0.7
     (function applyTagLayoutStyle() {
@@ -589,6 +626,7 @@ function runScript() {
         .s-tag a { padding: 0px !important; margin: 1px 0px !important; font-size: 12px !important; line-height: 1.3 !important; }
         #torrent_tags_list li { margin: 1px 10px; }
         #torrent_tags_list li .s-tag a { font-size: 11px !important; line-height: 1.2 !important; padding: 0px 1px 1px 0px !important; }
+        #taglist-container .box_tags #torrent_tags li {height: 18px}
         `;
                 break;
 
@@ -599,6 +637,7 @@ function runScript() {
         .s-tag a { padding: 0px 2px !important; margin: 3px 0px !important; font-size: 13px !important; line-height: 1.3 !important; }
         #torrent_tags_list li { margin: 3px 10px; }
         #torrent_tags_list li .s-tag a { font-size: 13px !important; line-height: 1.2 !important; padding: 2px 3px !important; }
+        #taglist-container .box_tags #torrent_tags li {height: 24px}
         `;
                 break;
 
@@ -609,6 +648,7 @@ function runScript() {
         .s-tag a { padding: 1px 4px !important; margin: 0px 0px !important; font-size: 13px !important; line-height: 1.3 !important; }
         #torrent_tags_list li { margin: 3px 10px; }
         #torrent_tags_list li .s-tag a { font-size: 13px !important; line-height: 1 !important; padding: 0px 1px 1px 0px !important; }
+        #taglist-container .box_tags #torrent_tags li {height: 22px}
         `;
                 break;
         }
@@ -844,8 +884,13 @@ function runScript() {
             "<label title='Removes italics from tags (Torrent List Page)'>" +
             "<input class='s-conf-gen-checkbox' type='checkbox' name='disableItalics'/> Disable Italic Tags (List Page)</label>" +
             "</div>" +
-
-            "</div>"+
+            "<h2 style='display:flex; align-items:center; justify-content:space-between; gap:8px;'>Site Specific Options:</h2>" +
+            "<div class='site-options'>" +
+            // ✅ Change tags to not use the default italics font.
+            "<label title='Applies more neutral colors to the happyfappy light theme - Bubblegum'>" +
+            "<input class='s-conf-gen-checkbox' type='checkbox' name='hfBetterBubblegum'/> HappyFappy - Neutral Bubblegum Theme</label>" +
+            "</div>" +
+            "</div>" +
 
             // --- 📄 Tag Style Page
             "<div class='s-conf-page' id='s-conf-tag-styles'>" +
@@ -1006,9 +1051,15 @@ function runScript() {
       <style type="text/css">
         #torrent_tags>li{border-bottom:1px solid #999; padding-bottom:2px;}
 
+        #s-conf-form {display:block; background:#fff; padding:15px; min-height: 350px;}
+        #s-conf-form label {display:block;}
+        #s-conf-form, #s-conf-form select, #s-conf-form input {background: #eee;}
+        #s-conf-close, #s-conf-save-general {background: #eee;}
+        #export-settings-textarea, #import-settings-textarea {background: #eee; color: black}
+
         .s-conf-tag-table {border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 12px; line-height: 1.1;table-layout: auto;}
         .s-conf-tag-table th, .s-conf-tag-table td { border: 1px solid #ccc; padding: 1px 4px; text-align: Center}
-        .s-conf-tag-table th {background: #eee;}
+        .s-conf-tag-table th, .s-conf-tag-table tr, .s-conf-tag-table tr input, .s-conf-tag-table tr select {background: #eee;}
         .s-conf-tag-table th:first-child, .s-conf-tag-table td:first-child { width: 26px; text-align: center; padding: 0; }
         .s-conf-tag-table input[type='checkbox'] { transform: scale(1.1); margin: 0; vertical-align: middle; }
         .s-conf-tag-table select.tag-value-select { font-size: 11px; padding: 1px 1px; }
@@ -1016,9 +1067,14 @@ function runScript() {
         .s-conf-tag-table td:nth-child(5) { text-align: center; }
 
 
-        .torrent-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 35px 20px 20px 20px; }
+        .torrent-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 20px 20px 20px 20px; }
         .torrent-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 20px 20px 20px; }
         .torrent-options label { display: flex; align-items: center; white-space: nowrap; }
+
+        .site-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 20px 20px 20px 20px; }
+        .site-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 20px 20px 20px; }
+        .site-options label { display: flex; align-items: center; white-space: nowrap; }
+
       /* Info button */
         .info-btn { cursor: pointer; font-size: 14px; border: none; background: none; color: #444; padding: 0; line-height: 1;}
         .info-btn:hover { color: #000; }
@@ -1055,8 +1111,7 @@ function runScript() {
         .tab-row-container a:hover { text-decoration:none; color: black;}
         .tab-row-container li:hover {background-color: white;}
         .tab-row-container li.s-selected {background-color:#fff;text-decoration:none; color:black}
-        #s-conf-form{display:block; background:#fff; padding:15px; min-height: 350px;}
-        #s-conf-form label{display:block;}
+
         .s-conf-buttons{display: flex; justify-content: center; margin-top:10px; width:100%; gap: 12px; text-align:center;}
         .s-conf-page{display:none;}
         .s-conf-page.s-selected{display:block;}
@@ -1152,7 +1207,10 @@ function runScript() {
       </style>
     `;
 
+    // =========================================================
     // --- Per Theme Special Styling for Torrent Coloring ---
+    // =========================================================
+
     // --- Remove Background for "Minimal" theme ---
     if (settings.useTorrentColoring) {
         //debug
@@ -1165,25 +1223,25 @@ function runScript() {
         }
     }
 
-    // --- Remove Background for "Minimal" theme ---
+    // --- Watch Dogs, Standard --
+    if (currentTheme === "WatchDogs" || currentTheme === "Standard") {
+        console.log ("Current Theme: ", currentTheme)
+        console.log (" Applying Custom Settings for Watchdogs / Standard Theme");
+        const style = document.createElement("style");
+        style.id = "WatchDogs-theme-fix";
 
-
-if (currentTheme === "WatchDogs") {
-    const style = document.createElement("style");
-    style.id = "WatchDogs-theme-fix";
-
-    if (settings.useTorrentColoring) {
-        style.textContent = `.torrent.rowb a, .torrent.rowa a {background: none !important; color: lightskyblue !important;}
+        if (settings.useTorrentColoring) {
+            style.textContent = `.torrent.rowb a, .torrent.rowa a {background: none !important; color: lightskyblue !important;}
             #torrent_table td {border: none !important;}
-            div.tags.s-browse-tag-holder span.s-tag a {background-color: transparent !important;}`;
-    } else {
-        style.textContent = `.torrent.rowb a,.torrent.rowa a {background: none !important; color: lightskyblue !important;}
-        div.tags.s-browse-tag-holder span.s-tag a { background-color: transparent !important;}`;
+            div.tags.s-browse-tag-holder span.s-tag a {background-color: transparent !important; border:none !important}`;
+        } else {
+            style.textContent = `.torrent.rowb a,.torrent.rowa a {background: none !important; color: lightskyblue !important;}
+            div.tags.s-browse-tag-holder span.s-tag a { background-color: transparent !important; border:none !important}`;
+        }
+        document.head.appendChild(style);
     }
-    document.head.appendChild(style);
-}
 
-
+    // =========================================================
 
 
     let userInfoID = "#nav_userinfo"; // The selector that Empornium uses
@@ -1485,13 +1543,13 @@ if (currentTheme === "WatchDogs") {
             }
 
             //Debug
-
+            /*
             console.log("=== Weighted Scoring Debug ===");
             console.log("Positive (weightedGood):", weightedGood, countPositive);
             console.log("Negative (weightedBad):", weightedBad, countNegative);
             console.log("Total (weightedTotal):", weightedTotal);
             console.log("Percentages -> Good:", pctGood.toFixed(2), "% | Bad:", pctBad.toFixed(2), "%");
-
+*/
 
             // Render the percent bar: Good(left, green), Bad(middle, red), Undefined(right, gray)
             // === Updated Percent Bar Tooltip Logic ===
@@ -3277,7 +3335,7 @@ Tags Ignored: (${countIgnored})`
     span.s-tag.s-${styleKey},
     button.s-tag.s-${styleKey} {
         background: ${c.background} !important;
-        border-bottom: ${borderBottom};
+
         border: ${weightPx} ${c.borderStyle} ${c.borderColor} !important;
     }
     span.s-tag.s-${styleKey} > a,
@@ -3325,476 +3383,520 @@ function addJQuery(callback) {
     const tagListSelector = '#torrent_tags_list';
 
     // Rearrange layout inside middle_column and normalize sidebar
-    function rearrangeLayout() {
-        const middleColumn = document.querySelector('#details_top > div.middle_column');
-        const sidebar = document.querySelector('#details_top > div.sidebar');
-        const container = document.querySelector('#details_top');
 
-        if (!middleColumn || !sidebar || !container) {
-            console.warn('Rearrange script: One or more elements not found.');
-            return;
+
+
+function rearrangeLayout() {
+    const middleColumn = document.querySelector('#details_top > div.middle_column');
+    const sidebar = document.querySelector('#details_top > div.sidebar');
+    const container = document.querySelector('#details_top');
+
+    if (!middleColumn || !sidebar || !container) {
+        console.warn('Rearrange script: One or more elements not found.');
+        return;
+    }
+
+    container.insertBefore(middleColumn, sidebar);
+
+    // Normalize sidebar layout
+    sidebar.style.width = '100%';
+    sidebar.style.boxSizing = 'border-box';
+    sidebar.style.float = 'none';
+    sidebar.style.display = 'block';
+
+    // Reset margins
+    middleColumn.style.marginTop = '0';
+    middleColumn.style.marginBottom = '0';
+    middleColumn.style.marginLeft = '0';
+    middleColumn.style.marginRight = '0';
+
+    console.log('middleColumn moved above sidebar:', middleColumn);
+
+    // --- HappyFappy-only placement before the tag list wrapper ---
+    const host = (window.location.hostname || '').toLowerCase();
+    if (host.includes('happyfappy.org')) {
+        // 1) Ensure sidebar is INSIDE middle_column
+        if (!middleColumn.contains(sidebar)) {
+            middleColumn.appendChild(sidebar);
         }
 
-        // Move middle_column above sidebar
-        container.insertBefore(middleColumn, sidebar);
+        // 2) Prefer the direct child #taglist-container as the reference
+        let refNode = middleColumn.querySelector(':scope > #taglist-container');
 
-        // Normalize sidebar layout
-        sidebar.style.width = '100%';
-        sidebar.style.boxSizing = 'border-box';
-        sidebar.style.float = 'none';
-        sidebar.style.display = 'block';
+        // 3) If that wrapper isn't found yet, fall back to walking up from #torrent_tags_list
+        if (!refNode) {
+            const innerTagList = middleColumn.querySelector('#torrent_tags_list');
+            if (innerTagList) {
+                // Walk up until the parent is the middle_column
+                let n = innerTagList;
+                while (n.parentElement && n.parentElement !== middleColumn) {
+                    n = n.parentElement;
+                }
+                if (n.parentElement === middleColumn) {
+                    refNode = n;
+                }
+            }
+        }
 
-        // Debug output
-        console.log('middleColumn moved above sidebar:', middleColumn);
-
-        middleColumn.style.marginTop = '0';
-        middleColumn.style.marginBottom = '0';
-        middleColumn.style.marginLeft = '0';
-        middleColumn.style.marginRight = '0';
-
+        // 4) Insert BEFORE the found direct child, or append at end as a safe fallback
+        if (refNode) {
+            middleColumn.insertBefore(sidebar, refNode);
+        } else {
+            middleColumn.appendChild(sidebar);
+            console.warn('rearrangeLayout: No direct taglist container found; appended sidebar to end.');
+        }
     }
+}
 
-    // --- Layout Helper: 3-Column Tag Splitter ---
-    // Reorganizes the tag list on detail pages into evenly spaced columns.
-    function splitTagsIntoColumns() {
-        const tagList = document.querySelector('#torrent_tags_list');
-        if (!tagList) return;
 
-        const allItems = Array.from(tagList.querySelectorAll('li')).filter(li => {
-            if (li.closest('.s-Tag7d-tags')) return false;
-            const s = window.getComputedStyle(li);
-            return s.display !== 'none' && s.visibility !== 'hidden';
-        });
 
-        if (allItems.length === 0) return;
 
-        // Always sort alphabetically
-        allItems.sort((a, b) => {
-            const textA = a.textContent.trim().toLowerCase();
-            const textB = b.textContent.trim().toLowerCase();
-            return textA.localeCompare(textB, undefined, { numeric: true, sensitivity: 'base' });
-        });
+        // --- Layout Helper: 3-Column Tag Splitter ---
+        // Reorganizes the tag list on detail pages into evenly spaced columns.
+        function splitTagsIntoColumns() {
 
-        // Create 3 columns
-        const cols = Array.from({ length: 3 }, (_, i) => {
-            const d = document.createElement('div');
-            d.className = `tag-column col-${i + 1}`;
-            Object.assign(d.style, {
-                width: '33.33%',
-                float: 'left',
-                boxSizing: 'border-box'
+            const tagList = document.querySelector('#torrent_tags_list');
+            if (!tagList) return;
+
+            const allItems = Array.from(tagList.querySelectorAll('li')).filter(li => {
+                if (li.closest('.s-Tag7d-tags')) return false;
+                const s = window.getComputedStyle(li);
+                return s.display !== 'none' && s.visibility !== 'hidden';
             });
-            return d;
-        });
 
-        const perCol = Math.ceil(allItems.length / 3);
-        cols[0].append(...allItems.slice(0, perCol));
-        cols[1].append(...allItems.slice(perCol, perCol * 2));
-        cols[2].append(...allItems.slice(perCol * 2));
+            if (allItems.length === 0) return;
 
-        const hiddenBlocks = Array.from(tagList.children)
-        .filter(c => c.classList && c.classList.contains('s-Tag7d-tags'));
-
-        tagList.textContent = '';
-        cols.forEach(c => tagList.appendChild(c));
-        hiddenBlocks.forEach(h => tagList.appendChild(h));
-
-        // Reapply layout helpers for correct spacing/backgrounds
-        runFunction(enforceTagRowLayout, 'eimqkzlubg0yg9jl', []);
-        runFunction(overrideTagLinkWidths, 'rkeym2z93t9tr9id', []);
-        runFunction(resizeAllTagText, '6f4bq7xg2omsqz8w', []);
-
-        // Ensure tag spans don’t stretch full width
-        tagList.querySelectorAll('span.s-tag').forEach(span => {
-            span.style.display = 'inline-flex';
-            span.style.flex = '0 0 auto';
-            span.style.alignItems = 'center';
-        });
-    }
-    window.splitTagsIntoColumns = splitTagsIntoColumns;
-
-    // --- Layout Helper: Tag Row Flex Alignment ---
-    // Ensures tag list rows align cleanly with tag names and vote counts.
-    function enforceTagRowLayout() {
-        const tagItems = document.querySelectorAll('#torrent_tags_list li');
-        if (!tagItems.length) return;
-
-        tagItems.forEach(li => {
-            // Core layout: single row, no wrap
-            li.style.display = 'flex';
-            li.style.flexWrap = 'nowrap';
-            li.style.alignItems = 'center';
-            li.style.justifyContent = 'space-between';
-            li.style.overflow = 'hidden'; // prevent overflow breaking layout
-
-            const tagSpan = li.querySelector('span.s-tag');
-            const voteDiv = li.querySelector('div[style*="letter-spacing"]'); // right-side vote area
-            const tagLink = tagSpan?.querySelector('a');
-
-            // Left-side tag section (buttons + tag name)
-            if (tagSpan) {
-                tagSpan.style.display = 'flex';
-                tagSpan.style.flex = '0 1 auto';
-                tagSpan.style.alignItems = 'center';
-                tagSpan.style.minWidth = '0'; // enables text truncation
-                tagSpan.style.overflow = 'hidden';
-                tagSpan.style.boxSizing = 'border-box';
-            }
-
-            // Tag link (truncate only this)
-            if (tagLink) {
-                tagLink.style.flex = '1 1 auto';
-                tagLink.style.whiteSpace = 'nowrap';
-                tagLink.style.overflow = 'hidden';
-                tagLink.style.textOverflow = 'ellipsis';
-                tagLink.style.display = 'block';
-                tagLink.style.minWidth = '0';
-                tagLink.style.boxSizing = 'border-box';
-                tagLink.style.float = 'none'; // override old CSS
-            }
-
-            // Vote area (right side)
-            if (voteDiv) {
-                voteDiv.style.flex = '0 0 auto';
-                voteDiv.style.whiteSpace = 'nowrap';
-                voteDiv.style.boxSizing = 'border-box';
-                voteDiv.style.textAlign = 'right';
-                voteDiv.style.marginLeft = '8px';
-            }
-
-            // Align the inner .s-button controls tightly
-            li.querySelectorAll('.s-button').forEach(btn => {
-                btn.style.flex = '0 0 auto';
-                btn.style.marginRight = '2px';
+            // Always sort alphabetically
+            allItems.sort((a, b) => {
+                const textA = a.textContent.trim().toLowerCase();
+                const textB = b.textContent.trim().toLowerCase();
+                return textA.localeCompare(textB, undefined, { numeric: true, sensitivity: 'base' });
             });
-        });
-    }
-    window.enforceTagRowLayout = enforceTagRowLayout;
 
-    // Limit width of staff/Tags7a tag links
-    function overrideTagLinkWidths() {
-        const selectors = [
-            '.s-tag.s-staff a',
-            '.s-tag.s-staff.s-Tag7a a'
-        ];
+            // Create 3 columns
+            if (!window.shouldSkipTagSplit()) {
+                const cols = Array.from({ length: 3 }, (_, i) => {
+                    const d = document.createElement('div');
+                    d.className = `tag-column col-${i + 1}`;
+                    Object.assign(d.style, {
+                        width: '33.33%',
+                        float: 'left',
+                        boxSizing: 'border-box'
+                    });
+                    return d;
+                });
 
-        selectors.forEach(sel => {
-            document.querySelectorAll(sel).forEach(link => {
-                link.style.maxWidth = '110px';
+                const perCol = Math.ceil(allItems.length / 3);
+                cols[0].append(...allItems.slice(0, perCol));
+                cols[1].append(...allItems.slice(perCol, perCol * 2));
+                cols[2].append(...allItems.slice(perCol * 2));
+
+                const hiddenBlocks = Array.from(tagList.children)
+                .filter(c => c.classList && c.classList.contains('s-Tag7d-tags'));
+
+                tagList.textContent = '';
+                cols.forEach(c => tagList.appendChild(c));
+                hiddenBlocks.forEach(h => tagList.appendChild(h));
+            }
+            // Reapply layout helpers for correct spacing/backgrounds
+            runFunction(enforceTagRowLayout, 'eimqkzlubg0yg9jl', []);
+            runFunction(overrideTagLinkWidths, 'rkeym2z93t9tr9id', []);
+            runFunction(resizeAllTagText, '6f4bq7xg2omsqz8w', []);
+
+            // Ensure tag spans don’t stretch full width
+            tagList.querySelectorAll('span.s-tag').forEach(span => {
+                span.style.display = 'inline-flex';
+                span.style.flex = '0 0 auto';
+                span.style.alignItems = 'center';
+            });
+        }
+        window.splitTagsIntoColumns = splitTagsIntoColumns;
+
+        // --- Layout Helper: Tag Row Flex Alignment ---
+        // Ensures tag list rows align cleanly with tag names and vote counts.
+        function enforceTagRowLayout() {
+            const tagItems = document.querySelectorAll('#torrent_tags_list li');
+            if (!tagItems.length) return;
+
+            tagItems.forEach(li => {
+                // Core layout: single row, no wrap
+                li.style.display = 'flex';
+                li.style.flexWrap = 'nowrap';
+                li.style.alignItems = 'center';
+                li.style.justifyContent = 'space-between';
+                li.style.overflow = 'hidden'; // prevent overflow breaking layout
+
+                const tagSpan = li.querySelector('span.s-tag');
+                const voteDiv = li.querySelector('div[style*="letter-spacing"]'); // right-side vote area
+                const tagLink = tagSpan?.querySelector('a');
+
+                // Left-side tag section (buttons + tag name)
+                if (tagSpan) {
+                    tagSpan.style.display = 'flex';
+                    tagSpan.style.flex = '0 1 auto';
+                    tagSpan.style.alignItems = 'center';
+                    tagSpan.style.minWidth = '0'; // enables text truncation
+                    tagSpan.style.overflow = 'hidden';
+                    tagSpan.style.boxSizing = 'border-box';
+                }
+
+                // Tag link (truncate only this)
+                if (tagLink) {
+                    tagLink.style.flex = '1 1 auto';
+                    tagLink.style.whiteSpace = 'nowrap';
+                    tagLink.style.overflow = 'hidden';
+                    tagLink.style.textOverflow = 'ellipsis';
+                    tagLink.style.display = 'block';
+                    tagLink.style.minWidth = '0';
+                    tagLink.style.boxSizing = 'border-box';
+                    tagLink.style.float = 'none'; // override old CSS
+                }
+
+                // Vote area (right side)
+                if (voteDiv) {
+                    voteDiv.style.flex = '0 0 auto';
+                    voteDiv.style.whiteSpace = 'nowrap';
+                    voteDiv.style.boxSizing = 'border-box';
+                    voteDiv.style.textAlign = 'right';
+                    voteDiv.style.marginLeft = '8px';
+                }
+
+                // Align the inner .s-button controls tightly
+                li.querySelectorAll('.s-button').forEach(btn => {
+                    btn.style.flex = '0 0 auto';
+                    btn.style.marginRight = '2px';
+                });
+            });
+        }
+        window.enforceTagRowLayout = enforceTagRowLayout;
+
+        // Limit width of staff/Tags7a tag links
+        function overrideTagLinkWidths() {
+            const selectors = [
+                '.s-tag.s-staff a',
+                '.s-tag.s-staff.s-Tag7a a'
+            ];
+
+            selectors.forEach(sel => {
+                document.querySelectorAll(sel).forEach(link => {
+                    link.style.maxWidth = '110px';
+                    link.style.display = 'inline-block';
+                    link.style.boxSizing = 'border-box';
+                });
+            });
+        }
+        window.overrideTagLinkWidths = overrideTagLinkWidths;
+
+
+        // Add toggle button to show/hide tag buttons + refresh layout button
+        function addButtonToggle() {
+            // Prevent duplicate toggle buttons
+            if (document.querySelector('#hideTagButtonsToggle')) return;
+
+            const tagList = document.querySelector(tagListSelector);
+            const tagHeader = document.querySelector('#tag_container > .tag_header');
+
+            // === Create Refresh Button ===
+            const refreshBtn = document.createElement('button');
+            refreshBtn.id = 'refreshTagLayout';
+            refreshBtn.textContent = '⟳';
+            Object.assign(refreshBtn.style, {
+                backgroundColor: '#4C9A4C',
+                color: '#fff',
+                height: '22px',
+                border: '1px solid #2f5a2f',
+                borderRadius: '4px',
+                padding: '2px 4px',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                marginRight: '4px',
+                marginTop: '2px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            });
+            refreshBtn.addEventListener('mouseenter', () => {
+                refreshBtn.style.backgroundColor = '#3F7E3F';
+                refreshBtn.style.transform = 'translateY(-1px)';
+                refreshBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+            });
+            refreshBtn.addEventListener('mouseleave', () => {
+                refreshBtn.style.backgroundColor = '#4C9A4C';
+                refreshBtn.style.transform = 'translateY(0)';
+                refreshBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
+            });
+            refreshBtn.addEventListener('click', () => {
+                console.log ("Pressed Refresh.....")
+                runFunction(rebuildTagLayout, '9nedi4ndiyg0rjyv', []);
+            });
+
+            // === Create Hide Button Toggle ===
+            const toggleBtn = document.createElement('button');
+            toggleBtn.id = 'hideTagButtonsToggle';
+            toggleBtn.textContent = 'Hide Tag Buttons';
+            Object.assign(toggleBtn.style, {
+                backgroundColor: '#5A8BB8',
+                color: '#fff',
+                height: '22px',
+                border: '1px solid #3d5e80',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                marginLeft: '2px',
+                marginTop: '2px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            });
+            toggleBtn.addEventListener('mouseenter', () => {
+                toggleBtn.style.backgroundColor = '#4b7aa3';
+                toggleBtn.style.transform = 'translateY(-1px)';
+                toggleBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+            });
+            toggleBtn.addEventListener('mouseleave', () => {
+                toggleBtn.style.backgroundColor = '#5A8BB8';
+                toggleBtn.style.transform = 'translateY(0)';
+                toggleBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
+            });
+
+            let buttonsVisible = true;
+            toggleBtn.addEventListener('click', () => {
+                buttonsVisible = !buttonsVisible;
+                document.querySelectorAll('.s-button, .s-Tag7d div, .s-Tag7d .s-button').forEach(btn => {
+                    btn.style.display = buttonsVisible ? '' : 'none';
+                });
+
+                toggleBtn.textContent = buttonsVisible ? 'Hide Tag Buttons' : 'Show Tag Buttons';
+            });
+
+            // === Normal placement: details page ===
+            if (tagHeader) {
+                tagHeader.prepend(toggleBtn);
+                tagHeader.prepend(refreshBtn);
+                tagHeader.style.display = 'flex';
+                tagHeader.style.alignItems = 'center';
+                tagHeader.style.gap = '8px';
+                tagHeader.style.padding = '6px 10px';
+                return;
+            }
+
+            // === fallback: floating in upper left ===
+            refreshBtn.style.position = 'fixed';
+            refreshBtn.style.top = '10px';
+            refreshBtn.style.left = '10px';
+            refreshBtn.style.zIndex = '10000';
+            toggleBtn.style.position = 'fixed';
+            toggleBtn.style.top = '10px';
+            toggleBtn.style.left = '50px';
+            toggleBtn.style.zIndex = '10000';
+            document.body.appendChild(refreshBtn);
+            document.body.appendChild(toggleBtn);
+            console.log('addButtonToggle() attached floating (fallback).');
+        }
+        window.addButtonToggle = addButtonToggle;
+
+
+
+        // Shrink font size of tag links until they fit
+        function resizeAllTagText() {
+            const tagLinks = document.querySelectorAll('.s-tag > a');
+
+            tagLinks.forEach(link => {
+                const parent = link.parentElement;
+                if (!parent) return;
+
+                link.style.fontSize = '';
+                link.style.whiteSpace = 'nowrap';
+                link.style.overflow = 'hidden';
+                link.style.textOverflow = 'ellipsis';
                 link.style.display = 'inline-block';
+                link.style.maxWidth = '100%';
                 link.style.boxSizing = 'border-box';
+
+                let fontSize = 16;
+                while (link.scrollWidth > parent.clientWidth && fontSize > 10) {
+                    fontSize -= 1;
+                    link.style.fontSize = fontSize + 'px';
+                }
             });
-        });
-    }
-    window.overrideTagLinkWidths = overrideTagLinkWidths;
+        }
+        window.resizeAllTagText=resizeAllTagText;
 
-
-    // Add toggle button to show/hide tag buttons + refresh layout button
-    function addButtonToggle() {
-        // Prevent duplicate toggle buttons
-        if (document.querySelector('#hideTagButtonsToggle')) return;
-
-        const tagList = document.querySelector(tagListSelector);
-        const tagHeader = document.querySelector('#tag_container > .tag_header');
-
-        // === Create Refresh Button ===
-        const refreshBtn = document.createElement('button');
-        refreshBtn.id = 'refreshTagLayout';
-        refreshBtn.textContent = '⟳';
-        Object.assign(refreshBtn.style, {
-            backgroundColor: '#4C9A4C',
-            color: '#fff',
-            height: '22px',
-            border: '1px solid #2f5a2f',
-            borderRadius: '4px',
-            padding: '2px 4px',
-            fontSize: '13px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            marginRight: '4px',
-            marginTop: '2px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-        });
-        refreshBtn.addEventListener('mouseenter', () => {
-            refreshBtn.style.backgroundColor = '#3F7E3F';
-            refreshBtn.style.transform = 'translateY(-1px)';
-            refreshBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
-        });
-        refreshBtn.addEventListener('mouseleave', () => {
-            refreshBtn.style.backgroundColor = '#4C9A4C';
-            refreshBtn.style.transform = 'translateY(0)';
-            refreshBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
-        });
-        refreshBtn.addEventListener('click', () => {
-            runFunction(rebuildTagLayout, '9nedi4ndiyg0rjyv', []);
-        });
-
-        // === Create Hide Button Toggle ===
-        const toggleBtn = document.createElement('button');
-        toggleBtn.id = 'hideTagButtonsToggle';
-        toggleBtn.textContent = 'Hide Tag Buttons';
-        Object.assign(toggleBtn.style, {
-            backgroundColor: '#5A8BB8',
-            color: '#fff',
-            height: '22px',
-            border: '1px solid #3d5e80',
-            borderRadius: '4px',
-            padding: '4px 8px',
-            fontSize: '11px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            marginLeft: '2px',
-            marginTop: '2px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-        });
-        toggleBtn.addEventListener('mouseenter', () => {
-            toggleBtn.style.backgroundColor = '#4b7aa3';
-            toggleBtn.style.transform = 'translateY(-1px)';
-            toggleBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
-        });
-        toggleBtn.addEventListener('mouseleave', () => {
-            toggleBtn.style.backgroundColor = '#5A8BB8';
-            toggleBtn.style.transform = 'translateY(0)';
-            toggleBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
-        });
-
-        let buttonsVisible = true;
-        toggleBtn.addEventListener('click', () => {
-            buttonsVisible = !buttonsVisible;
-            document.querySelectorAll('.s-button, .s-Tag7d div, .s-Tag7d .s-button').forEach(btn => {
-                btn.style.display = buttonsVisible ? '' : 'none';
-            });
-
-            toggleBtn.textContent = buttonsVisible ? 'Hide Tag Buttons' : 'Show Tag Buttons';
-        });
-
-        // === Normal placement: details page ===
-        if (tagHeader) {
-            tagHeader.prepend(toggleBtn);
-            tagHeader.prepend(refreshBtn);
-            tagHeader.style.display = 'flex';
-            tagHeader.style.alignItems = 'center';
-            tagHeader.style.gap = '8px';
-            tagHeader.style.padding = '6px 10px';
-            return;
+        function isEmporiumTorrentPage() {
+            return /^https:\/\/www\.empornium\.sx\/torrents\.php\?id=\d+/.test(window.location.href);
         }
 
-        // === fallback: floating in upper left ===
-        refreshBtn.style.position = 'fixed';
-        refreshBtn.style.top = '10px';
-        refreshBtn.style.left = '10px';
-        refreshBtn.style.zIndex = '10000';
-        toggleBtn.style.position = 'fixed';
-        toggleBtn.style.top = '10px';
-        toggleBtn.style.left = '50px';
-        toggleBtn.style.zIndex = '10000';
-        document.body.appendChild(refreshBtn);
-        document.body.appendChild(toggleBtn);
-        console.log('addButtonToggle() attached floating (fallback).');
-    }
-    window.addButtonToggle = addButtonToggle;
+        function initializeEnhancements() {
+            // if (!isEmporiumTorrentPage()) return;
 
+            runFunction(rearrangeLayout, 'rqpc3ze9eoklvvac', []);
 
-
-    // Shrink font size of tag links until they fit
-    function resizeAllTagText() {
-        const tagLinks = document.querySelectorAll('.s-tag > a');
-
-        tagLinks.forEach(link => {
-            const parent = link.parentElement;
-            if (!parent) return;
-
-            link.style.fontSize = '';
-            link.style.whiteSpace = 'nowrap';
-            link.style.overflow = 'hidden';
-            link.style.textOverflow = 'ellipsis';
-            link.style.display = 'inline-block';
-            link.style.maxWidth = '100%';
-            link.style.boxSizing = 'border-box';
-
-            let fontSize = 16;
-            while (link.scrollWidth > parent.clientWidth && fontSize > 10) {
-                fontSize -= 1;
-                link.style.fontSize = fontSize + 'px';
-            }
-        });
-    }
-    window.resizeAllTagText=resizeAllTagText;
-
-    function isEmporiumTorrentPage() {
-        return /^https:\/\/www\.empornium\.sx\/torrents\.php\?id=\d+/.test(window.location.href);
-    }
-
-    function initializeEnhancements() {
-        if (!isEmporiumTorrentPage()) return;
-
-        runFunction(rearrangeLayout, 'rqpc3ze9eoklvvac', []);
-
-        // Step 1: split after the DOM settles
-        setTimeout(() => {
-            runFunction(splitTagsIntoColumns, '2hswltyy1emh3z85', []);
-
-            // Step 2: after the split finishes building the columns,
-            // give the browser one tick to render, then enforce layout
+            // Step 1: split after the DOM settles
             setTimeout(() => {
-                runFunction(enforceTagRowLayout, '16hga5lqg0ayi0l6', []);
-                runFunction(overrideTagLinkWidths, '4i7tghbbugbjia4c', []);
-                runFunction(addButtonToggle, 'z0kakhkuk3sdydm9', []);
-                runFunction(resizeAllTagText, 'g9t3x7fyz0naioxg', []);
-            }, 50);
+                runFunction(splitTagsIntoColumns, '2hswltyy1emh3z85', []);
 
-        }, 250);
+                // Step 2: after the split finishes building the columns,
+                // give the browser one tick to render, then enforce layout
+                setTimeout(() => {
+                    runFunction(enforceTagRowLayout, '16hga5lqg0ayi0l6', []);
+                    runFunction(overrideTagLinkWidths, '4i7tghbbugbjia4c', []);
+                    runFunction(addButtonToggle, 'z0kakhkuk3sdydm9', []);
+                    runFunction(resizeAllTagText, 'g9t3x7fyz0naioxg', []);
+                }, 50);
 
-        // --- New safety net ---
-        setTimeout(() => {
-            const cols = document.querySelectorAll('#torrent_tags_list .tag-column');
-            if (cols.length < 2) {
-                // Retry once if it didn’t split properly
-                runFunction(splitTagsIntoColumns, '1yucitl7x1pryu1x', []);
+            }, 250);
+
+            // --- New safety net ---
+            setTimeout(() => {
+                const cols = document.querySelectorAll('#torrent_tags_list .tag-column');
+                if (cols.length < 2) {
+                    // Retry once if it didn’t split properly
+                    runFunction(splitTagsIntoColumns, '1yucitl7x1pryu1x', []);
+                }
+            }, 600);
+        }
+
+
+        function waitForLayoutReady(callback) {
+            const container = document.querySelector('#details_top');
+            if (!container) {
+                console.warn('LayoutWatcher: #details_top not found.');
+                return;
             }
-        }, 600);
-    }
 
+            const observer = new MutationObserver(() => {
+                const middleColumn = container.querySelector('div.middle_column');
+                const tagList = container.querySelector('#torrent_tags_list');
+                const sidebar = container.querySelector('div.sidebar');
 
-    function waitForLayoutReady(callback) {
-        const container = document.querySelector('#details_top');
-        if (!container) {
-            console.warn('LayoutWatcher: #details_top not found.');
-            return;
+                if (middleColumn && tagList && sidebar) {
+                    observer.disconnect();
+                    console.log('Layout ready: triggering enhancements');
+                    callback();
+                }
+            });
+
+            observer.observe(container, { childList: true, subtree: true });
         }
 
-        const observer = new MutationObserver(() => {
-            const middleColumn = container.querySelector('div.middle_column');
-            const tagList = container.querySelector('#torrent_tags_list');
-            const sidebar = container.querySelector('div.sidebar');
-
-            if (middleColumn && tagList && sidebar) {
-                observer.disconnect();
-                console.log('Layout ready: triggering enhancements');
-                callback();
-            }
-        });
-
-        observer.observe(container, { childList: true, subtree: true });
-    }
-
-    // Run enhancements once #torrent_tags_list is ready
-    if (/torrents\.php/.test(window.location.href) && /id=\d+/.test(window.location.href)) {
-        waitForLayoutReady(() => {
-            runFunction(initializeEnhancements, 'nl5np2s75wewk9f9', []);
-        });
-    }
-
-    function rebuildTagLayout() {
-        try {
-            console.log("🔁 Rebuilding tag layout...");
-            runFunction(highlightDetailTags, '2c5anxv59ystmji1', []);
-            runFunction(rearrangeLayout, 'uxjouy2sjvedwly0', []);
-            runFunction(splitTagsIntoColumns, '4jiq2v8m4svjq0hk', []);
-            runFunction(enforceTagRowLayout, 'y0o8ew4hhbqe7jis', []);
-            runFunction(overrideTagLinkWidths, 'taec30gdt19szwdc', []);
-            runFunction(addButtonToggle, 'vcjy4ldrxj8ycx6r', []);
-            runFunction(resizeAllTagText, '168o5p8wofx26w1h', []);
-        } catch (err) {
-            console.warn("🔴 Tag layout rebuild failed:", err);
-        }
-    }
-
-    window.rebuildTagLayout = rebuildTagLayout;
-    // --- Mutation Observer: Tags7d (Hidden Tags) ---
-    // Monitors changes in the hidden tags container to trigger layout rebuilds.
-    (function observeTags7d() {
-        const hidden7d = document.querySelector('.s-Tag7d-tags');
-        if (!hidden7d) {
-            setTimeout(observeTags7d, 500);
-            return;
+        // Run enhancements once #torrent_tags_list is ready
+        if (/torrents\.php/.test(window.location.href) && /id=\d+/.test(window.location.href)) {
+            waitForLayoutReady(() => {
+                runFunction(initializeEnhancements, 'nl5np2s75wewk9f9', []);
+            });
         }
 
-        let isRebuilding = false;
-
-        const observer = new MutationObserver(() => {
-            if (isRebuilding) return;
-            isRebuilding = true;
-
-            // wait a bit so the add/remove operation finishes
+        function rebuildTagLayout() {
             setTimeout(() => {
                 try {
-                    runFunction(rearrangeLayout, 'fqvqjad6ovpf30pc', []);
-                    runFunction(splitTagsIntoColumns, 'fmpknv0vlkg063g0', []);
-                    runFunction(enforceTagRowLayout, 'gk6r3uw6oevo37zt', []);
-                    runFunction(overrideTagLinkWidths, 'op5tce1p2artfoaw', []);
-                    runFunction(addButtonToggle, 'jn34hbjb18o5u2zl', []);
-                    runFunction(resizeAllTagText, 'x7ewpozd8a63bcp4', []);
+                    console.log("🔁 Rebuilding tag layout...");
+                    runFunction(highlightDetailTags, '2c5anxv59ystmji1', []);
+                    runFunction(rearrangeLayout, 'uxjouy2sjvedwly0', []);
+                    runFunction(splitTagsIntoColumns, '4jiq2v8m4svjq0hk', []);
+                    runFunction(enforceTagRowLayout, 'y0o8ew4hhbqe7jis', []);
+                    runFunction(overrideTagLinkWidths, 'taec30gdt19szwdc', []);
+                    runFunction(resizeAllTagText, '168o5p8wofx26w1h', []);
+                    runFunction(addButtonToggle, 'vcjy4ldrxj8ycx6r', []);
+
                 } catch (err) {
-                    console.warn('Tags7d observer rebuild failed:', err);
-                } finally {
-                    isRebuilding = false;
+                    console.warn("🔴 Tag layout rebuild failed:", err);
                 }
             }, 300);
-        });
+        }
 
-        observer.observe(hidden7d, { childList: true, subtree: false });
+        window.rebuildTagLayout = rebuildTagLayout;
+        // --- Mutation Observer: Tags7d (Hidden Tags) ---
+        // Monitors changes in the hidden tags container to trigger layout rebuilds.
+        (function observeTags7d() {
+            const hidden7d = document.querySelector('.s-Tag7d-tags');
+            if (!hidden7d) {
+                setTimeout(observeTags7d, 500);
+                return;
+            }
 
-        console.log('Observer active: re-reading tags on Tags7d changes');
-    })();
+            let isRebuilding = false;
 
-    // Observe for added tags and reapply the tag layout.
-    const tagAddContainer = document.querySelector(".tag_add");
+            const observer = new MutationObserver(() => {
+                if (isRebuilding) return;
+                isRebuilding = true;
 
-    if (tagAddContainer) {
-        const observer = new MutationObserver((mutationsList) => {
-            for (const mutation of mutationsList) {
-                for (const node of mutation.addedNodes) {
-                    if (
-                        node.nodeType === 1 &&
-                        node.id === "messagebar0" &&
-                        node.textContent.includes("Added")
-                    ) {
-                        runFunction(processDetailsPage, 'fsjggygvnq7r875i', []);
-                        setTimeout(() => {
-                            runFunction(rebuildTagLayout, 'dadb29zs43ogorz9', []);
+                // wait a bit so the add/remove operation finishes
+                setTimeout(() => {
+                    try {
+                        runFunction(rearrangeLayout, 'fqvqjad6ovpf30pc', []);
+                        runFunction(splitTagsIntoColumns, 'fmpknv0vlkg063g0', []);
+                        runFunction(enforceTagRowLayout, 'gk6r3uw6oevo37zt', []);
+                        runFunction(overrideTagLinkWidths, 'op5tce1p2artfoaw', []);
+                        runFunction(addButtonToggle, 'jn34hbjb18o5u2zl', []);
+                        runFunction(resizeAllTagText, 'x7ewpozd8a63bcp4', []);
+                    } catch (err) {
+                        console.warn('Tags7d observer rebuild failed:', err);
+                    } finally {
+                        isRebuilding = false;
+                    }
+                }, 300);
+            });
 
-                        }, 100);
+            observer.observe(hidden7d, { childList: true, subtree: false });
+
+            console.log('Observer active: re-reading tags on Tags7d changes');
+        })();
+
+        // Observe for added tags and reapply the tag layout.
+        const tagAddContainer = document.querySelector(".tag_add");
+
+        if (tagAddContainer) {
+            const observer = new MutationObserver((mutationsList) => {
+                for (const mutation of mutationsList) {
+                    for (const node of mutation.addedNodes) {
+                        if (
+                            node.nodeType === 1 &&
+                            node.id === "messagebar0" &&
+                            node.textContent.includes("Added")
+                        ) {
+                            runFunction(processDetailsPage, 'fsjggygvnq7r875i', []);
+                            setTimeout(() => {
+                                runFunction(rebuildTagLayout, 'dadb29zs43ogorz9', []);
+
+                            }, 100);
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        observer.observe(tagAddContainer, {
-            childList: true,
-            subtree: false, // only direct children of .tag_add
-        });
-    }
+            observer.observe(tagAddContainer, {
+                childList: true,
+                subtree: false, // only direct children of .tag_add
+            });
+        }
 
-    // --- Focus Observer ---
-    // When the tab regains focus, rechecks and rebuilds tag layout if needed.
-    // Minor hack to fix the layout being "Off" when opening detials in new tab.
-    (function observeFocusForRebuild() {
-        // ✅ Only run on torrent details pages
-        if (!/torrents\.php\?id=/.test(window.location.href)) return;
-        let isRebuilding = false;
+        // --- Focus Observer ---
+        // When the tab regains focus, rechecks and rebuilds tag layout if needed.
+        // Minor hack to fix the layout being "Off" when opening detials in new tab.
+        (function observeFocusForRebuild() {
+            // ✅ Only run on torrent details pages
+            if (!/torrents\.php\?id=/.test(window.location.href)) return;
+            let isRebuilding = false;
 
-        window.addEventListener('focus', () => {
-            if (isRebuilding) return;
-            isRebuilding = true;
+            window.addEventListener('focus', () => {
+                if (isRebuilding) return;
+                isRebuilding = true;
 
-            console.log('Window focused — triggering layout recheck');
+                console.log('Window focused — triggering layout recheck');
 
-            setTimeout(() => {
-                try {
-                    runFunction(rebuildTagLayout, 'llou6iuynqvw379q', []);
+                setTimeout(() => {
+                    try {
+                        runFunction(rebuildTagLayout, 'llou6iuynqvw379q', []);
+                    } catch (err) {
+                        console.warn('Focus rebuild failed:', err);
+                    } finally {
+                        isRebuilding = false;
+                    }
+                }, 300);
+            });
+        })();
 
-                } catch (err) {
-                    console.warn('Focus rebuild failed:', err);
-                } finally {
-                    isRebuilding = false;
-                }
-            }, 300);
-        });
+
     })();
-
-
-})();
-// This is the very end of this file.
+    // This is the very end of this file.
