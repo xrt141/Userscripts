@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.5.x Beta
 // @namespace    http://tampermonkey.net/
-// @version      2.5.50
+// @version      2.5.51
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -182,22 +182,22 @@ function runScript() {
         colors: {
             Tags1a: { background: "#A9DF9C", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags1b: { background: "#3D9949", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
-            Tags1c: { background: "#3D9949", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
+            Tags1c: { background: "#c4c4c4", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags2a: { background: "#769dc9", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags2b: { background: "#3a6392", border: "#000000", text: "#ffffff", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
-            Tags2c: { background: "#ffffff", border: "#000000", text: "#ffffff", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
+            Tags2c: { background: "#c4c4c4", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags3a: { background: "#f7d600", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags3b: { background: "#ccc870", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" }, //new
-            Tags3c: { background: "#ffffff", border: "#000000", text: "#ffffff", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
+            Tags3c: { background: "#c4c4c4", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags4a: { background: "#cfd9e2", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags4b: { background: "#afc0cf", border: "#000000", text: "#ffffff", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
-            Tags4c: { background: "#ffffff", border: "#000000", text: "#ffffff", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
+            Tags4c: { background: "#c4c4c4", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags5a: { background: "#f3af58", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags5b: { background: "#e58306", border: "#000000", text: "#ffffff", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
-            Tags5c: { background: "#ffffff", border: "#000000", text: "#ffffff", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
+            Tags5c: { background: "#c4c4c4", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags6a: { background: "#e86eed", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags6b: { background: "#d01dd7", border: "#000000", text: "#ffffff", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
-            Tags6c: { background: "#ffffff", border: "#000000", text: "#ffffff", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
+            Tags6c: { background: "#c4c4c4", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags7a: { background: "#F3AAAA", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags7b: { background: "#840000", border: "#000000", text: "#ffffff", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
             Tags7c: { background: "#222222", border: "#000000", text: "#EEEEEE", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
