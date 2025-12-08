@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.5.x Beta
 // @namespace    http://tampermonkey.net/
-// @version      2.5.51
+// @version      2.5.52
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -154,17 +154,17 @@ function runScript() {
 
     // These defaults are merged with any saved user settings at runtime.
     var defaults = {
-        majorVersion: 2.0,
+        majorVersion: 2.5,
         truncateTags: true, //button removed
         usePercentBar: false,
         usePBHtmlTooltip: false,
         useTorrentOpacity: false,
         useTorrentColoring: false,
         useTorrentBlacklistNotice: true,
-        useBlacklistNoticeBookmark: false,
-        useBlacklistNoticeCollages: false,
-        hideTags7cTorrents: false,
-        hideTags7dTags: false,
+        useBlacklistNoticeBookmark: true,
+        useBlacklistNoticeCollages: true,
+        hideTags7cTorrents: true,
+        hideTags7dTags: true,
         disableItalics: false,
         roomierTags: false,
         tagLayoutStyle: "normal",
