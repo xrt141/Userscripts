@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.5.x Beta
 // @namespace    http://tampermonkey.net/
-// @version      2.5.60
+// @version      2.5.63
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -353,127 +353,6 @@ function runScript() {
         },
 
     };
-
-
-    // --- Settings Migration ---
-    // Converts v0.7 Emp++ Tag Highlighter data to the new dynamic format.
-    // Renames old keys and flag structures into the modern standardized layout.
-    /*
-    function migrateOldSettings(imported) {
-        // --- Only run if version < 2.0 or missing ---
-        if (!imported.majorVersion || imported.majorVersion < 2.0) {
-
-            // Map old tag arrays to new dynamic tag keys
-            const tagKeyMap = {
-                good: "Tags1a",
-                loved: "Tags1b",
-                new1C: "Tags1c",
-                performer: "Tags2a",
-                loveperf: "Tags2b",
-                new2C: "Tags2c",
-                newperf: "Tags3a",
-                amateur: "Tags4a",
-                loveamat: "Tags4b",
-                maleperf: "Tags5a",
-                lovemale: "Tags5b",
-                likesite: "Tags6a",
-                lovesite: "Tags6b",
-                disliked: "Tags7a",
-                hated: "Tags7b",
-                terrible: "Tags7c",
-                useless: "Tags7d"
-            };
-            if (imported.tags) {
-                for (const oldKey in tagKeyMap) {
-                    const newKey = tagKeyMap[oldKey];
-                    if (imported.tags[oldKey]) {
-                        imported.tags[newKey] = imported.tags[oldKey];
-                        delete imported.tags[oldKey];
-                    }
-                }
-            }
-
-            // Map old flags to new ones
-            const flagMap = {
-                useGoodTags: "useTag1aTags",
-                useLovedTags: "useTag1bTags",
-                usePerformerTags: "useTag2aTags",
-                useLoveperfTags: "useTag2bTags",
-                useNewperfTags: "useTag3aTags",
-                useAmateurTags: "useTag4aTags",
-                useLoveamatTags: "useTag4bTags",
-                useMaleperfTags: "useTag5aTags",
-                useLovemaleTags: "useTag5bTags",
-                useLikesiteTags: "useTag6aTags",
-                useLovesiteTags: "useTag6bTags",
-                useDislikedTags: "useTag7aTags",
-                useHatedTags: "useTag7bTags",
-                useTerribleTags: "useTag7cTags",
-                useUselessTags: "useTag7dTags",
-                buttonGoodTags: "Tag1aButtonVisibility",
-                buttonPerformerTags: "Tag2aButtonVisibility",
-                buttonNewperfTags: "Tag3aButtonVisibility",
-                buttonAmateurTags: "Tag4aButtonVisibility",
-                buttonMaleperfTags: "Tag5aButtonVisibility",
-                buttonLikesiteTags: "Tag6aButtonVisibility",
-                buttonDislikedTags: "Tag7aButtonVisibility",
-                // Version 2.0 -> 2.1
-                buttonTag1aTags: "Tag1aButtonVisibility",
-                buttonTag2aTags: "Tag2aButtonVisibility",
-                buttonTag3aTags: "Tag3aButtonVisibility",
-                buttonTag4aTags: "Tag4aButtonVisibility",
-                buttonTag5aTags: "Tag5aButtonVisibility",
-                buttonTag6aTags: "Tag6aButtonVisibility",
-                buttonTag7aTags: "Tag7aButtonVisibility"
-            };
-            for (const oldFlag in flagMap) {
-                const newFlag = flagMap[oldFlag];
-                if (imported[oldFlag]) {
-                    imported[newFlag] = imported[oldFlag];
-                    delete imported[oldFlag];
-                }
-            }
-
-            // Reset all tag display names to defaults if missing
-            if (!imported.names) imported.names = {};
-            const defaultNames = {
-                Tags1a: "Liked",
-                Tags1b: "Loved",
-                Tags1c: "New1c",
-                Tags2a: "Performer",
-                Tags2b: "Loved Performer",
-                Tags2c: "New2c",
-                Tags3a: "New Performer",
-                Tags3b: "Loved New Performer",
-                Tags3c: "New3c",
-                Tags4a: "Amateur",
-                Tags4b: "Loved Amateur",
-                Tags4c: "New4c",
-                Tags5a: "Male Performer",
-                Tags5b: "Loved Male",
-                Tags5c: "New5c",
-                Tags6a: "Liked Site",
-                Tags6b: "Loved Site",
-                Tags6c: "New6c",
-                Tags7a: "Disliked",
-                Tags7b: "Hated",
-                Tags7c: "Terrible",
-                Tags7d: "Useless"
-            };
-            for (const k in defaultNames) {
-                if (!imported.names[k] || imported.names[k].trim() === "") {
-                    imported.names[k] = defaultNames[k];
-                }
-            }
-
-            // Update version marker
-            imported.majorVersion = 2.0;
-        }
-
-        return imported;
-    }
-    // === END MIGRATION ===
-*/
 
     // === Ensure we handle missing or older version values
     if (typeof settings.majorVersion === "undefined" || settings.majorVersion < defaults.majorVersion) {
@@ -1198,7 +1077,7 @@ function runScript() {
         .info-header-icon {display:inline-block;width:14px;height:14px;margin-left:4px; border-radius:50%;background:#8BA9C4;color:#fff!important;font:bold 11px/14px Arial,sans-serif; text-align:center;cursor:help;}
         .info-header-icon:hover {background:#8BA9C4;}
         .info-header-icon {display:inline-block;width:14px;height:14px;margin-left:4px; border:none;border-radius:50%;background:#8BA9C4;color:#fff!important; font:bold 11px/14px Arial,sans-serif;text-align:center;cursor:pointer;vertical-align:middle;}
-        .info-header-icon:hover,{background:#8BA9C4;}
+        .info-header-icon:hover {background:#8BA9C4;}
 
       /* == Tag Manager Page == */
         .tag-manager-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 20px 20px 20px 20px; }
@@ -1271,6 +1150,18 @@ function runScript() {
          ${Object.entries(tagHierarchy).map(([parent, kids]) => kids.map(child => `.s-tag.s-${parent.replace(/^Tags/, 'Tag')} .s-button.s-add-${child}`).join(',')).join(',')} {display:block;}`;
 
     stylesheet += `
+       /* == Hidden Tags7d Stuff -- */
+         ul.s-Tag7d-tags span.s-tag.s-Tag7d{display:inline-block !important; float:none; background:#AAA; border-bottom:1px solid #444; padding:0px 4px; border-radius:16px;font-weight:normal;}
+/* Not Needed ??
+        .s-tag.s-Tag7d .s-button{display:none}
+        .s-tag.s-Tag7d .s-button.s-remove-Tags7d{display:block}
+        .s-tag.s-Tag7d {display:inline-block !important;background:#999999;color:#000;border:inherit;border-radius:inherit;padding:inherit;vertical-align:middle;}
+        body.emp-tags-page .s-tag.s-Tag7d .s-button.s-remove-Tags7d {display:inline-block;opacity:0.8;vertical-align:middle;line-height:14px !important;}
+        body.emp-tags-page .s-tag.s-Tag7d .s-button.s-remove-Tags7d:hover {opacity:1;}
+        .s-Tag7d-tags{display:none;}
+        .s-Tag7d-toggle{font-weight:bold; cursor:pointer;}
+        .s-Tag7d-desc{clear:both; padding:8px 0 8px 15px;}
+*/
       /* == Tags Page: Tags == */
         body.emp-tags-page td:nth-child(2) .s-tag { display:inline-flex !important; flex-wrap:nowrap !important; align-items:center; }
         body.emp-tags-page td:nth-child(2) .s-tag a { order:2; flex:1 1 auto; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
@@ -1344,13 +1235,14 @@ function runScript() {
 
     // --- Initialization Block ---
     // Injects stylesheet, adds the Tag-Config link, and determines which page handler to run.
-    // Entry point for script logic after DOM is ready.
     (function init() {
         // add stylesheet
         $j(stylesheet).appendTo("head");
         runFunction(applyCustomColors, 'l02re82moype2hj5', []);
         var test = $j('#torrent_table tbody tr.torrent.rowb').css('background-color');
         $j('#torrent_table').css('background-color', test);
+
+        window.__lastRebuildTs = 0;
 
         // add config link
         $j("<li class='brackets' title=\"Change Empornium++Tag Highlighter's settings.\"><a href='#'>Tag-Config</a></li>")
@@ -1561,7 +1453,6 @@ function runScript() {
                         const rating = (settings.tagValues?.[tagType] !== undefined) ? settings.tagValues[tagType] : "(none)";
                         matched = true;
 
-                        // Count it normally
 
                         // Replace string-based rating logic with numeric-based calculation
                         var numericVal = parseInt(rating, 10);
@@ -1813,7 +1704,6 @@ Tags Ignored: (${countIgnored})`
             // Create popup container
             const popup = document.createElement('div');
             popup.id = 'column-toggle-popup';
-            // popup.style.cssText = `position:absolute;background:#fff;border:1px solid #333;padding:10px;z-index:10000;box-shadow:0 4px 10px rgba(0,0,0,0.3);border-radius:8px;font-family:sans-serif;min-width:150px;`;
 
             popup.style.cssText = `position:absolute; background:#fff; color:#000; border:1px solid #333; padding:10px; z-index:10000; box-shadow:0 4px 10px rgba(0,0,0,0.3); border-radius:8px; font-family:sans-serif; font-size:13px; min-width:150px;`;
 
@@ -2130,7 +2020,6 @@ Tags Ignored: (${countIgnored})`
             }
 
             // Add Tag Action Buttons
-            // addTagButtons(tagHolder, tag);
             runFunction(addTagButtons, 'o8fdjcdhk2d20h2o', [tagHolder, tag]);
         });
 
@@ -2485,13 +2374,11 @@ Tags Ignored: (${countIgnored})`
         });
 
         // Saves the compact tag layout on select.
-        /*
-          $j(document).on("change", ".s-conf-select[name='tagLayoutStyle']", function () {
-              const selected = $j(this).val();
-              settings.tagLayoutStyle = selected;
-              saveSettings();
-          });
-       */
+        $j(document).on("change", ".s-conf-select[name='tagLayoutStyle']", function () {
+            const selected = $j(this).val();
+            settings.tagLayoutStyle = selected;
+            saveSettings();
+        });
 
         let isProgrammatic = false; // Prevent infinite loops
 
@@ -2770,27 +2657,6 @@ Tags Ignored: (${countIgnored})`
             let type = button.data("type"); // e.g. "Tags2a" or "Tags2a"
             const input = button.prev();
 
-            // Normalize tag type (map old names to new canonical ones)
-            /* Delete
-            const legacyMap = {
-                "good": "Tags1a",
-                "loved": "Tags1b",
-                "performer": "Tags2a",
-                "loveperf": "Tags2b",
-                "newperf": "Tags3a",
-                "amateur": "Tags4a",
-                "loveamat": "Tags4b",
-                "maleperf": "Tags5a",
-                "lovemale": "Tags5b",
-                "likesite": "Tags6a",
-                "lovesite": "Tags6b",
-                "disliked": "Tags7a",
-                "hated": "Tags7b",
-                "terrible": "Tags7c",
-                "useless": "Tags7d"
-            };
-            if (legacyMap[type]) type = legacyMap[type];
-*/
             // Get and clean up tag list from input field
             const tags = $j.grep(input.val().toLowerCase().split(/\s+/), tag => tag);
 
@@ -2833,35 +2699,6 @@ Tags Ignored: (${countIgnored})`
                 $j(this).removeClass().addClass("s-" + type).html(msg + " <a id='s-conf-status-close'>(×)</a>").fadeIn("fast");
             });
         }
-        /*
-        function refreshUI(activeTabId) {
-            // fallback if caller didn't pass an id
-            activeTabId = activeTabId || $j('.tab-row-container li.s-selected .s-conf-tab').data('page') || "s-conf-general";
-
-            // remove old UI and rebuild
-            $j('#s-conf-background').remove();
-
-            const rebuilt = $j(buildSettingsHTML()).prependTo("body");
-            initConfig(rebuilt);
-            // ✅ Build the Tag Manager Buttons Dynamically / Insert After HTML is Built
-            initTagManagerUI();
-            // explicit, deterministic restore of the active tab
-            $j('.tab-row-container li').removeClass('s-selected');
-            $j('.s-conf-page').removeClass('s-selected');
-
-            const $tab = $j(`.s-conf-tab[data-page="${activeTabId}"]`);
-            if ($tab.length) {
-                $tab.parent().addClass('s-selected');
-                $j(`#${activeTabId}`).addClass('s-selected');
-            } else {
-                // fallback to General if the requested tab doesn't exist
-                $j(`.s-conf-tab[data-page="s-conf-general"]`).parent().addClass('s-selected');
-                $j('#s-conf-general').addClass('s-selected');
-            }
-
-            console.log("🟣 Running refreshUI() - restored", activeTabId);
-        }
-*/
 
         // === Real-time color and border preview updates (complete) ===
         $j(document).off("input change", "input[type='color'], select[id^='border-'], input[id^='border-']")
@@ -2937,18 +2774,24 @@ Tags Ignored: (${countIgnored})`
 
                     // tagKeyMap
                     const tagKeyMap = {
-                        good: "Tags1a", loved: "Tags1b",
-                        performer: "Tags2a", loveperf: "Tags2b",
-                        newperf: "Tags3a", amateur: "Tags4a",
-                        loveamat: "Tags4b", maleperf: "Tags5a",
-                        lovemale: "Tags5b", likesite: "Tags6a",
-                        lovesite: "Tags6b", disliked: "Tags7a",
-                        hated: "Tags7b", terrible: "Tags7c",
-                        useless: "Tags7d"
-                    };
+                        good:      "Tags1a",
+                        loved:     "Tags1b",
+                        performer: "Tags2a",
+                        loveperf:  "Tags2b",
+                        newperf:   "Tags3a",
+                        amateur:   "Tags4a",
+                        loveamat:  "Tags4b",
+                        maleperf:  "Tags5a",
+                        lovemale:  "Tags5b",
+                        likesite:  "Tags6a",
+                        lovesite:  "Tags6b",
+                        disliked:  "Tags7a",
+                        hated:     "Tags7b",
+                        terrible:  "Tags7c",
+                        useless:   "Tags7d"
 
+                    };
                     if (imported.tags) {
-                        console.log("Checkpoint C: tags keys =", Object.keys(imported.tags));
                         for (const oldKey in tagKeyMap) {
                             const newKey = tagKeyMap[oldKey];
                             if (imported.tags[oldKey]) {
@@ -2958,22 +2801,88 @@ Tags Ignored: (${countIgnored})`
                         }
                     }
 
-                    console.log("Checkpoint D: after tag migration");
-
-                    const flagMap = { useGoodTags: "useTag1aTags" }; // keep only one to simplify
+                    // 2) Full flag remap (all old "use..." → new "useTagXaTags")
+                    const flagMap = {
+                        useGoodTags:       "useTag1aTags",
+                        useLovedTags:      "useTag1bTags",
+                        usePerformerTags:  "useTag2aTags",
+                        useLoveperfTags:   "useTag2bTags",
+                        useNewperfTags:    "useTag3aTags",
+                        useAmateurTags:    "useTag4aTags",
+                        useLoveamatTags:   "useTag4bTags",
+                        useMaleperfTags:   "useTag5aTags",
+                        useLovemaleTags:   "useTag5bTags",
+                        useLikesiteTags:   "useTag6aTags",
+                        useLovesiteTags:   "useTag6bTags",
+                        useDislikedTags:   "useTag7aTags",
+                        useHatedTags:      "useTag7bTags",
+                        useTerribleTags:   "useTag7cTags",
+                        useUselessTags:    "useTag7dTags"
+                    };
                     for (const oldFlag in flagMap) {
                         const newFlag = flagMap[oldFlag];
-                        if (imported[oldFlag]) {
+                        if (imported[oldFlag] !== undefined) {
                             imported[newFlag] = imported[oldFlag];
                             delete imported[oldFlag];
                         }
                     }
 
-                    console.log("Checkpoint E: after flag migration");
+                    // 3) Button visibility remap (old → new)
+                    // Old naming
+                    const buttonMapOld = {
+                        buttonGoodTags:      "Tag1aButtonVisibility",
+                        buttonPerformerTags: "Tag2aButtonVisibility",
+                        buttonNewperfTags:   "Tag3aButtonVisibility",
+                        buttonAmateurTags:   "Tag4aButtonVisibility",
+                        buttonMaleperfTags:  "Tag5aButtonVisibility",
+                        buttonLikesiteTags:  "Tag6aButtonVisibility",
+                        buttonDislikedTags:  "Tag7aButtonVisibility"
+                    };
+                    for (const oldBtn in buttonMapOld) {
+                        const newBtn = buttonMapOld[oldBtn];
+                        if (imported[oldBtn] !== undefined) {
+                            imported[newBtn] = imported[oldBtn];
+                            delete imported[oldBtn];
+                        }
+                    }
+                    // 2.0 → 2.1 naming
+                    const buttonMap21 = {
+                        buttonTag1aTags: "Tag1aButtonVisibility",
+                        buttonTag2aTags: "Tag2aButtonVisibility",
+                        buttonTag3aTags: "Tag3aButtonVisibility",
+                        buttonTag4aTags: "Tag4aButtonVisibility",
+                        buttonTag5aTags: "Tag5aButtonVisibility",
+                        buttonTag6aTags: "Tag6aButtonVisibility",
+                        buttonTag7aTags: "Tag7aButtonVisibility"
+                    };
+                    for (const oldBtn in buttonMap21) {
+                        const newBtn = buttonMap21[oldBtn];
+                        if (imported[oldBtn] !== undefined) {
+                            imported[newBtn] = imported[oldBtn];
+                            delete imported[oldBtn];
+                        }
+                    }
 
+                    // 4) Ensure names exist across all categories
                     if (!imported.names) imported.names = {};
-                    imported.names.Tags1a = "Liked";
-                    imported.majorVersion = 2.0;
+                    const defaultNames = {
+                        Tags1a: "Liked",               Tags1b: "Loved",               Tags1c: "New1c",
+                        Tags2a: "Performer",           Tags2b: "Loved Performer",     Tags2c: "New2c",
+                        Tags3a: "New Performer",       Tags3b: "Loved New Performer", Tags3c: "New3c",
+                        Tags4a: "Amateur",             Tags4b: "Loved Amateur",       Tags4c: "New4c",
+                        Tags5a: "Male Performer",      Tags5b: "Loved Male Performer",Tags5c: "New5c",
+                        Tags6a: "Liked Site",          Tags6b: "Loved Site",          Tags6c: "New6c",
+                        Tags7a: "Disliked",            Tags7b: "Hated",               Tags7c: "Blacklisted",
+                        Tags7d: "Useless"
+                    };
+                    for (const k in defaultNames) {
+                        if (!imported.names[k] || imported.names[k].trim() === "") {
+                            imported.names[k] = defaultNames[k];
+                        }
+                    }
+
+                    // 5) Mark the migrated import at the new version
+                    imported.majorVersion = 2.5;
 
                     console.log("Checkpoint F: after name fill");
                 }
@@ -3109,63 +3018,6 @@ Tags Ignored: (${countIgnored})`
         holder.addClass("s-" + newType.replace(/^Tags/, "Tag"));
     }
 
-    /*
-    // Tag7d - Special Div Switching
-    function addTags7dTagElement(type, holder, tag) {
-        // Add the tag to settings first (keeps data consistent)
-        runFunction(removeTagElement, '66osgybdimo35cpm', ["Tags7a", holder, tag]);
-        runFunction(addTagElement, 'mu3lew78fzugh46o', ["Tags7d", holder, tag]);
-
-        // Respect user toggle: only move the DOM into the hidden holder when the hide toggle is enabled
-        try {
-            if (settings.hideTags7dTags) {
-                // If we have a .s-Tag7d-tags container, move the entire li/span wrapper there
-                var $container = $j(".s-Tag7d-tags");
-                if ($container.length) {
-                    holder.parent().detach().appendTo($container);
-                    $container.trigger("spyder.change");
-                } else {
-                    // Fallback: ensure the class is present so CSS-driven visibility works
-                    holder.addClass("s-Tag7d");
-                }
-            } else {
-                // Ensure the tag remains visible in-place and carries the class for styling only
-                holder.addClass("s-Tag7d");
-                holder.find("a").css("display", "inline");
-                holder.css("display", "inline");
-            }
-        } catch (err) {
-            console.error("addTags7dTagElement failed:", err);
-        }
-    }
-
-
-    function removeTags7dTagElement(type, holder, tag) {
-        try {
-            var $parent = holder.parent();
-            // If currently inside the .s-Tag7d-tags container, restore it before removing setting
-            if ($parent.closest(".s-Tag7d-tags").length) {
-                // Move tag back into main tag list (first column by default)
-                var $tagList = $j("#torrent_tags_list .tag-column.col-1");
-                if ($tagList.length === 0) $tagList = $j("#torrent_tags_list");
-                $parent.detach().appendTo($tagList);
-
-                $j(".s-Tag7d-tags").trigger("spyder.change");
-            }
-            // Remove from settings
-            runFunction(removeTagElement, 'hg44i3lj2y2wvzx5', ["Tags7d", holder, tag]);
-            // Clear any 7d classes so it returns to uncategorized behavior
-            holder.removeClass("s-Tag7d s-Tag7d-hidden");
-            var $container = $j("#torrent_tags.tag_inner");
-            $container.trigger("spyder.change");
-            // Rebuild detail buttons/state
-            runFunction(highlightDetailTags, 'uvlm50acokjupufn', []);
-
-        } catch (err) {
-            console.error("removeTags7dTagElement failed:", err);
-        }
-    }
-*/
 
     function addTagElement(type, holder, tag) {
         // Normalize incoming type names so we always add classes like "s-Tag1a"
@@ -3181,31 +3033,6 @@ Tags Ignored: (${countIgnored})`
             normalized = normalized.replace(/^tag/i, 'Tag');
         }
 
-        /* Delete
-        // As a fallback, if someone passed an old legacy name (good/loved/performer),
-        // attempt to map them to TagXx to keep compatibility.
-        const legacyToTagMap = {
-            good: 'Tag1a',
-            loved: 'Tag1b',
-            performer: 'Tag2a',
-            loveperf: 'Tag2b',
-            newperf: 'Tag3a',
-            amateur: 'Tag4a',
-            loveamat: 'Tag4b',
-            maleperf: 'Tag5a',
-            lovemale: 'Tag5b',
-            likesite: 'Tag6a',
-            lovesite: 'Tag6b',
-            disliked: 'Tag7a',
-            hated: 'Tag7b',
-            terrible: 'Tag7c',
-            useless: 'Tag7d'
-        };
-        if (!/^Tag\d+[a-d]?$/i.test(normalized)) {
-            var lower = normalized.toLowerCase();
-            if (legacyToTagMap[lower]) normalized = legacyToTagMap[lower];
-        }
-*/
         holder.addClass("s-" + normalized);
         runFunction(addTags, 'hfvigt9ca2mptuyc', [type, tag]);
 
@@ -3551,7 +3378,7 @@ function addJQuery(callback) {
 
 
 
-
+    /*
     // --- Layout Helper: 3-Column Tag Splitter ---
     // Reorganizes the tag list on detail pages into evenly spaced columns.
     function splitTagsIntoColumns() {
@@ -3611,6 +3438,139 @@ function addJQuery(callback) {
             span.style.alignItems = 'center';
         });
     }
+*/
+
+    function splitTagsIntoColumns() {
+        const tagList = document.querySelector('#torrent_tags_list');
+        if (!tagList) return;
+
+        // Detect existing column wrappers under #torrent_tags_list
+        // Anything that is a direct child and NOT an LI (and NOT the hidden 7d block) is treated as a “column wrapper”
+        const hidden7dBlocks = Array.from(tagList.children)
+        .filter(c => c.classList && c.classList.contains('s-Tag7d-tags'));
+
+        const existingColumnWrappers = Array.from(tagList.children)
+        .filter(c =>
+                c.tagName !== 'LI' &&
+                !(c.classList && c.classList.contains('s-Tag7d-tags'))
+               );
+
+        // Collect all <li> items regardless of whether they are directly under #torrent_tags_list
+        // or nested inside column wrappers the site already created.
+        const allItems = (function collectAllLis(root) {
+            const lis = [];
+            // If the site already has column wrappers, pull LIs from each wrapper
+            const columns = existingColumnWrappers.length
+            ? existingColumnWrappers
+            : [root];
+
+            columns.forEach(col => {
+                lis.push(
+                    ...Array.from(col.querySelectorAll(':scope > li')).filter(li => {
+                        if (li.closest('.s-Tag7d-tags')) return false; // ignore hidden 7d area
+                        const s = window.getComputedStyle(li);
+                        return s.display !== 'none' && s.visibility !== 'hidden';
+                    })
+                );
+            });
+
+            return lis;
+        })(tagList);
+
+        if (allItems.length === 0) return;
+
+        // ✅ Always sort alphabetically
+        allItems.sort((a, b) => {
+            const textA = a.textContent.trim().toLowerCase();
+            const textB = b.textContent.trim().toLowerCase();
+            return textA.localeCompare(textB, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        // Remove the existing LIs from the DOM before we re-append them in sorted order
+        // NOTE: we do NOT remove non-LI children (like the site’s column wrappers or your hidden 7d block)
+        allItems.forEach(li => li.remove());
+
+        // === CASE A: Skip your own 3 columns (site already does columns or host excluded) ===
+        if (window.shouldSkipTagSplit()) {
+            if (existingColumnWrappers.length > 0) {
+                // The site already has column wrappers. Redistribute sorted LIs back into those wrappers,
+                // preserving the original item counts per column to keep their layout from breaking.
+                const originalCounts = existingColumnWrappers.map(col =>
+                                                                  col.querySelectorAll(':scope > li').length
+                                                                 );
+
+                let idx = 0;
+                existingColumnWrappers.forEach((col, colIdx) => {
+                    const take = originalCounts[colIdx];
+                    const slice = allItems.slice(idx, idx + take);
+                    slice.forEach(li => col.appendChild(li));
+                    idx += take;
+                });
+
+                // If counts changed or were 0, any remaining items (unlikely) go to the last column wrapper.
+                if (idx < allItems.length) {
+                    allItems.slice(idx).forEach(li => existingColumnWrappers.at(-1).appendChild(li));
+                }
+
+            } else {
+                // No column wrappers (some sites don’t use wrappers but still control layout elsewhere).
+                // Just append sorted items back to #torrent_tags_list in order.
+                allItems.forEach(li => tagList.appendChild(li));
+            }
+
+            // Keep the hidden 7d blocks at the end (no reflow/splitting for them).
+            hidden7dBlocks.forEach(h => tagList.appendChild(h));
+
+            // Apply your usual row alignment helpers (safe for any layout)
+            runFunction(enforceTagRowLayout, 'eimqkzlubg0yg9jl', []);
+            runFunction(overrideTagLinkWidths, 'rkeym2z93t9tr9id', []);
+            runFunction(resizeAllTagText, '6f4bq7xg2omsqz8w', []);
+            tagList.querySelectorAll('span.s-tag').forEach(span => {
+                span.style.display = 'inline-flex';
+                span.style.flex = '0 0 auto';
+                span.style.alignItems = 'center';
+            });
+            return; // 🚪 Done for “skip split” case
+        }
+
+        // === CASE B: Do your own 3 columns ===
+        // Build 3 columns and distribute the sorted items evenly
+        const cols = Array.from({ length: 3 }, (_, i) => {
+            const d = document.createElement('div');
+            d.className = `tag-column col-${i + 1}`;
+            Object.assign(d.style, {
+                width: '33.33%',
+                float: 'left',
+                boxSizing: 'border-box'
+            });
+            return d;
+        });
+
+        // Clear only the direct content of #torrent_tags_list, but keep hidden 7d blocks aside
+        // We will append columns and then re-append 7d blocks at the end
+        // (This keeps any other non-LI child nodes intact)
+        Array.from(tagList.querySelectorAll(':scope > li')).forEach(li => li.remove());
+        existingColumnWrappers.forEach(w => w.remove()); // remove prior wrappers if present
+
+        const perCol = Math.ceil(allItems.length / 3);
+        cols[0].append(...allItems.slice(0, perCol));
+        cols[1].append(...allItems.slice(perCol, perCol * 2));
+        cols[2].append(...allItems.slice(perCol * 2));
+
+        cols.forEach(c => tagList.appendChild(c));
+        hidden7dBlocks.forEach(h => tagList.appendChild(h));
+
+        // Apply layout helpers
+        runFunction(enforceTagRowLayout, 'eimqkzlubg0yg9jl', []);
+        runFunction(overrideTagLinkWidths, 'rkeym2z93t9tr9id', []);
+        runFunction(resizeAllTagText, '6f4bq7xg2omsqz8w', []);
+        tagList.querySelectorAll('span.s-tag').forEach(span => {
+            span.style.display = 'inline-flex';
+            span.style.flex = '0 0 auto';
+            span.style.alignItems = 'center';
+        });
+    }
+
     window.splitTagsIntoColumns = splitTagsIntoColumns;
 
     // --- Layout Helper: Tag Row Flex Alignment ---
@@ -3824,12 +3784,6 @@ function addJQuery(callback) {
     }
     window.resizeAllTagText=resizeAllTagText;
 
-    /*
-    function isEmporiumTorrentPage() {
-        return /^https:\/\/www\.empornium\.sx\/torrents\.php\?id=\d+/.test(window.location.href);
-    }
-*/
-
     function initializeEnhancements() {
 
         runFunction(rearrangeLayout, 'rqpc3ze9eoklvvac', []);
@@ -3889,23 +3843,41 @@ function addJQuery(callback) {
         });
     }
 
+
+
     function rebuildTagLayout() {
+        const DEBOUNCE_MS = 800;
+        if (window.__rebuildLock) {
+            console.warn('⏳ rebuildTagLayout skipped (lock)');
+            return;
+        }
+        const now = Date.now();
+        if (now - (window.__lastRebuildTs || 0) < DEBOUNCE_MS) {
+            console.warn('⏳ rebuildTagLayout skipped (debounced)');
+            return;
+        }
+        window.__rebuildLock = true;
+
         setTimeout(() => {
             try {
-                console.log("🔁 Rebuilding tag layout...");
+                console.log('🔁 Rebuilding tag layout...');
                 runFunction(highlightDetailTags, '2c5anxv59ystmji1', []);
-                runFunction(rearrangeLayout, 'uxjouy2sjvedwly0', []);
                 runFunction(splitTagsIntoColumns, '4jiq2v8m4svjq0hk', []);
                 runFunction(enforceTagRowLayout, 'y0o8ew4hhbqe7jis', []);
                 runFunction(overrideTagLinkWidths, 'taec30gdt19szwdc', []);
                 runFunction(resizeAllTagText, '168o5p8wofx26w1h', []);
                 runFunction(addButtonToggle, 'vcjy4ldrxj8ycx6r', []);
-
             } catch (err) {
-                console.warn("🔴 Tag layout rebuild failed:", err);
+                console.warn('🔴 Tag layout rebuild failed:', err);
+            } finally {
+                // ✅ Stamp the "last rebuild" time here, AFTER completing the work
+                window.__lastRebuildTs = Date.now();
+                window.__rebuildLock = false;
             }
         }, 300);
     }
+
+
 
     window.rebuildTagLayout = rebuildTagLayout;
     // --- Mutation Observer: Tags7d (Hidden Tags) ---
@@ -3976,19 +3948,32 @@ function addJQuery(callback) {
     // --- Focus Observer ---
     // When the tab regains focus, rechecks and rebuilds tag layout if needed.
     // Minor hack to fix the layout being "Off" when opening detials in new tab.
+
+
     (function observeFocusForRebuild() {
-        // ✅ Only run on torrent details pages
+        // Only run on torrent details pages
         if (!/torrents\.php\?id=/.test(window.location.href)) return;
+
+        if (typeof window.__lastRebuildTs !== 'number') window.__lastRebuildTs = 0;
+
+        const DEBOUNCE_MS = 800;       // unify with rebuildTagLayout
         let isRebuilding = false;
 
         window.addEventListener('focus', () => {
             if (isRebuilding) return;
-            isRebuilding = true;
 
+            const now = Date.now();
+            if (now - (window.__lastRebuildTs || 0) < DEBOUNCE_MS) {
+                console.warn('⏳ Focus rebuild skipped (debounced by last rebuild timestamp)');
+                return;
+            }
+
+            isRebuilding = true;
             console.log('Window focused — triggering layout recheck');
 
             setTimeout(() => {
                 try {
+                    // ❌ Do NOT set __lastRebuildTs here. Let rebuildTagLayout stamp AFTER it finishes.
                     runFunction(rebuildTagLayout, 'llou6iuynqvw379q', []);
                 } catch (err) {
                     console.warn('Focus rebuild failed:', err);
@@ -3998,7 +3983,6 @@ function addJQuery(callback) {
             }, 300);
         });
     })();
-
 
 })();
 // This is the very end of this file.
