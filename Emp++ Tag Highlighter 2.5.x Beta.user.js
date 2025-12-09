@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.5.x Beta
 // @namespace    http://tampermonkey.net/
-// @version      2.5.52
+// @version      2.5.60
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -241,6 +241,14 @@ function runScript() {
     if (!settings.tags) settings.tags = {};
 
 
+    // Ensure every tag category exists as an array (prevents undefined .join errors)
+    for (const key of ALL_TAGS_KEYS) {
+        if (!Array.isArray(settings.tags[key])) {
+            settings.tags[key] = [];
+        }
+    }
+
+
     const tagHierarchy = {
         Tags1a: ["Tags1b", "Tags1c"],
         Tags2a: ["Tags2b", "Tags2c"],
@@ -250,6 +258,8 @@ function runScript() {
         Tags6a: ["Tags6b", "Tags6c"],
         Tags7a: ["Tags7b", "Tags7c", "Tags7d"]
     };
+
+
 
     // === Tag Metadata for Notes and Info ===
     const TAG_META = {
@@ -348,6 +358,7 @@ function runScript() {
     // --- Settings Migration ---
     // Converts v0.7 Emp++ Tag Highlighter data to the new dynamic format.
     // Renames old keys and flag structures into the modern standardized layout.
+    /*
     function migrateOldSettings(imported) {
         // --- Only run if version < 2.0 or missing ---
         if (!imported.majorVersion || imported.majorVersion < 2.0) {
@@ -462,6 +473,7 @@ function runScript() {
         return imported;
     }
     // === END MIGRATION ===
+*/
 
     // === Ensure we handle missing or older version values
     if (typeof settings.majorVersion === "undefined" || settings.majorVersion < defaults.majorVersion) {
@@ -519,7 +531,7 @@ function runScript() {
         unknown:     { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 }
     };
 
-        // --- HappyFappy - Adjust Bublegum Theme Colors
+    // --- HappyFappy - Adjust Bublegum Theme Colors
     if (settings.hfBetterBubblegum) {
         if (currentTheme === "Bubblegum") {
             const style = document.createElement("style");
@@ -559,7 +571,7 @@ function runScript() {
             Tags6c: 0,
             Tags7a: -1,
             Tags7b: -2,
-            Tags7c: -2,
+            Tags7c: -3,
             Tags7d: 0
         };
     }
@@ -593,7 +605,7 @@ function runScript() {
             style.textContent = "body:not(.emp-tags-page) span.s-tag.s-Tag7d { display:none !important; }";
         } else {
             // When the toggle is OFF, ensure they show everywhere
-            style.textContent = "span.s-tag.s-Tag7d { display:inline-block !important; }";
+            //style.textContent = "span.s-tag.s-Tag7d { display:inline !important; }";
         }
 
         document.head.appendChild(style);
@@ -627,6 +639,7 @@ function runScript() {
         #torrent_tags_list li { margin: 1px 10px; }
         #torrent_tags_list li .s-tag a { font-size: 11px !important; line-height: 1.2 !important; padding: 0px 1px 1px 0px !important; }
         #taglist-container .box_tags #torrent_tags li {height: 18px}
+        .tag_inner span.s-tag {line-height: 17px; !important Height 17px;!important}
         `;
                 break;
 
@@ -638,6 +651,7 @@ function runScript() {
         #torrent_tags_list li { margin: 3px 10px; }
         #torrent_tags_list li .s-tag a { font-size: 13px !important; line-height: 1.2 !important; padding: 2px 3px !important; }
         #taglist-container .box_tags #torrent_tags li {height: 24px}
+        .tag_inner span.s-tag {line-height: 22px; !important Height 22px;!important}
         `;
                 break;
 
@@ -649,6 +663,7 @@ function runScript() {
         #torrent_tags_list li { margin: 3px 10px; }
         #torrent_tags_list li .s-tag a { font-size: 13px !important; line-height: 1 !important; padding: 0px 1px 1px 0px !important; }
         #taglist-container .box_tags #torrent_tags li {height: 22px}
+        .tag_inner span.s-tag {line-height: 19px; !important Height 19px;!important}
         `;
                 break;
         }
@@ -686,7 +701,7 @@ function runScript() {
 
         return (
             "<tr>" +
-            "<td><button class='info-btn' data-info='" + meta.info + "'>ℹ</button></td>" +
+            "<td><button class='info-btn' data-info='" + meta.info + "'>i</button></td>" +
             "<td><button class='edit-label' data-name='" + tagKey + "'>✎</button></td>" +
             "<td class='label-cell' data-name='" + tagKey + "'>" + name + "</td>" +
             "<td><input class='s-conf-gen-checkbox' type='checkbox' name='use" + tagKey.replace("Tags", "Tag") + "Tags'/></td>" +
@@ -750,6 +765,7 @@ function runScript() {
         );
     }
 
+
     function openTagPopup(tagKey) {
         const panelId = "s-conf-" + tagKey + "-tags";
         const originalPanel = document.getElementById(panelId);
@@ -759,26 +775,35 @@ function runScript() {
         popup.className = "tag-popup";
         popup.innerHTML = `
         <div class="tag-popup-inner">
-            <button class="tag-popup-close">×</button>
-            <h3>${settings.names[tagKey]} Tag Manager</h3>
-            ${originalPanel.innerHTML.replace(
+          <!-- Top-right close (existing) -->
+          <button class="tag-popup-close" aria-label="Close">×</button>
+
+          <h3>${settings.names[tagKey]} Tag Manager</h3>
+
+          ${originalPanel.innerHTML.replace(
             new RegExp(`s-conf-text-${tagKey}`, "g"),
             `popup-conf-text-${tagKey}`
         )}
+
+          <!-- Bottom action bar (new) -->
+          <div class="tag-popup-footer">
+            <button type="button" class="tag-popup-close-btn">Close</button>
+          </div>
         </div>
-    `;
+      `;
         document.body.appendChild(popup);
 
         // ✅ Populate the textarea with current tags
         runFunction(displayTags, 'hb9de35yg39tvcre', [tagKey, "#popup-conf-text-" + tagKey]);
+
         // Rebind Add Tags button
         const addBtn = popup.querySelector(`.s-conf-add-btn[data-type="${tagKey}"]`);
         if (addBtn) {
             addBtn.addEventListener("click", () => {
                 const input = popup.querySelector(`#s-conf-add-${tagKey}`);
                 const tagsToAdd = input?.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-                if (tagsToAdd.length) {
-                    addTags(tagKey, tagsToAdd); // ✅ use original function
+                if (tagsToAdd?.length) {
+                    addTags(tagKey, tagsToAdd);
                     runFunction(displayTags, '2j0rwp3iag1nvpsf', [tagKey, `#popup-conf-text-${tagKey}`]);
                     input.value = "";
                 }
@@ -791,17 +816,121 @@ function runScript() {
             removeBtn.addEventListener("click", () => {
                 const input = popup.querySelector(`#s-conf-remove-${tagKey}`);
                 const tagsToRemove = input?.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-                if (tagsToRemove.length) {
+                if (tagsToRemove?.length) {
                     runFunction(removeTags, '8d7uyeomksdxpfu3', [tagKey, tagsToRemove]);
                     runFunction(displayTags, '57d8mc6ai07n8pft', [tagKey, `#popup-conf-text-${tagKey}`]);
                     input.value = "";
                 }
             });
         }
-        popup.querySelector(".tag-popup-close").addEventListener("click", () => {
-            popup.remove();
+
+        // Close handlers (top × and bottom Close)
+        const closePopup = () => popup.remove();
+        popup.querySelector(".tag-popup-close")?.addEventListener("click", closePopup);
+        popup.querySelector(".tag-popup-close-btn")?.addEventListener("click", closePopup);
+
+        // UX niceties: Esc to close, click outside to close (optional)
+        const onKey = (e) => {
+            if (e.key === "Escape") {
+                closePopup();
+                document.removeEventListener("keydown", onKey);
+            }
+        };
+        document.addEventListener("keydown", onKey);
+
+        popup.addEventListener("click", (e) => {
+            const inner = popup.querySelector(".tag-popup-inner");
+            if (e.target === popup && inner && !inner.contains(e.target)) {
+                // click on overlay outside inner → close
+                closePopup();
+            }
         });
     }
+
+
+    // --- Dynamic Code For Tag Styles Page
+    function buildAllTagStyleRows() {
+        let html = "";
+        for (const key of ALL_TAGS_KEYS) {
+            html += buildGeneralRow(key);
+        }
+        return html;
+    }
+
+    // --- Dynamic Code For TAG Category Management Pop-ups (Add / Remove Tags from Categories)
+    function buildAllTagPanels() {
+        let html = "";
+        for (const key of ALL_TAGS_KEYS) {
+            html += buildTagPanel(key);
+        }
+        return html;
+    }
+
+
+
+
+    function initTagManagerUI() {
+        // Function to build tag buttons based on filter
+        function buildTagButtons(filter) {
+            const buttonContainer = document.getElementById("tag-manager-buttons");
+            if (!buttonContainer) return;
+
+            // Clear existing buttons
+            buttonContainer.innerHTML = "";
+
+            for (const key of ALL_TAGS_KEYS) {
+                const name = settings.names[key];
+
+                // Check filter
+                if (filter === "enabled") {
+                    const settingKey = `use${key.replace(/^Tags/, "Tag")}Tags`; // e.g., Tags1a → Tag1a → useTag1aTags
+                    if (!settings[settingKey]) continue; // Skip if disabled
+                }
+
+                // Create button
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = `tag-manager-btn s-tag s-${key.replace(/^Tags/, "Tag")}`;
+                btn.textContent = name;
+                btn.dataset.tagKey = key;
+                btn.addEventListener("click", () => openTagPopup(key));
+                buttonContainer.appendChild(btn);
+            }
+        }
+
+        // Wait until the tag manager container is in the DOM
+        const interval = setInterval(() => {
+            const buttonContainer = document.getElementById("tag-manager-buttons");
+            const dropdown = document.getElementById("tag-filter");
+            if (buttonContainer && dropdown) {
+                clearInterval(interval);
+
+                // Get last saved filter or default to 'all'
+                const savedFilter = localStorage.getItem("tagFilter") || "all";
+                dropdown.value = savedFilter;
+
+                // Initial build
+                runFunction(buildTagButtons, '9ez324thhnsm3pi7', [savedFilter]);
+
+                // Add change listener to dropdown
+                dropdown.addEventListener("change", () => {
+                    const newFilter = dropdown.value;
+                    localStorage.setItem("tagFilter", newFilter); // Save selection
+                    runFunction(buildTagButtons, 'xwb1fl4hx1q14eao', [newFilter]);
+                });
+
+                // ✅ Add refresh on tab click here
+                document.addEventListener("click", function (e) {
+                    const tab = e.target.closest("li[data-page='s-conf-tag-manager']");
+                    if (tab) {
+                        const currentFilter = dropdown ? dropdown.value : "all";
+                        runFunction(buildTagButtons, 'fbmv84kn3vhyhwpt', [currentFilter]);
+                    }
+                });
+            }
+        }, 100);
+    }
+
 
     // --- Build the html for the settings interface ---
     function buildSettingsHTML() {
@@ -809,241 +938,192 @@ function runScript() {
         //console.group("🧩 buildSettingsHTML() Debug");
         //console.log("settings.names snapshot at build start:", JSON.parse(JSON.stringify(settings.names)));
 
-        var configHTML =
-            "<div id='s-conf-background'>" +
-            "<div id='s-conf-wrapper'>" +
-            "<h1>Empornium++Tag Highlighter Settings</h1>" +
-            "<div id='s-conf-status'></div>" +
+        // Build dynamic sections
+        const styleRowsHTML = buildAllTagStyleRows();
+        const tagPanelsHTML = buildAllTagPanels();
 
-            // All the Tabs!!
-            "<div class='tab-row-container'" +
-            "<ul class='tab-row'>" +
-            "<li data-page='s-conf-general' class='s-selected'><a class='s-conf-tab' >General</a></li>" +
-            "<li data-page='s-conf-tag-styles'><a class='s-conf-tab'>Tag Styles</a></li>" +
-            "<li data-page='s-conf-tag-manager'><a class='s-conf-tab'>Tag List Manager</a></li>" +
-            "<li data-page='s-conf-dupe-cleanup'><a class='s-conf-tab'>Dupe Cleanup</a></li>" +
-            "<li data-page='s-conf-import-export'><a class='s-conf-tab'>Import/Export</a></li>" +
-            "</ul>" +
-            "</div>";
+        // Compose full HTML
+        const configHTML = `
+        <div id="s-conf-background">
+          <div id="s-conf-wrapper">
+            <h1>Empornium++Tag Highlighter Settings</h1>
+            <div id="s-conf-status"></div>
+            <!-- 📝📝 - All the Tabs!! - 📝📝 -->
+            <div class="tab-row-container">
+              <ul class="tab-row">
+                <li data-page="s-conf-general" class="s-selected"><a class="s-conf-tab">General</a></li>
+                <li data-page="s-conf-tag-styles"><a class="s-conf-tab">Tag Styles</a></li>
+                <li data-page="s-conf-tag-manager"><a class="s-conf-tab">Tag List Manager</a></li>
+                <li data-page="s-conf-dupe-cleanup"><a class="s-conf-tab">Dupe Cleanup</a></li>
+                <li data-page="s-conf-import-export"><a class="s-conf-tab">Import/Export</a></li>
+              </ul>
+            </div>
 
-        // --- The General Settings Tab
-        let styleRowsHTML = "";
-        for (const key of ALL_TAGS_KEYS) {
-            styleRowsHTML += buildGeneralRow(key);
-        }
+            <!-- 📝📝 - Main content area - 📝📝 -->
+            <div id="s-conf-content">
+              <form id="s-conf-form">
 
-        configHTML +=
-            "<div id='s-conf-content'>" +
-            "  <form id='s-conf-form'>" +
-            "    <div class='s-conf-page s-selected' id='s-conf-general'>" +
+                <!-- 📄📄 - General Page - Checkboxes - Torrent Display Settings - 📄📄 -->
+                <div class="s-conf-page s-selected" id="s-conf-general">
+                  <h2 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">Torrent Display Options:</h2>
 
+                  <!-- 🔽 Tag Layout: Compact, Normal, Roomy -->
+                  <div class="torrent-options-select">
+                    <label style="font-weight:normal; font-size:13px; display:flex; align-items:center; gap:6px; margin:0;">
+                      Listing Page Tag Layout:
+                      <select class="s-conf-select" name="tagLayoutStyle" style="font-size:13px; padding:2px 4px;">
+                        <option value="compact">Compact</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="roomy">Roomy</option>
+                      </select>
+                    </label>
+                  </div>
 
-            // --- 📄General Tab - Checkboxes - Torrent Display Settings
-            // --- Tag Layout Density (Compact, Normal, Roomy)
-            "<h2 style='display:flex; align-items:center; justify-content:space-between; gap:8px;'>Torrent Display Options:</h2>" +
-            // --- Torrent Options Checkboxes
-            "  <div class='torrent-options-select'>" +
-            "    <label style='font-weight:normal; font-size:13px; display:flex; align-items:center; gap:6px; margin:0;'>" +
-            "      Listing Page Tag Layout:" +
-            "      <select class='s-conf-select' name='tagLayoutStyle' style='font-size:13px; padding:2px 4px;'>" +
-            "        <option value='compact'>Compact</option>" +
-            "        <option value='normal' selected>Normal</option>" +
-            "        <option value='roomy'>Roomy</option>" +
-            "      </select>" +
-            "    </label>" +
-            "   </div>" +
-            "<div class='torrent-options'>" +
-            // ✅ Percent bar
-            "<label title='Show a color bar representing good vs bad tags'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='usePercentBar'/> Use Percent Bar</label>" +
-            // ✅ HTML table tooltip for percentbar stats
-            "<label title='Use PercentBar HTML tooltip for percent bar breakdown'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='usePBHtmlTooltip'/> Percentbar HTML Tooltip</label>"+
-            // ✅ Torrent opactiy (Might not even work! in 2.0)
-            "<label title='Adjust torrent opacity based on performance score'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='useTorrentOpacity'/> Use Opacity on Torrents</label>" +
-            // ✅ Torrent row coloring (Green = Good - Red = Bad)
-            "<label title='Color torrents according to tag scores (green=good, red=bad)'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='useTorrentColoring'/> Use Color on Torrents</label>" +
-            // ✅ Notice for hidden blacklist borrents (I think, Untested in 2.x)
-            "<label title='Display a notice when a torrent contains blacklisted tags'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='useTorrentBlacklistNotice'/> Use Blacklist Notice</label>" +
-            // ✅ Notice for hidden blacklist torrents on bookmarks page (I think, Untested in 2.x)
-            "<label title='Also apply blacklist notice logic to bookmarked torrents'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='useBlacklistNoticeBookmark'/> Include Bookmarks</label>" +
-            // ✅ Notice for hidden blacklist torrents on collage page (I think, Untested in 2.x)
-            "<label title='Also apply blacklist notice logic to collage items'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='useBlacklistNoticeCollages'/> Include Collages</label>" +
-            // ✅ Should we hide torrents with Tags7c formerly "Blacklist" - Option for anyone repurposing this.
-            "<label title='Hide torrents that contain " + settings.names.Tags7c + " tags'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='hideTags7cTorrents'/> Hide torrents with " + settings.names.Tags7c + " Tags</label>" +
-            // ✅ Should we hide torrents with Tags7d formerly "Useless" - Option for anyone repurposing this.
-            "<label title='Hide " + settings.names.Tags7d + " tags entirely from view'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='hideTags7dTags'/> Hide " + settings.names.Tags7d + " Tags</label>" +
-            // ✅ Change tags to not use the default italics font.
-            "<label title='Removes italics from tags (Torrent List Page)'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='disableItalics'/> Disable Italic Tags (List Page)</label>" +
-            "</div>" +
-            "<h2 style='display:flex; align-items:center; justify-content:space-between; gap:8px;'>Site Specific Options:</h2>" +
-            "<div class='site-options'>" +
-            // ✅ Change tags to not use the default italics font.
-            "<label title='Applies more neutral colors to the happyfappy light theme - Bubblegum'>" +
-            "<input class='s-conf-gen-checkbox' type='checkbox' name='hfBetterBubblegum'/> HappyFappy - Neutral Bubblegum Theme</label>" +
-            "</div>" +
-            "</div>" +
+                  <!-- 📝📝 - General Settings Checkboxes - 📝📝 -->
+                  <div class="torrent-options">
+                    <!-- ✅ Percent bar -->
+                    <label title="Show a color bar representing good vs bad tags">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="usePercentBar"/> Use Percent Bar
+                    </label>
 
-            // --- 📄 Tag Style Page
-            "<div class='s-conf-page' id='s-conf-tag-styles'>" +
-            "<h2>Tag Styles</h2>" +
-            "<table class='s-conf-tag-table'>" +
-            "<thead>" +
-            "<tr>" +
-            "<th></th>" +
-            "<th></th>"+
-            "<th>Name</th>" +
-            "<th>Enable</th>" +
-            "<th>Hide</th>" +
-            "<th>Value <span class='info-header-icon' data-tooltip='Affects the percent bar (if enabled)'>i</span></th>" +
-            "<th>Background</th>" +
-            "<th>Text</th>" +
-            "<th>Border</th>" +
-            "<th>Border Style</th>" +
-            "<th>Border Weight</th>" +
-            "<th>Sample</th>" +
-            "</tr>" +
-            "</thead>" +
-            "<tbody>" +
-            styleRowsHTML +
-            "</tbody>" +
-            "</table>" +
-            "</div>";
+                    <!-- ✅ Percentbar HTML tooltip -->
+                    <label title="Use PercentBar HTML tooltip for percent bar breakdown">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="usePBHtmlTooltip"/> Percentbar HTML Tooltip
+                    </label>
 
-        // === Dynamically append Add/Remove/Display panels for each tag type ===
+                    <!-- ✅ Torrent opacity -->
+                    <label title="Adjust torrent opacity based on performance score">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="useTorrentOpacity"/> Use Opacity on Torrents
+                    </label>
 
-        (function () {
-            for (const key of ALL_TAGS_KEYS) {
-                var panelHTML = buildTagPanel(key);
-                // console.log("Generated HTML for " + key + ":\n", panelHTML); // 🐞Debug Output to console
-                configHTML += panelHTML;
-            }
-        })();
+                    <!-- ✅ Torrent row coloring -->
+                    <label title="Color torrents according to tag scores (green=good, red=bad)">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="useTorrentColoring"/> Use Color on Torrents
+                    </label>
 
+                    <!-- ✅ Blacklist notice -->
+                    <label title="Display a notice when a torrent contains blacklisted tags">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="useTorrentBlacklistNotice"/> Use Blacklist Notice
+                    </label>
 
+                    <!-- ✅ Blacklist notice on bookmarks -->
+                    <label title="Also apply blacklist notice logic to bookmarked torrents">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="useBlacklistNoticeBookmark"/> Include Bookmarks
+                    </label>
 
+                    <!-- ✅ Blacklist notice on collages -->
+                    <label title="Also apply blacklist notice logic to collage items">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="useBlacklistNoticeCollages"/> Include Collages
+                    </label>
 
-        configHTML +=
-            // --- 📄Tag-Manager Page ---
-            "<div class='s-conf-page' id='s-conf-tag-manager'>" +
-            "<h2>Tag List Manager</h2>" +
-            "Category Filter:" +
-            "<select id='tag-filter'>" +
-            "<option value='all'>All</option>" +
-            "<option value='enabled'>Enabled</option>" +
-            "</select>" +
-            "<br><br><p>Click a category below to manage its tags:</p>" +
-            "<div id='tag-manager-buttons' class='tag-grid'></div>" +
-            "</div>";
+                    <!-- ✅ Hide torrents with Tags7c -->
+                    <label title="Hide torrents that contain ${settings.names.Tags7c} tags">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="hideTags7cTorrents"/> Hide torrents with ${settings.names.Tags7c} Tags
+                    </label>
 
-        (function () {
-            // Function to build tag buttons based on filter
-            function buildTagButtons(filter) {
-                const buttonContainer = document.getElementById("tag-manager-buttons");
-                if (!buttonContainer) return;
+                    <!-- ✅ Hide Tags7d entirely -->
+                    <label title="Hide ${settings.names.Tags7d} tags entirely from view">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="hideTags7dTags"/> Hide ${settings.names.Tags7d} Tags
+                    </label>
 
-                // Clear existing buttons
-                buttonContainer.innerHTML = "";
+                    <!-- ✅ Disable italics on listing page -->
+                    <label title="Removes italics from tags (Torrent List Page)">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="disableItalics"/> Disable Italic Tags (List Page)
+                    </label>
+                  </div>
 
-                for (const key of ALL_TAGS_KEYS) {
-                    const name = settings.names[key];
+                  <!-- 📝📝 - Site Specific Settings - 📝📝 -->
+                  <h2 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">Site Specific Options:</h2>
+                  <div class="site-options">
 
-                    // Check filter
-                    if (filter === "enabled") {
-                        const settingKey = `use${key.replace(/^Tags/, "Tag")}Tags`; // e.g., Tags1a → Tag1a → useTag1aTags
-                        if (!settings[settingKey]) continue; // Skip if disabled
+                    <!-- ✅ HappyFappy Bubblegum theme tweak -->
+                    <label title="Applies more neutral colors to the happyfappy light theme - Bubblegum">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="hfBetterBubblegum"/> HappyFappy - Neutral Bubblegum Theme
+                    </label>
+                  </div>
+                </div>
 
-                    }
+                <!-- 📄📄 - Tag Styles Page (dynamic rows)  - 📄📄-->
+                <div class="s-conf-page" id="s-conf-tag-styles">
+                  <h2>Tag Styles</h2>
+                  <table class="s-conf-tag-table">
+                    <thead>
+                      <tr>
+                        <th></th><th></th><th>Name</th><th>Enable</th><th>Hide</th>
+                        <th>Value <span class="info-header-icon" data-tooltip="Affects the percent bar (if enabled)">i</span></th>
+                        <th>Background</th><th>Text</th><th>Border</th><th>Border Style</th><th>Border Weight</th><th>Sample</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${styleRowsHTML}
+                    </tbody>
+                  </table>
+                </div>
 
-                    // Create button
-                    const btn = document.createElement("button");
-                    btn.type = "button";
-                    btn.className = `tag-manager-btn s-tag s-${key.replace(/^Tags/, "Tag")}`;
-                    btn.textContent = name;
-                    btn.dataset.tagKey = key;
-                    btn.addEventListener("click", () => openTagPopup(key));
-                    buttonContainer.appendChild(btn);
-                }
-            }
+                <!-- 🏷️🏷️ - Tag Manager Panels - Pop-up Category MAnagement (dynamic) - 🏷️🏷️  -->
+                ${tagPanelsHTML}
 
-            // Wait until the tag manager container is in the DOM
-            const interval = setInterval(() => {
-                const buttonContainer = document.getElementById("tag-manager-buttons");
-                const dropdown = document.getElementById("tag-filter");
-                if (buttonContainer && dropdown) {
-                    clearInterval(interval);
+                <!-- 📄📄 - Tag-Manager Page - 📄📄 -->
+                <div class="s-conf-page" id="s-conf-tag-manager">
+                  <h2>Tag List Manager</h2>
+                  <div class="tag-manager-options-select">
+                    <label style="font-weight:normal; font-size:13px; display:flex; align-items:center; gap:6px; margin:0;">
+                      Category Filter:
+                      <select id="tag-filter">
+                        <option value="all">All</option>
+                        <option value="enabled">Enabled</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="tag-manager-instruction">
+                    Click a category below to manage its tags:
+                  </div>
+                  <div id="tag-manager-buttons" class="tag-grid"></div>
+                </div>
 
-                    // Get last saved filter or default to 'all'
-                    const savedFilter = localStorage.getItem("tagFilter") || "all";
-                    dropdown.value = savedFilter;
+                <!-- 📄📄 - Import / Export Page - 📄📄 -->
+                <div class="s-conf-page" id="s-conf-import-export">
+                  <h3>Export Settings</h3>
+                  <hr>
+                  <p>To backup your settings, copy below text to a local file. You can import these settings in the Import Settings area.</p>
+                  <textarea id="export-settings-textarea" rows="10" cols="100" readonly></textarea>
+                  <br><br><br>
 
-                    // Initial build
-                    runFunction(buildTagButtons, '9ez324thhnsm3pi7', [savedFilter]);
+                  <h3>Import Settings</h3>
+                  <hr><br>
+                  <textarea id="import-settings-textarea" rows="10" cols="100" placeholder="Paste your exported settings here."></textarea><br><br>
+                  <button id="import-settings-button">Import Settings</button>
+                </div>
 
-                    // Add change listener to dropdown
-                    dropdown.addEventListener("change", () => {
-                        const newFilter = dropdown.value;
-                        localStorage.setItem("tagFilter", newFilter); // Save selection
-                        runFunction(buildTagButtons, 'xwb1fl4hx1q14eao', [newFilter]);
-                    });
+                <!-- 📄📄 - Duplicate Category Cleanup Page - 📄📄 -->
+                <div class="s-conf-page" id="s-conf-dupe-cleanup">
+                  <h2>Duplicate Tag Cleanup</h2>
+                  <p>These tags exist in more than one list. Select the proper category. The tag will be removed from all others.)</p>
+                  <div id="dupeCleanupList"
+                       style="max-height:400px; overflow-y:auto; border:1px solid #333; padding:8px; margin-top:10px; font-family:monospace; white-space:pre;">
+                    (Click the Dupe Cleanup tab to refresh the list)
+                  </div>
+                </div>
 
-                    // ✅ Add refresh on tab click here
-                    document.addEventListener("click", function (e) {
-                        const tab = e.target.closest("li[data-page='s-conf-tag-manager']");
-                        if (tab) {
-                            const currentFilter = dropdown ? dropdown.value : "all";
-                            runFunction(buildTagButtons, 'fbmv84kn3vhyhwpt', [currentFilter]);
-                        }
-                    });
+              </form>
+            </div>
 
-                }
-            }, 100);
-        })();
+            <!-- ☑️✖️ - Save / Close Buttons - ☑️✖️-->
+            <div class="s-conf-buttons">
+              <input id="s-conf-save-general" class="s-conf-save" data-page="s-conf-general" type="button" value="Save Settings"/>
+              <input id="s-conf-close" type="button" value="Close"/>
+            </div>
+          </div>
+        </div>
+        `;
 
-
-
-        configHTML +=
-            // --- 📄 Import / Export Tab ---
-            "<div class='s-conf-page' id='s-conf-import-export'>" +
-            "<h3>Export Settings</h3>" +
-            "<hr>" +
-            "<p>To backup your settings, copy below text to a local file. You can import these settings in the Import Settings area.</p>" +
-            "<textarea id='export-settings-textarea' rows='10' cols='100' readonly></textarea><br><br>" +
-            "<br>" +
-            "<h3>Import Settings</h3>" +
-            "<hr><br>" +
-            "<textarea id='import-settings-textarea' rows='10' cols='100' placeholder='Paste your exported settings here.'></textarea><br><br>" +
-            "<button id='import-settings-button'>Import Settings</button>" +
-            "</div>" +
-
-            // --- 📄 Duplicate Category Cleanup Tab ---
-            "<div class='s-conf-page' id='s-conf-dupe-cleanup'>" +
-            "<h2>Duplicate Tag Cleanup</h2>" +
-            "<p>These tags exist in more than one list. Select the proper category. The tag will be removed from all others.)</p>" +
-            "<div id='dupeCleanupList' style='max-height:400px; overflow-y:auto; border:1px solid #333; padding:8px; margin-top:10px; font-family:monospace; white-space:pre;'>(Click the Dupe Cleanup tab to refresh the list)</div>" +
-            "</div>" +
-            "</form>" +
-            "</div>" +
-            "<div class='s-conf-buttons'>" +
-            "<input id='s-conf-save-general' class='s-conf-save' data-page='s-conf-general' type='button' value='Save Settings'/>" +
-            "<input id='s-conf-close' type='button' value='Close'/>" +
-            "</div>" +
-            "</div>" +
-            "</div>";
         // Debug
-        //console.log("settings.names snapshot at build end:", JSON.parse(JSON.stringify(settings.names)));
-        //console.groupEnd();
         console.log("🟣 Built New HTML");
         return configHTML;
     }
+
+
+    // === Dynamic CSS ===
 
 
     // --- Stylesheet Injection ---
@@ -1051,12 +1131,51 @@ function runScript() {
       <style type="text/css">
         #torrent_tags>li{border-bottom:1px solid #999; padding-bottom:2px;}
 
+      /* Modal overlay and content */
+        .info-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .info-modal { background: #fff; border-radius: 6px; padding: 16px 20px; width: 420px; max-width: 90%; max-height: 80%; overflow-y: auto; box-shadow: 0 2px 12px rgba(0,0,0,0.4); font-size: 13px; line-height: 1.4; position: relative; }
+        .info-modal h3 { margin-top: 0; }
+        .info-modal-close { position: absolute; top: 6px; right: 10px; border: none; background: none; font-size: 18px; cursor: pointer; color: #666; }
+        .info-modal-close:hover { color: #000; }
+         #s-conf-background{position:fixed; top:0; bottom:0; left:0; right:0; z-index:1000; background-color:rgba(50,50,50,0.6);}
+         #s-conf-wrapper{background:#eee; color:#444; position:relative; width:90%; min-width:900px; max-width:1200px; overflow:hidden; margin:50px auto; font-size:14px;padding:15px 20px; border-radius:16px; box-shadow: 0 0 20px black;max-height:90vh;overflow-y:auto;overflow-x:hidden;z-index:9999;}
+         #s-conf-wrapper h2{margin: 5px; background:none; text-align:left; color:#444; padding:0; border-radius: unset;}
+         #s-conf-wrapper input[type="checkbox"]:checked {accent-color: #769dc9;}
+         #s-conf-status{padding:8px; line-height:16px; text-align:center; border:1px solid #ddd; margin-top:15px; display:none;}
+         #s-conf-status.s-success{border-color:#135300; background:#A9DF9C;}
+         #s-conf-status.s-error{border-color:#840000; background:#F3AAAA;}
+         #s-conf-status-close{cursor:pointer;}
+         #s-conf-content{width:100%; overflow:hidden; border:1px solid #444; border-radius:4px; border-top-left-radius: 0px; box-shadow:0 -1px 10px rgba(0,0,0,0.6);}
+        .s-conf-page {display:none;}
+        .s-conf-page.s-selected{display:block;}
+        .s-conf-page input{vertical-align:text-bottom;}
         #s-conf-form {display:block; background:#fff; padding:15px; min-height: 350px;}
         #s-conf-form label {display:block;}
         #s-conf-form, #s-conf-form select, #s-conf-form input {background: #eee;}
-        #s-conf-close, #s-conf-save-general {background: #eee;}
-        #export-settings-textarea, #import-settings-textarea {background: #eee; color: black}
 
+      /* == Config Tabs == */
+         .tab-row-container {height: 40px;box-sizing: border-box;  display: flex;cursor:pointer;}
+         .tab-row-container li {display:inline-block;height: 30px;flex: 1; list-style: none; margin: 0; border: 1px solid #444; border-bottom: 0; border-radius: 4px 4px 0 0; line-height: normal; text-align: center;padding:5px;}
+         .tab-row-container a {color:#444;display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;box-sizing:border-box;height:30px;max-height:30px;min-height:20px;padding:0 0px;line-height:1;white-space:normal;overflow:hidden;text-overflow:ellipsis;font-size:clamp(11px,0.8vw,14px);transition:font-size 0.15s ease;}
+         .tab-row-container a:hover { text-decoration:none; color: black;}
+         .tab-row-container li:hover {background-color: white;}
+         .tab-row-container li.s-selected {background-color:#fff;text-decoration:none; color:black}
+         #s-conf-tabs{width:100%; margin:15px 0 -1px 0; overflow:hidden; cursor:pointer;}
+         #s-conf-tabs li, #s-conf-tabs h2{ border: 1px solid #444; border-bottom: 0; border-radius: 4px 4px 0 0; line-height: normal; width: 130px; margin:0; list-style:none;float:left;}
+
+      /* == General Options Page == */
+        .torrent-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 20px 20px 20px 20px; }
+        .torrent-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 20px 20px 20px; }
+        .torrent-options label { display: flex; align-items: center; white-space: nowrap; }
+        .site-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 20px 20px 20px 20px; }
+        .site-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 20px 20px 20px; }
+        .site-options label { display: flex; align-items: center; white-space: nowrap; }
+        #s-conf-general > table > tbody div > input {padding: 1px 1px;}
+        #s-conf-general label{cursor:pointer;}
+        #s-conf-general img{margin-bottom:10px; display:none;}
+        #s-conf-general a:hover+img{display:block;}
+
+      /* == Tag Style Page == */
         .s-conf-tag-table {border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 12px; line-height: 1.1;table-layout: auto;}
         .s-conf-tag-table th, .s-conf-tag-table td { border: 1px solid #ccc; padding: 1px 4px; text-align: Center}
         .s-conf-tag-table th, .s-conf-tag-table tr, .s-conf-tag-table tr input, .s-conf-tag-table tr select {background: #eee;}
@@ -1065,145 +1184,119 @@ function runScript() {
         .s-conf-tag-table select.tag-value-select { font-size: 11px; padding: 1px 1px; }
         .s-conf-tag-table td:nth-child(6) { text-align: center; }
         .s-conf-tag-table td:nth-child(5) { text-align: center; }
-
-
-        .torrent-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 20px 20px 20px 20px; }
-        .torrent-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 20px 20px 20px; }
-        .torrent-options label { display: flex; align-items: center; white-space: nowrap; }
-
-        .site-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 20px 20px 20px 20px; }
-        .site-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 20px 20px 20px; }
-        .site-options label { display: flex; align-items: center; white-space: nowrap; }
-
-      /* Info button */
-        .info-btn { cursor: pointer; font-size: 14px; border: none; background: none; color: #444; padding: 0; line-height: 1;}
-        .info-btn:hover { color: #000; }
-      /* Modal overlay and content */
-        .info-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; z-index: 9999; }
-        .info-modal { background: #fff; border-radius: 6px; padding: 16px 20px; width: 420px; max-width: 90%; max-height: 80%; overflow-y: auto; box-shadow: 0 2px 12px rgba(0,0,0,0.4); font-size: 13px; line-height: 1.4; position: relative; }
-        .info-modal h3 { margin-top: 0; }
-        .info-modal-close { position: absolute; top: 6px; right: 10px; border: none; background: none; font-size: 18px; cursor: pointer; color: #666; }
-        .info-modal-close:hover { color: #000; }
+        .s-conf-tag-table td {text-align: center; vertical-align: middle;}
         input[type="number"]::-webkit-inner-spin-button,
         input[type="number"]::-webkit-outer-spin-button {-webkit-appearance: none;margin: 0;}
         input[type="number"] {-moz-appearance: textfield; /* Firefox */}
         .tag-color-picker {width: 40px; height: 23px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; padding: 0;display: inline-block;}
-        .s-conf-tag-table td {text-align: center; vertical-align: middle;}
         .spinner {display: inline-flex; align-items: center; gap: 4px;}
-        .spinner button {background: #ccc;border: 1px solid #888;padding: 1px 1px;cursor: pointer;font-size: 10px;}
-        .spinner button:hover {background: #bbb;}
         .tag-value-spinner {width: 30px;text-align: center;font-size: 12px;border: 1px solid #888;box-sizing: border-box;padding: 0;}
         .border-weight-spinner {width: 30px;text-align: center;font-size: 12px;border: 1px solid #888;box-sizing: border-box;padding: 0;}
-        #s-conf-general > table > tbody div > input {padding: 1px 1px;}
-        #s-conf-background{position:fixed; top:0; bottom:0; left:0; right:0; z-index:1000; background-color:rgba(50,50,50,0.6);}
-        #s-conf-wrapper{background:#eee; color:#444; position:relative; width:90%; min-width:900px; max-width:1200px; overflow:hidden; margin:50px auto; font-size:14px;padding:15px 20px; border-radius:16px; box-shadow: 0 0 20px black;max-height:90vh;overflow-y:auto;overflow-x:hidden;z-index:9999;}
-        #s-conf-wrapper h2{margin: 5px; background:none; text-align:left; color:#444; padding:0; border-radius: unset;}
-        #s-conf-status{padding:8px; line-height:16px; text-align:center; border:1px solid #ddd; margin-top:15px; display:none;}
-        #s-conf-status.s-success{border-color:#135300; background:#A9DF9C;}
-        #s-conf-status.s-error{border-color:#840000; background:#F3AAAA;}
-        #s-conf-status-close{cursor:pointer;}
-        #s-conf-tabs{width:100%; margin:15px 0 -1px 0; overflow:hidden; cursor:pointer;}
-        #s-conf-tabs li, #s-conf-tabs h2{ border: 1px solid #444; border-bottom: 0; border-radius: 4px 4px 0 0; line-height: normal; width: 130px; margin:0; list-style:none;float:left;}
-        #s-conf-content{width:100%; overflow:hidden; border:1px solid #444; border-radius:4px; border-top-left-radius: 0px; box-shadow:0 -1px 10px rgba(0,0,0,0.6);}
-        .tab-row-container {height: 40px;box-sizing: border-box;  display: flex;cursor:pointer;}
-        .tab-row-container li {display:inline-block;height: 30px;flex: 1; list-style: none; margin: 0; border: 1px solid #444; border-bottom: 0; border-radius: 4px 4px 0 0; line-height: normal; text-align: center;padding:5px;}
-        .tab-row-container a {color:#444;display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;box-sizing:border-box;height:30px;max-height:30px;min-height:20px;padding:0 0px;line-height:1;white-space:normal;overflow:hidden;text-overflow:ellipsis;font-size:clamp(11px,0.8vw,14px);transition:font-size 0.15s ease;}
-        .tab-row-container a:hover { text-decoration:none; color: black;}
-        .tab-row-container li:hover {background-color: white;}
-        .tab-row-container li.s-selected {background-color:#fff;text-decoration:none; color:black}
-
-        .s-conf-buttons{display: flex; justify-content: center; margin-top:10px; width:100%; gap: 12px; text-align:center;}
-        .s-conf-page{display:none;}
-        .s-conf-page.s-selected{display:block;}
-        .s-conf-page input{vertical-align:text-bottom;}
-        #s-conf-general label{cursor:pointer;}
-        #s-conf-general img{margin-bottom:10px; display:none;}
-        #s-conf-general a:hover+img{display:block;}
-        .s-conf-tag-txtarea{width:100%; height:300px; background:#ddd; word-spacing:10px; line-height:18px;box-sizing:border-box;}
-        .s-conf-add-tags, .s-conf-remove-tags{width:100%;}
-        .s-conf-add-btn, .s-conf-remove-btn{width:110px;}
-        .s-conf-color-columns { display:block; width:100%; }
-        .s-conf-color-table { width:100%; border-collapse:collapse; margin-top:6px; }
-        .s-conf-color-table th, .s-conf-color-table td { border:1px solid #ccc; padding:2px 4px; line-height:1.2; font-size:13px; text-align:center; }
-        .sample-tag { display:inline-block; padding:1px 6px; border-radius:8px; font-weight:normal; }
+        .sample-tag {display:inline-block; padding:1px 6px; border-radius:8px; font-weight:normal; line-height: 17px; height: 17px; width: 90px}
         .sample-tag .sample-remove { margin-left:4px; color:#000; text-decoration:none; cursor:default; }
         .sample-tag .sample-remove:hover { text-decoration:none; }
-        ul.s-Tag7d-tags span.s-tag.s-Tag7d{display:inline-block !important; float:none; background:#AAA; border-bottom:1px solid #444; padding:0px 4px; border-radius:16px;font-weight:normal;}
-        #s-toggle-forum{margin:0 5px; font-size:0.9em; cursor:pointer;}
-        .info-header-icon{display:inline-block;width:14px;height:14px;margin-left:4px; border-radius:50%;background:#8BA9C4;color:#fff!important;font:bold 11px/14px Arial,sans-serif; text-align:center;cursor:help;}
-        .info-header-icon:hover{background:#8BA9C4;}
-        .info-header-icon,.info-btn{display:inline-block;width:14px;height:14px;margin-left:4px; border:none;border-radius:50%;background:#8BA9C4;color:#fff!important; font:bold 11px/14px Arial,sans-serif;text-align:center;cursor:pointer;vertical-align:middle;}
-        .info-header-icon:hover,.info-btn:hover{background:#8BA9C4;}
-        .s-browse-tag-holder {padding: 0; float: none; clear: both; position: relative; margin-top: 5px;}
-        .s-browse-tag-holder>.s-tag{display:inline; float:none;}
-        .s-Tag7c-hidden{cursor: pointer; padding:10px;}
+        .info-header-icon {display:inline-block;width:14px;height:14px;margin-left:4px; border-radius:50%;background:#8BA9C4;color:#fff!important;font:bold 11px/14px Arial,sans-serif; text-align:center;cursor:help;}
+        .info-header-icon:hover {background:#8BA9C4;}
+        .info-header-icon {display:inline-block;width:14px;height:14px;margin-left:4px; border:none;border-radius:50%;background:#8BA9C4;color:#fff!important; font:bold 11px/14px Arial,sans-serif;text-align:center;cursor:pointer;vertical-align:middle;}
+        .info-header-icon:hover,{background:#8BA9C4;}
+
+      /* == Tag Manager Page == */
+        .tag-manager-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 20px 20px 20px 20px; }
+        .tag-manager-instruction {margin: 20px 20px 20px 20px; }
+        .tag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 10px 0; max-width: 800px; margin: 0 auto;}
+        .tag-manager-btn {font-size: 1.1em; Height: 30px; padding: 8px 12px; border-radius: 6px; cursor: pointer; text-align: center; white-space: nowrap; transition: transform 0.1s ease-in-out;}
+        .tag-manager-btn:hover { transform: scale(1.05);}
+
+      /* == Tag manager popup == */
+        .tag-popup {position: fixed; border-radius: 20px; top: 10%; left: 50%; transform: translateX(-50%); background: #fff; border: 2px solid #333; padding: 20px; z-index: 9999; width: 80%; max-width: 1100px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);}
+        .tag-popup-inner { position: relative;}
+        .tag-popup-close { position: absolute; top: 4px; right: 8px; font-size: 18px; background: none; border: none; cursor: pointer;}
+        .tag-popup-footer { display: flex; justify-content: center; gap: 12px; margin-top: 12px; padding-top: 8px; border-top: 1px solid #ccc;}
+        .s-conf-add-tags, .s-conf-remove-tags{width:100%;}
+        .s-conf-tag-txtarea {width:100%; height:300px; background:#ddd; word-spacing:10px; line-height:18px;box-sizing:border-box;}
+
+      /* == Import Export Page -- */
+         #export-settings-textarea, #import-settings-textarea {background: #eee; color: black}
+
+      /* == Percent Bar == */
         .s-percent-container {display: block; overflow: hidden; height: 4px; margin: 2px 0 3px 0; background: #ccc; border: 1px solid #aaa;}
         .s-percent{height:4px;}
         .s-percent-good{background:#A9DF9C; float:left;}
         .s-percent-bad{background:#9E3333; float:right}
         .s-percent-undef { background:#999; float:right; }
-        .tag_inner .s-tag{background:#CCC; border-bottom:1px solid #888; border-radius:16px; padding:1px 5px;}
-        .tag_inner .s-tag> a{color:#000000}
-        .tag_inner span.s-tag {border-width: 2px; display:block; float:left; line-height: 18px; margin: 2px 3px; padding: 0 6px; white-space: nowrap;}
-        .s-button{float:left; width:15px; height:14px; border-radius:6px; color:#fff; font:bold 16px/15px Arial, sans-serif; text-align:center; margin:1px 3px 1px 0px; cursor:pointer; opacity:0.8;}
-        .s-button:hover{opacity:1;}
-        .s-remove-Tags1a, .s-remove-Tags2a, .s-remove-Tags2b, .s-remove-Tags5a, .s-remove-Tags5b, .s-remove-Tags7a, .s-remove-Tags7b, .s-remove-Tags7c, .s-remove-Tags7d, .s-add-Tags7d{line-height:11px;}
-        .s-tag{margin:1px 2px;}
-        .s-tag .s-button{display:none;}
-        .s-tag .s-add-Tags1a, .s-tag .s-add-Tags2a, .s-tag .s-add-Tags3a, .s-tag .s-add-Tags4a, .s-tag .s-add-Tags5a, .s-tag .s-add-Tags6a, .s-tag .s-add-Tags7a{display:block}
-        .s-tag.s-Tag1a .s-button, .s-tag.s-Tag1b .s-button, .s-tag.s-Tag1c .s-button,
-        .s-tag.s-Tag2a .s-button, .s-tag.s-Tag2b .s-button, .s-tag.s-Tag2c .s-button,
-        .s-tag.s-Tag3a .s-button, .s-tag.s-Tag3b .s-button, .s-tag.s-Tag3c .s-button,
-        .s-tag.s-Tag4a .s-button, .s-tag.s-Tag4b .s-button, .s-tag.s-Tag4c .s-button,
-        .s-tag.s-Tag5a .s-button, .s-tag.s-Tag5b .s-button, .s-tag.s-Tag5c .s-button,
-        .s-tag.s-Tag6a .s-button, .s-tag.s-Tag6b .s-button, .s-tag.s-Tag6c .s-button,
-        .s-tag.s-Tag7a .s-button, .s-tag.s-Tag7b .s-button, .s-tag.s-Tag7c .s-button{display:none}
-        .s-tag.s-Tag1a .s-button.s-remove-Tags1a, .s-tag.s-Tag1b .s-button.s-remove-Tags1b, .s-tag.s-Tag1c .s-button.s-remove-Tags1c,
-        .s-tag.s-Tag2a .s-button.s-remove-Tags2a, .s-tag.s-Tag2b .s-button.s-remove-Tags2b, .s-tag.s-Tag2c .s-button.s-remove-Tags2c,
-        .s-tag.s-Tag3a .s-button.s-remove-Tags3a, .s-tag.s-Tag3b .s-button.s-remove-Tags3b, .s-tag.s-Tag3c .s-button.s-remove-Tags3c,
-        .s-tag.s-Tag4a .s-button.s-remove-Tags4a, .s-tag.s-Tag4b .s-button.s-remove-Tags4b, .s-tag.s-Tag4c .s-button.s-remove-Tags4c,
-        .s-tag.s-Tag5a .s-button.s-remove-Tags5a, .s-tag.s-Tag5b .s-button.s-remove-Tags5b, .s-tag.s-Tag5c .s-button.s-remove-Tags5c,
-        .s-tag.s-Tag6a .s-button.s-remove-Tags6a, .s-tag.s-Tag6b .s-button.s-remove-Tags6b, .s-tag.s-Tag6c .s-button.s-remove-Tags6c,
-        .s-tag.s-Tag7a .s-button.s-remove-Tags7a, .s-tag.s-Tag7b .s-button.s-remove-Tags7b, .s-tag.s-Tag7c .s-button.s-remove-Tags7c,
-        .s-tag.s-Tag1a .s-button.s-add-Tags1b, .s-tag.s-Tag1a .s-button.s-add-Tags1c,
-        .s-tag.s-Tag2a .s-button.s-add-Tags2b, .s-tag.s-Tag2a .s-button.s-add-Tags2c,
-        .s-tag.s-Tag3a .s-button.s-add-Tags3b, .s-tag.s-Tag3a .s-button.s-add-Tags3c,
-        .s-tag.s-Tag4a .s-button.s-add-Tags4b, .s-tag.s-Tag4a .s-button.s-add-Tags4c,
-        .s-tag.s-Tag5a .s-button.s-add-Tags5b, .s-tag.s-Tag5a .s-button.s-add-Tags5c,
-        .s-tag.s-Tag6a .s-button.s-add-Tags6b, .s-tag.s-Tag6a .s-button.s-add-Tags6c,
-        .s-tag.s-Tag7a .s-button.s-add-Tags7b{display:block}
-        .s-tag.s-Tag7d .s-button{display:none}
-        .s-tag.s-Tag7d .s-button.s-remove-Tags7d{display:block}
-        .s-tag.s-Tag7a .s-button.s-add-Tags7c{display:block}
-        .s-tag.s-Tag7a .s-button.s-add-Tags7d{display:block}
-        /* Match Tags7d styling to normal tags while keeping them visible */
-        .s-tag.s-Tag7d {display:inline-block !important;background:#999999;color:#000;border:inherit;border-radius:inherit;padding:inherit;vertical-align:middle;}
-        body.emp-tags-page .s-tag.s-Tag7d .s-button.s-remove-Tags7d {display:inline-block;opacity:0.8;vertical-align:middle;line-height:14px !important;}
-        body.emp-tags-page .s-tag.s-Tag7d .s-button.s-remove-Tags7d:hover {opacity:1;}
-        body.emp-tags-page td:nth-child(2) .s-tag { display:inline-flex !important; flex-wrap:nowrap !important; align-items:center; }
-        body.emp-tags-page td:nth-child(2) .s-tag a { order:2; flex:1 1 auto; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-        body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; margin-right:2px; }
-        .s-Tag7d-tags{display:none;}
-        .s-Tag7d-toggle{font-weight:bold; cursor:pointer;}
-        .s-Tag7d-desc{clear:both; padding:8px 0 8px 15px;}
-        .s-tag{border-radius:8px!important;padding:0px 4px!important;display:inline-block;}
-        .s-tag a{border-radius:12px!important;text-decoration:none;display:inline-block;padding:2px}
-        #torrent_tags_list li { display:flex !important;flex-wrap:nowrap !important;align-items:center !important;justify-content:space-between !important;}
-        #torrent_tags_list li .s-tag a { float:none !important;display:block !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important;min-width:0 !important;}
-        #torrent_tags_list li div[style*='letter-spacing'] {flex-shrink: 0 !important;white-space: nowrap !important;margin-left: auto !important;text-align: right !important;display: flex !important;justify-content: flex-end !important;align-items: center !important;}
-      /* CSS for percentbar table tooltip */
+
+      /* == Percent Bar HTML Table Tooltip == */
         .percent-tooltip-container {position: absolute;background: rgba(0,0,0,0.85);color: #fff;padding: 1px;border-radius: 6px;font-size: 11px;z-index: 9999;box-shadow: 0 2px 6px rgba(0,0,0,0.4);}
         .percent-tooltip table {border-collapse: collapse;width: auto;}
         .percent-tooltip th, .percent-tooltip td {padding: 2px 8px;text-align: left; background-color: rgba(35, 35, 35, 0.90); color: #d3d3d3; border: 1px solid #aaa;}
         .percent-tooltip th {border-bottom: 1px solid #ccc; background-color: rgba(20, 20, 20, 0.90);}
 
-        .tag-popup {position: fixed; border-radius: 20px; top: 10%; left: 50%; transform: translateX(-50%); background: #fff; border: 2px solid #333; padding: 20px; z-index: 9999; width: 80%; max-width: 1100px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);}
-        .tag-popup-inner { position: relative;}
-        .tag-popup-close { position: absolute; top: 4px; right: 8px; font-size: 18px; background: none; border: none; cursor: pointer;}
-      /* CSS for tag manager */
-       .tag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 10px 0; max-width: 800px; margin: 0 auto;}
-       .tag-manager-btn {font-size: 1.1em; Height: 30px; padding: 8px 12px; border-radius: 6px; cursor: pointer; text-align: center; white-space: nowrap; transition: transform 0.1s ease-in-out;}
-       .tag-manager-btn:hover { transform: scale(1.05);}
+       /* unused?
+        .s-conf-color-columns { display:block; width:100%; }
+        .s-conf-color-table { width:100%; border-collapse:collapse; margin-top:6px; }
+        .s-conf-color-table th, .s-conf-color-table td { border:1px solid #ccc; padding:2px 4px; line-height:1.2; font-size:13px; text-align:center; }
+        #s-toggle-forum {margin:0 5px; font-size:0.9em; cursor:pointer;}
+      */
+
+     /* == Browse Page Tags == */
+        .s-browse-tag-holder {padding: 0; float: none; clear: both; position: relative; margin-top: 5px;}
+        .s-browse-tag-holder>.s-tag{display:inline; float:none;}
+        .s-Tag7c-hidden{cursor: pointer; padding:10px;}
+        .tag_inner .s-tag{background:#CCC; border-bottom:1px solid #888; border-radius:16px; padding:1px 5px;}
+        .tag_inner .s-tag> a{color:#000000}
+        .tag_inner span.s-tag {border-width: 2px; display:block; float:left; margin: 2px 3px; padding: 0 6px; white-space: nowrap;}
+        .s-button{float:left; width:14px; height:14px;line-height:14px; border-radius:6px; color:#fff; font:bold 16px/15px Arial, sans-serif; text-align:center; margin:1px 3px 1px 0px; cursor:pointer; opacity:0.8;}
+        .s-button:hover{opacity:1;}
+        .s-tag {margin:1px 2px;}
+        .s-tag .s-button {display:none;}`
+
+    // --- Dynamic CSS [.s-remove-Tags1a { line-height:11px;}] - For all tags
+    stylesheet += `
+         ${ALL_TAGS_KEYS.map(k => `.s-remove-${k}`).join(',')} {line-height:12px !important;}`;
+
+    // ---  Dynamic CSS [.s-tag .s-add-Tags1a {display:block}] - For all "a" tags
+    stylesheet += `
+        ${FILTERED_ONLY_A_TAGS_KEYS.map(k => `.s-tag .s-add-${k}`).join(',')} {display:block;}`;
+
+    // --- Dynamic CSS [.s-tag.s-Tag1a .s-button {display:none}] - For all tags
+    stylesheet += `
+         ${ALL_TAG_KEYS.map(k => `.s-tag.s-${k} .s-button`).join(',')} {display:none;}`;
+
+    // ---  Dynamic CSS [.s-tag.s-Tag1a .s-button.s-remove-Tags1a {display:block}] - For all tags
+    stylesheet += `
+         ${ALL_TAG_KEYS.map(k => `.s-tag.s-${k} .s-button.s-remove-${k.replace(/^Tag/, 'Tags')}`).join(',')} {display:block;}`;
+
+    // --- Dynamic CSS [.s-tag.s-Tag1a .s-button.s-add-Tags1b, .s-tag.s-Tag1a .s-button.s-add-Tags1c {display:block}] - For all parent child tags.
+    stylesheet += `
+         ${Object.entries(tagHierarchy).map(([parent, kids]) => kids.map(child => `.s-tag.s-${parent.replace(/^Tags/, 'Tag')} .s-button.s-add-${child}`).join(',')).join(',')} {display:block;}`;
+
+    stylesheet += `
+      /* == Tags Page: Tags == */
+        body.emp-tags-page td:nth-child(2) .s-tag { display:inline-flex !important; flex-wrap:nowrap !important; align-items:center; }
+        body.emp-tags-page td:nth-child(2) .s-tag a { order:2; flex:1 1 auto; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+        body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; margin-right:2px; }
+
+      /* == Details Page: Hidden Tags Area == */
+        .s-Tag7d-toggle{font-weight:bold; cursor:pointer;}
+        .s-Tag7d-desc{clear:both; padding:8px 0 8px 15px;}
+
+      /* == Details Page / Tags Page: Tags == */
+        .s-tag {border-radius:8px!important;padding:0px 4px!important;display:inline-block;}
+        .s-tag a {border-radius:12px!important;text-decoration:none;display:inline-block;padding:2px}
+        #torrent_tags_list li { display:flex !important;flex-wrap:nowrap !important;align-items:center !important;justify-content:space-between !important;}
+        #torrent_tags_list li .s-tag a { float:none !important;display:block !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important;min-width:0 !important;}
+        #torrent_tags_list li div[style*='letter-spacing'] {flex-shrink: 0 !important;white-space: nowrap !important;margin-left: auto !important;text-align: right !important;display: flex !important;justify-content: flex-end !important;align-items: center !important;}
+
+      /* == All The Buttons == */
+        .s-conf-buttons{display: flex; justify-content: center; margin-top:10px; width:100%; gap: 12px; text-align:center;}
+        .tag-popup-footer .tag-popup-close-btn, #s-conf-close, #s-conf-save-general, #import-settings-button, .s-conf-add-btn.s-conf-add-btn, .s-conf-remove-btn.s-conf-remove-btn {background: #cfcfcf; color: #000; border: 1px solid #777; border-radius: 6px; padding: 0px 4px; font-size: 12px; cursor: pointer; height: 17px; line-height: 17px; text-align: center;box-sizing: border-box;}
+        .edit-label, .info-btn, .spinner button {border: 1px solid #777; border-radius: 4px; padding: 0px 0px; font-size: 12px; cursor: pointer; height: 15px; width: 15px; line-height: 15px; text-align: center; box-sizing: border-box;}
+        .edit-label, .spinner button {background: #ccc; color: #000;}
+        .info-btn {background: #769dc9; color: #fff; font-weight: 600; font-family: "Times New Roman", Times, serif;}
+        .tag-popup-footer .tag-popup-close-btn:hover, #s-conf-close:hover, #s-conf-save-general:hover, #import-settings-button:hover { background: #ddd;}
+        .edit-label:hover, .spinner button:hover {background: #bbb; color: #000;}
+        .info-btn:hover {background: #3a6392;}
+
       </style>
     `;
 
@@ -1265,6 +1358,10 @@ function runScript() {
             .on("click", function (e) {
             e.preventDefault();
             initConfig($j(buildSettingsHTML()).prependTo("body"));
+
+            // ✅ Build the Tag Manager Buttons Dynamically / Insert After HTML is Built
+            initTagManagerUI();
+
             $j("select[name='tagLayoutStyle']").val(settings.tagLayoutStyle);
         });
 
@@ -1311,8 +1408,7 @@ function runScript() {
         }
     }());
 
-    // === Unified UI Refresh ===
-    // Rebuilds the settings UI and restores the currently active tab safely.
+    // === UI Refresh ===
     let isRefreshing = false;
     function refreshUI(activeTabId) {
         if (isRefreshing) {
@@ -1337,6 +1433,9 @@ function runScript() {
             // Rebuild settings HTML and reinitialize
             const rebuilt = $j(buildSettingsHTML()).prependTo("body");
             initConfig(rebuilt);
+
+            // ✅ Build the Tag Manager Buttons Dynamically / Insert After HTML is Built
+            initTagManagerUI();
 
             // Restore tab state
             $j(".tab-row-container li, .s-conf-page").removeClass("s-selected");
@@ -1484,12 +1583,6 @@ function runScript() {
                         matched = true;
                         break; // found match, stop looping through lists
 
-
-
-
-                        // 💬 Console output - Wrap in an "enable debug" later.
-                        //console.log(`[TagClassify] ${tag} → ${tagType} → ${rating}`);
-                        break; // found match, stop looping through lists
                     }
                 }
 
@@ -2037,7 +2130,7 @@ Tags Ignored: (${countIgnored})`
             }
 
             // Add Tag Action Buttons
-            addTagButtons(tagHolder, tag);
+            // addTagButtons(tagHolder, tag);
             runFunction(addTagButtons, 'o8fdjcdhk2d20h2o', [tagHolder, tag]);
         });
 
@@ -2518,7 +2611,7 @@ Tags Ignored: (${countIgnored})`
                 node.borderStyle = readOrKeep(`#border-${key}-style`, node.borderStyle);
                 node.borderWeight = ensurePx(readOrKeep(`#border-${key}-weight`, node.borderWeight));
             });
-            // --- FIXED: Capture updated display names from color table ---
+            // --- Capture updated display names from color table ---
             if (!settings.names) settings.names = {};
             $j(".s-conf-color-table tr").each(function () {
                 const $tr = $j(this);
@@ -2723,9 +2816,15 @@ Tags Ignored: (${countIgnored})`
         });
 
 
+
         function displayTags(type, selector = "#s-conf-text-" + type) {
-            $j(selector).val(settings.tags[type].join(" "));
+            const arr =
+                  (settings && settings.tags && Array.isArray(settings.tags[type]))
+            ? settings.tags[type]
+            : [];
+            $j(selector).val(arr.join(" "));
         }
+
         window.displayTags = displayTags;
 
 
@@ -2734,7 +2833,7 @@ Tags Ignored: (${countIgnored})`
                 $j(this).removeClass().addClass("s-" + type).html(msg + " <a id='s-conf-status-close'>(×)</a>").fadeIn("fast");
             });
         }
-
+        /*
         function refreshUI(activeTabId) {
             // fallback if caller didn't pass an id
             activeTabId = activeTabId || $j('.tab-row-container li.s-selected .s-conf-tab').data('page') || "s-conf-general";
@@ -2744,7 +2843,8 @@ Tags Ignored: (${countIgnored})`
 
             const rebuilt = $j(buildSettingsHTML()).prependTo("body");
             initConfig(rebuilt);
-
+            // ✅ Build the Tag Manager Buttons Dynamically / Insert After HTML is Built
+            initTagManagerUI();
             // explicit, deterministic restore of the active tab
             $j('.tab-row-container li').removeClass('s-selected');
             $j('.s-conf-page').removeClass('s-selected');
@@ -2761,7 +2861,7 @@ Tags Ignored: (${countIgnored})`
 
             console.log("🟣 Running refreshUI() - restored", activeTabId);
         }
-
+*/
 
         // === Real-time color and border preview updates (complete) ===
         $j(document).off("input change", "input[type='color'], select[id^='border-'], input[id^='border-']")
@@ -3009,6 +3109,7 @@ Tags Ignored: (${countIgnored})`
         holder.addClass("s-" + newType.replace(/^Tags/, "Tag"));
     }
 
+    /*
     // Tag7d - Special Div Switching
     function addTags7dTagElement(type, holder, tag) {
         // Add the tag to settings first (keeps data consistent)
@@ -3064,7 +3165,7 @@ Tags Ignored: (${countIgnored})`
             console.error("removeTags7dTagElement failed:", err);
         }
     }
-
+*/
 
     function addTagElement(type, holder, tag) {
         // Normalize incoming type names so we always add classes like "s-Tag1a"
@@ -3386,517 +3487,518 @@ function addJQuery(callback) {
 
 
 
-function rearrangeLayout() {
-    const middleColumn = document.querySelector('#details_top > div.middle_column');
-    const sidebar = document.querySelector('#details_top > div.sidebar');
-    const container = document.querySelector('#details_top');
+    function rearrangeLayout() {
+        const middleColumn = document.querySelector('#details_top > div.middle_column');
+        const sidebar = document.querySelector('#details_top > div.sidebar');
+        const container = document.querySelector('#details_top');
 
-    if (!middleColumn || !sidebar || !container) {
-        console.warn('Rearrange script: One or more elements not found.');
-        return;
+        if (!middleColumn || !sidebar || !container) {
+            console.warn('Rearrange script: One or more elements not found.');
+            return;
+        }
+
+        container.insertBefore(middleColumn, sidebar);
+
+        // Normalize sidebar layout
+        sidebar.style.width = '100%';
+        sidebar.style.boxSizing = 'border-box';
+        sidebar.style.float = 'none';
+        sidebar.style.display = 'block';
+
+        // Reset margins
+        middleColumn.style.marginTop = '0';
+        middleColumn.style.marginBottom = '0';
+        middleColumn.style.marginLeft = '0';
+        middleColumn.style.marginRight = '0';
+
+        console.log('middleColumn moved above sidebar:', middleColumn);
+
+        // --- HappyFappy-only placement before the tag list wrapper ---
+        const host = (window.location.hostname || '').toLowerCase();
+        if (host.includes('happyfappy.org')) {
+            // 1) Ensure sidebar is INSIDE middle_column
+            if (!middleColumn.contains(sidebar)) {
+                middleColumn.appendChild(sidebar);
+            }
+
+            // 2) Prefer the direct child #taglist-container as the reference
+            let refNode = middleColumn.querySelector(':scope > #taglist-container');
+
+            // 3) If that wrapper isn't found yet, fall back to walking up from #torrent_tags_list
+            if (!refNode) {
+                const innerTagList = middleColumn.querySelector('#torrent_tags_list');
+                if (innerTagList) {
+                    // Walk up until the parent is the middle_column
+                    let n = innerTagList;
+                    while (n.parentElement && n.parentElement !== middleColumn) {
+                        n = n.parentElement;
+                    }
+                    if (n.parentElement === middleColumn) {
+                        refNode = n;
+                    }
+                }
+            }
+
+            // 4) Insert BEFORE the found direct child, or append at end as a safe fallback
+            if (refNode) {
+                middleColumn.insertBefore(sidebar, refNode);
+            } else {
+                middleColumn.appendChild(sidebar);
+                console.warn('rearrangeLayout: No direct taglist container found; appended sidebar to end.');
+            }
+        }
     }
 
-    container.insertBefore(middleColumn, sidebar);
 
-    // Normalize sidebar layout
-    sidebar.style.width = '100%';
-    sidebar.style.boxSizing = 'border-box';
-    sidebar.style.float = 'none';
-    sidebar.style.display = 'block';
 
-    // Reset margins
-    middleColumn.style.marginTop = '0';
-    middleColumn.style.marginBottom = '0';
-    middleColumn.style.marginLeft = '0';
-    middleColumn.style.marginRight = '0';
 
-    console.log('middleColumn moved above sidebar:', middleColumn);
+    // --- Layout Helper: 3-Column Tag Splitter ---
+    // Reorganizes the tag list on detail pages into evenly spaced columns.
+    function splitTagsIntoColumns() {
 
-    // --- HappyFappy-only placement before the tag list wrapper ---
-    const host = (window.location.hostname || '').toLowerCase();
-    if (host.includes('happyfappy.org')) {
-        // 1) Ensure sidebar is INSIDE middle_column
-        if (!middleColumn.contains(sidebar)) {
-            middleColumn.appendChild(sidebar);
+        const tagList = document.querySelector('#torrent_tags_list');
+        if (!tagList) return;
+
+        const allItems = Array.from(tagList.querySelectorAll('li')).filter(li => {
+            if (li.closest('.s-Tag7d-tags')) return false;
+            const s = window.getComputedStyle(li);
+            return s.display !== 'none' && s.visibility !== 'hidden';
+        });
+
+        if (allItems.length === 0) return;
+
+        // Always sort alphabetically
+        allItems.sort((a, b) => {
+            const textA = a.textContent.trim().toLowerCase();
+            const textB = b.textContent.trim().toLowerCase();
+            return textA.localeCompare(textB, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        // Create 3 columns
+        if (!window.shouldSkipTagSplit()) {
+            const cols = Array.from({ length: 3 }, (_, i) => {
+                const d = document.createElement('div');
+                d.className = `tag-column col-${i + 1}`;
+                Object.assign(d.style, {
+                    width: '33.33%',
+                    float: 'left',
+                    boxSizing: 'border-box'
+                });
+                return d;
+            });
+
+            const perCol = Math.ceil(allItems.length / 3);
+            cols[0].append(...allItems.slice(0, perCol));
+            cols[1].append(...allItems.slice(perCol, perCol * 2));
+            cols[2].append(...allItems.slice(perCol * 2));
+
+            const hiddenBlocks = Array.from(tagList.children)
+            .filter(c => c.classList && c.classList.contains('s-Tag7d-tags'));
+
+            tagList.textContent = '';
+            cols.forEach(c => tagList.appendChild(c));
+            hiddenBlocks.forEach(h => tagList.appendChild(h));
         }
+        // Reapply layout helpers for correct spacing/backgrounds
+        runFunction(enforceTagRowLayout, 'eimqkzlubg0yg9jl', []);
+        runFunction(overrideTagLinkWidths, 'rkeym2z93t9tr9id', []);
+        runFunction(resizeAllTagText, '6f4bq7xg2omsqz8w', []);
 
-        // 2) Prefer the direct child #taglist-container as the reference
-        let refNode = middleColumn.querySelector(':scope > #taglist-container');
-
-        // 3) If that wrapper isn't found yet, fall back to walking up from #torrent_tags_list
-        if (!refNode) {
-            const innerTagList = middleColumn.querySelector('#torrent_tags_list');
-            if (innerTagList) {
-                // Walk up until the parent is the middle_column
-                let n = innerTagList;
-                while (n.parentElement && n.parentElement !== middleColumn) {
-                    n = n.parentElement;
-                }
-                if (n.parentElement === middleColumn) {
-                    refNode = n;
-                }
-            }
-        }
-
-        // 4) Insert BEFORE the found direct child, or append at end as a safe fallback
-        if (refNode) {
-            middleColumn.insertBefore(sidebar, refNode);
-        } else {
-            middleColumn.appendChild(sidebar);
-            console.warn('rearrangeLayout: No direct taglist container found; appended sidebar to end.');
-        }
+        // Ensure tag spans don’t stretch full width
+        tagList.querySelectorAll('span.s-tag').forEach(span => {
+            span.style.display = 'inline-flex';
+            span.style.flex = '0 0 auto';
+            span.style.alignItems = 'center';
+        });
     }
-}
+    window.splitTagsIntoColumns = splitTagsIntoColumns;
 
+    // --- Layout Helper: Tag Row Flex Alignment ---
+    // Ensures tag list rows align cleanly with tag names and vote counts.
+    function enforceTagRowLayout() {
+        const tagItems = document.querySelectorAll('#torrent_tags_list li');
+        if (!tagItems.length) return;
 
+        tagItems.forEach(li => {
+            // Core layout: single row, no wrap
+            li.style.display = 'flex';
+            li.style.flexWrap = 'nowrap';
+            li.style.alignItems = 'center';
+            li.style.justifyContent = 'space-between';
+            li.style.overflow = 'hidden'; // prevent overflow breaking layout
 
+            const tagSpan = li.querySelector('span.s-tag');
+            const voteDiv = li.querySelector('div[style*="letter-spacing"]'); // right-side vote area
+            const tagLink = tagSpan?.querySelector('a');
 
-        // --- Layout Helper: 3-Column Tag Splitter ---
-        // Reorganizes the tag list on detail pages into evenly spaced columns.
-        function splitTagsIntoColumns() {
-
-            const tagList = document.querySelector('#torrent_tags_list');
-            if (!tagList) return;
-
-            const allItems = Array.from(tagList.querySelectorAll('li')).filter(li => {
-                if (li.closest('.s-Tag7d-tags')) return false;
-                const s = window.getComputedStyle(li);
-                return s.display !== 'none' && s.visibility !== 'hidden';
-            });
-
-            if (allItems.length === 0) return;
-
-            // Always sort alphabetically
-            allItems.sort((a, b) => {
-                const textA = a.textContent.trim().toLowerCase();
-                const textB = b.textContent.trim().toLowerCase();
-                return textA.localeCompare(textB, undefined, { numeric: true, sensitivity: 'base' });
-            });
-
-            // Create 3 columns
-            if (!window.shouldSkipTagSplit()) {
-                const cols = Array.from({ length: 3 }, (_, i) => {
-                    const d = document.createElement('div');
-                    d.className = `tag-column col-${i + 1}`;
-                    Object.assign(d.style, {
-                        width: '33.33%',
-                        float: 'left',
-                        boxSizing: 'border-box'
-                    });
-                    return d;
-                });
-
-                const perCol = Math.ceil(allItems.length / 3);
-                cols[0].append(...allItems.slice(0, perCol));
-                cols[1].append(...allItems.slice(perCol, perCol * 2));
-                cols[2].append(...allItems.slice(perCol * 2));
-
-                const hiddenBlocks = Array.from(tagList.children)
-                .filter(c => c.classList && c.classList.contains('s-Tag7d-tags'));
-
-                tagList.textContent = '';
-                cols.forEach(c => tagList.appendChild(c));
-                hiddenBlocks.forEach(h => tagList.appendChild(h));
-            }
-            // Reapply layout helpers for correct spacing/backgrounds
-            runFunction(enforceTagRowLayout, 'eimqkzlubg0yg9jl', []);
-            runFunction(overrideTagLinkWidths, 'rkeym2z93t9tr9id', []);
-            runFunction(resizeAllTagText, '6f4bq7xg2omsqz8w', []);
-
-            // Ensure tag spans don’t stretch full width
-            tagList.querySelectorAll('span.s-tag').forEach(span => {
-                span.style.display = 'inline-flex';
-                span.style.flex = '0 0 auto';
-                span.style.alignItems = 'center';
-            });
-        }
-        window.splitTagsIntoColumns = splitTagsIntoColumns;
-
-        // --- Layout Helper: Tag Row Flex Alignment ---
-        // Ensures tag list rows align cleanly with tag names and vote counts.
-        function enforceTagRowLayout() {
-            const tagItems = document.querySelectorAll('#torrent_tags_list li');
-            if (!tagItems.length) return;
-
-            tagItems.forEach(li => {
-                // Core layout: single row, no wrap
-                li.style.display = 'flex';
-                li.style.flexWrap = 'nowrap';
-                li.style.alignItems = 'center';
-                li.style.justifyContent = 'space-between';
-                li.style.overflow = 'hidden'; // prevent overflow breaking layout
-
-                const tagSpan = li.querySelector('span.s-tag');
-                const voteDiv = li.querySelector('div[style*="letter-spacing"]'); // right-side vote area
-                const tagLink = tagSpan?.querySelector('a');
-
-                // Left-side tag section (buttons + tag name)
-                if (tagSpan) {
-                    tagSpan.style.display = 'flex';
-                    tagSpan.style.flex = '0 1 auto';
-                    tagSpan.style.alignItems = 'center';
-                    tagSpan.style.minWidth = '0'; // enables text truncation
-                    tagSpan.style.overflow = 'hidden';
-                    tagSpan.style.boxSizing = 'border-box';
-                }
-
-                // Tag link (truncate only this)
-                if (tagLink) {
-                    tagLink.style.flex = '1 1 auto';
-                    tagLink.style.whiteSpace = 'nowrap';
-                    tagLink.style.overflow = 'hidden';
-                    tagLink.style.textOverflow = 'ellipsis';
-                    tagLink.style.display = 'block';
-                    tagLink.style.minWidth = '0';
-                    tagLink.style.boxSizing = 'border-box';
-                    tagLink.style.float = 'none'; // override old CSS
-                }
-
-                // Vote area (right side)
-                if (voteDiv) {
-                    voteDiv.style.flex = '0 0 auto';
-                    voteDiv.style.whiteSpace = 'nowrap';
-                    voteDiv.style.boxSizing = 'border-box';
-                    voteDiv.style.textAlign = 'right';
-                    voteDiv.style.marginLeft = '8px';
-                }
-
-                // Align the inner .s-button controls tightly
-                li.querySelectorAll('.s-button').forEach(btn => {
-                    btn.style.flex = '0 0 auto';
-                    btn.style.marginRight = '2px';
-                });
-            });
-        }
-        window.enforceTagRowLayout = enforceTagRowLayout;
-
-        // Limit width of staff/Tags7a tag links
-        function overrideTagLinkWidths() {
-            const selectors = [
-                '.s-tag.s-staff a',
-                '.s-tag.s-staff.s-Tag7a a'
-            ];
-
-            selectors.forEach(sel => {
-                document.querySelectorAll(sel).forEach(link => {
-                    link.style.maxWidth = '110px';
-                    link.style.display = 'inline-block';
-                    link.style.boxSizing = 'border-box';
-                });
-            });
-        }
-        window.overrideTagLinkWidths = overrideTagLinkWidths;
-
-
-        // Add toggle button to show/hide tag buttons + refresh layout button
-        function addButtonToggle() {
-            // Prevent duplicate toggle buttons
-            if (document.querySelector('#hideTagButtonsToggle')) return;
-
-            const tagList = document.querySelector(tagListSelector);
-            const tagHeader = document.querySelector('#tag_container > .tag_header');
-
-            // === Create Refresh Button ===
-            const refreshBtn = document.createElement('button');
-            refreshBtn.id = 'refreshTagLayout';
-            refreshBtn.textContent = '⟳';
-            Object.assign(refreshBtn.style, {
-                backgroundColor: '#4C9A4C',
-                color: '#fff',
-                height: '22px',
-                border: '1px solid #2f5a2f',
-                borderRadius: '4px',
-                padding: '2px 4px',
-                fontSize: '13px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                marginRight: '4px',
-                marginTop: '2px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-            });
-            refreshBtn.addEventListener('mouseenter', () => {
-                refreshBtn.style.backgroundColor = '#3F7E3F';
-                refreshBtn.style.transform = 'translateY(-1px)';
-                refreshBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
-            });
-            refreshBtn.addEventListener('mouseleave', () => {
-                refreshBtn.style.backgroundColor = '#4C9A4C';
-                refreshBtn.style.transform = 'translateY(0)';
-                refreshBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
-            });
-            refreshBtn.addEventListener('click', () => {
-                console.log ("Pressed Refresh.....")
-                runFunction(rebuildTagLayout, '9nedi4ndiyg0rjyv', []);
-            });
-
-            // === Create Hide Button Toggle ===
-            const toggleBtn = document.createElement('button');
-            toggleBtn.id = 'hideTagButtonsToggle';
-            toggleBtn.textContent = 'Hide Tag Buttons';
-            Object.assign(toggleBtn.style, {
-                backgroundColor: '#5A8BB8',
-                color: '#fff',
-                height: '22px',
-                border: '1px solid #3d5e80',
-                borderRadius: '4px',
-                padding: '4px 8px',
-                fontSize: '11px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                marginLeft: '2px',
-                marginTop: '2px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-            });
-            toggleBtn.addEventListener('mouseenter', () => {
-                toggleBtn.style.backgroundColor = '#4b7aa3';
-                toggleBtn.style.transform = 'translateY(-1px)';
-                toggleBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
-            });
-            toggleBtn.addEventListener('mouseleave', () => {
-                toggleBtn.style.backgroundColor = '#5A8BB8';
-                toggleBtn.style.transform = 'translateY(0)';
-                toggleBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
-            });
-
-            let buttonsVisible = true;
-            toggleBtn.addEventListener('click', () => {
-                buttonsVisible = !buttonsVisible;
-                document.querySelectorAll('.s-button, .s-Tag7d div, .s-Tag7d .s-button').forEach(btn => {
-                    btn.style.display = buttonsVisible ? '' : 'none';
-                });
-
-                toggleBtn.textContent = buttonsVisible ? 'Hide Tag Buttons' : 'Show Tag Buttons';
-            });
-
-            // === Normal placement: details page ===
-            if (tagHeader) {
-                tagHeader.prepend(toggleBtn);
-                tagHeader.prepend(refreshBtn);
-                tagHeader.style.display = 'flex';
-                tagHeader.style.alignItems = 'center';
-                tagHeader.style.gap = '8px';
-                tagHeader.style.padding = '6px 10px';
-                return;
+            // Left-side tag section (buttons + tag name)
+            if (tagSpan) {
+                tagSpan.style.display = 'flex';
+                tagSpan.style.flex = '0 1 auto';
+                tagSpan.style.alignItems = 'center';
+                tagSpan.style.minWidth = '0'; // enables text truncation
+                tagSpan.style.overflow = 'hidden';
+                tagSpan.style.boxSizing = 'border-box';
             }
 
-            // === fallback: floating in upper left ===
-            refreshBtn.style.position = 'fixed';
-            refreshBtn.style.top = '10px';
-            refreshBtn.style.left = '10px';
-            refreshBtn.style.zIndex = '10000';
-            toggleBtn.style.position = 'fixed';
-            toggleBtn.style.top = '10px';
-            toggleBtn.style.left = '50px';
-            toggleBtn.style.zIndex = '10000';
-            document.body.appendChild(refreshBtn);
-            document.body.appendChild(toggleBtn);
-            console.log('addButtonToggle() attached floating (fallback).');
-        }
-        window.addButtonToggle = addButtonToggle;
+            // Tag link (truncate only this)
+            if (tagLink) {
+                tagLink.style.flex = '1 1 auto';
+                tagLink.style.whiteSpace = 'nowrap';
+                tagLink.style.overflow = 'hidden';
+                tagLink.style.textOverflow = 'ellipsis';
+                tagLink.style.display = 'block';
+                tagLink.style.minWidth = '0';
+                tagLink.style.boxSizing = 'border-box';
+                tagLink.style.float = 'none'; // override old CSS
+            }
 
+            // Vote area (right side)
+            if (voteDiv) {
+                voteDiv.style.flex = '0 0 auto';
+                voteDiv.style.whiteSpace = 'nowrap';
+                voteDiv.style.boxSizing = 'border-box';
+                voteDiv.style.textAlign = 'right';
+                voteDiv.style.marginLeft = '8px';
+            }
 
+            // Align the inner .s-button controls tightly
+            li.querySelectorAll('.s-button').forEach(btn => {
+                btn.style.flex = '0 0 auto';
+                btn.style.marginRight = '2px';
+            });
+        });
+    }
+    window.enforceTagRowLayout = enforceTagRowLayout;
 
-        // Shrink font size of tag links until they fit
-        function resizeAllTagText() {
-            const tagLinks = document.querySelectorAll('.s-tag > a');
+    // Limit width of staff/Tags7a tag links
+    function overrideTagLinkWidths() {
+        const selectors = [
+            '.s-tag.s-staff a',
+            '.s-tag.s-staff.s-Tag7a a'
+        ];
 
-            tagLinks.forEach(link => {
-                const parent = link.parentElement;
-                if (!parent) return;
-
-                link.style.fontSize = '';
-                link.style.whiteSpace = 'nowrap';
-                link.style.overflow = 'hidden';
-                link.style.textOverflow = 'ellipsis';
+        selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(link => {
+                link.style.maxWidth = '110px';
                 link.style.display = 'inline-block';
-                link.style.maxWidth = '100%';
                 link.style.boxSizing = 'border-box';
-
-                let fontSize = 16;
-                while (link.scrollWidth > parent.clientWidth && fontSize > 10) {
-                    fontSize -= 1;
-                    link.style.fontSize = fontSize + 'px';
-                }
             });
+        });
+    }
+    window.overrideTagLinkWidths = overrideTagLinkWidths;
+
+
+    // Add toggle button to show/hide tag buttons + refresh layout button
+    function addButtonToggle() {
+        // Prevent duplicate toggle buttons
+        if (document.querySelector('#hideTagButtonsToggle')) return;
+
+        const tagList = document.querySelector(tagListSelector);
+        const tagHeader = document.querySelector('#tag_container > .tag_header');
+
+        // === Create Refresh Button ===
+        const refreshBtn = document.createElement('button');
+        refreshBtn.id = 'refreshTagLayout';
+        refreshBtn.textContent = '⟳';
+        Object.assign(refreshBtn.style, {
+            backgroundColor: '#4C9A4C',
+            color: '#fff',
+            height: '22px',
+            border: '1px solid #2f5a2f',
+            borderRadius: '4px',
+            padding: '2px 4px',
+            fontSize: '13px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            marginRight: '4px',
+            marginTop: '2px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+        });
+        refreshBtn.addEventListener('mouseenter', () => {
+            refreshBtn.style.backgroundColor = '#3F7E3F';
+            refreshBtn.style.transform = 'translateY(-1px)';
+            refreshBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+        });
+        refreshBtn.addEventListener('mouseleave', () => {
+            refreshBtn.style.backgroundColor = '#4C9A4C';
+            refreshBtn.style.transform = 'translateY(0)';
+            refreshBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
+        });
+        refreshBtn.addEventListener('click', () => {
+            console.log ("Pressed Refresh.....")
+            runFunction(rebuildTagLayout, '9nedi4ndiyg0rjyv', []);
+        });
+
+        // === Create Hide Button Toggle ===
+        const toggleBtn = document.createElement('button');
+        toggleBtn.id = 'hideTagButtonsToggle';
+        toggleBtn.textContent = 'Hide Tag Buttons';
+        Object.assign(toggleBtn.style, {
+            backgroundColor: '#5A8BB8',
+            color: '#fff',
+            height: '22px',
+            border: '1px solid #3d5e80',
+            borderRadius: '4px',
+            padding: '4px 8px',
+            fontSize: '11px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            marginLeft: '2px',
+            marginTop: '2px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+        });
+        toggleBtn.addEventListener('mouseenter', () => {
+            toggleBtn.style.backgroundColor = '#4b7aa3';
+            toggleBtn.style.transform = 'translateY(-1px)';
+            toggleBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+        });
+        toggleBtn.addEventListener('mouseleave', () => {
+            toggleBtn.style.backgroundColor = '#5A8BB8';
+            toggleBtn.style.transform = 'translateY(0)';
+            toggleBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
+        });
+
+        let buttonsVisible = true;
+        toggleBtn.addEventListener('click', () => {
+            buttonsVisible = !buttonsVisible;
+            document.querySelectorAll('.s-button, .s-Tag7d div, .s-Tag7d .s-button').forEach(btn => {
+                btn.style.display = buttonsVisible ? '' : 'none';
+            });
+
+            toggleBtn.textContent = buttonsVisible ? 'Hide Tag Buttons' : 'Show Tag Buttons';
+        });
+
+        // === Normal placement: details page ===
+        if (tagHeader) {
+            tagHeader.prepend(toggleBtn);
+            tagHeader.prepend(refreshBtn);
+            tagHeader.style.display = 'flex';
+            tagHeader.style.alignItems = 'center';
+            tagHeader.style.gap = '8px';
+            tagHeader.style.padding = '6px 10px';
+            return;
         }
-        window.resizeAllTagText=resizeAllTagText;
 
-        function isEmporiumTorrentPage() {
-            return /^https:\/\/www\.empornium\.sx\/torrents\.php\?id=\d+/.test(window.location.href);
-        }
-
-        function initializeEnhancements() {
-            // if (!isEmporiumTorrentPage()) return;
-
-            runFunction(rearrangeLayout, 'rqpc3ze9eoklvvac', []);
-
-            // Step 1: split after the DOM settles
-            setTimeout(() => {
-                runFunction(splitTagsIntoColumns, '2hswltyy1emh3z85', []);
-
-                // Step 2: after the split finishes building the columns,
-                // give the browser one tick to render, then enforce layout
-                setTimeout(() => {
-                    runFunction(enforceTagRowLayout, '16hga5lqg0ayi0l6', []);
-                    runFunction(overrideTagLinkWidths, '4i7tghbbugbjia4c', []);
-                    runFunction(addButtonToggle, 'z0kakhkuk3sdydm9', []);
-                    runFunction(resizeAllTagText, 'g9t3x7fyz0naioxg', []);
-                }, 50);
-
-            }, 250);
-
-            // --- New safety net ---
-            setTimeout(() => {
-                const cols = document.querySelectorAll('#torrent_tags_list .tag-column');
-                if (cols.length < 2) {
-                    // Retry once if it didn’t split properly
-                    runFunction(splitTagsIntoColumns, '1yucitl7x1pryu1x', []);
-                }
-            }, 600);
-        }
+        // === fallback: floating in upper left ===
+        refreshBtn.style.position = 'fixed';
+        refreshBtn.style.top = '10px';
+        refreshBtn.style.left = '10px';
+        refreshBtn.style.zIndex = '10000';
+        toggleBtn.style.position = 'fixed';
+        toggleBtn.style.top = '10px';
+        toggleBtn.style.left = '50px';
+        toggleBtn.style.zIndex = '10000';
+        document.body.appendChild(refreshBtn);
+        document.body.appendChild(toggleBtn);
+        console.log('addButtonToggle() attached floating (fallback).');
+    }
+    window.addButtonToggle = addButtonToggle;
 
 
-        function waitForLayoutReady(callback) {
-            const container = document.querySelector('#details_top');
-            if (!container) {
-                console.warn('LayoutWatcher: #details_top not found.');
-                return;
+
+    // Shrink font size of tag links until they fit
+    function resizeAllTagText() {
+        const tagLinks = document.querySelectorAll('.s-tag > a');
+
+        tagLinks.forEach(link => {
+            const parent = link.parentElement;
+            if (!parent) return;
+
+            link.style.fontSize = '';
+            link.style.whiteSpace = 'nowrap';
+            link.style.overflow = 'hidden';
+            link.style.textOverflow = 'ellipsis';
+            link.style.display = 'inline-block';
+            link.style.maxWidth = '100%';
+            link.style.boxSizing = 'border-box';
+
+            let fontSize = 16;
+            while (link.scrollWidth > parent.clientWidth && fontSize > 10) {
+                fontSize -= 1;
+                link.style.fontSize = fontSize + 'px';
             }
+        });
+    }
+    window.resizeAllTagText=resizeAllTagText;
 
-            const observer = new MutationObserver(() => {
-                const middleColumn = container.querySelector('div.middle_column');
-                const tagList = container.querySelector('#torrent_tags_list');
-                const sidebar = container.querySelector('div.sidebar');
+    /*
+    function isEmporiumTorrentPage() {
+        return /^https:\/\/www\.empornium\.sx\/torrents\.php\?id=\d+/.test(window.location.href);
+    }
+*/
 
-                if (middleColumn && tagList && sidebar) {
-                    observer.disconnect();
-                    console.log('Layout ready: triggering enhancements');
-                    callback();
-                }
-            });
+    function initializeEnhancements() {
 
-            observer.observe(container, { childList: true, subtree: true });
+        runFunction(rearrangeLayout, 'rqpc3ze9eoklvvac', []);
+
+        // Step 1: split after the DOM settles
+        setTimeout(() => {
+            runFunction(splitTagsIntoColumns, '2hswltyy1emh3z85', []);
+
+            // Step 2: after the split finishes building the columns,
+            // give the browser one tick to render, then enforce layout
+            setTimeout(() => {
+                runFunction(enforceTagRowLayout, '16hga5lqg0ayi0l6', []);
+                runFunction(overrideTagLinkWidths, '4i7tghbbugbjia4c', []);
+                runFunction(addButtonToggle, 'z0kakhkuk3sdydm9', []);
+                runFunction(resizeAllTagText, 'g9t3x7fyz0naioxg', []);
+            }, 50);
+
+        }, 250);
+
+        // --- New safety net ---
+        setTimeout(() => {
+            const cols = document.querySelectorAll('#torrent_tags_list .tag-column');
+            if (cols.length < 2) {
+                // Retry once if it didn’t split properly
+                runFunction(splitTagsIntoColumns, '1yucitl7x1pryu1x', []);
+            }
+        }, 600);
+    }
+
+
+    function waitForLayoutReady(callback) {
+        const container = document.querySelector('#details_top');
+        if (!container) {
+            console.warn('LayoutWatcher: #details_top not found.');
+            return;
         }
 
-        // Run enhancements once #torrent_tags_list is ready
-        if (/torrents\.php/.test(window.location.href) && /id=\d+/.test(window.location.href)) {
-            waitForLayoutReady(() => {
-                runFunction(initializeEnhancements, 'nl5np2s75wewk9f9', []);
-            });
+        const observer = new MutationObserver(() => {
+            const middleColumn = container.querySelector('div.middle_column');
+            const tagList = container.querySelector('#torrent_tags_list');
+            const sidebar = container.querySelector('div.sidebar');
+
+            if (middleColumn && tagList && sidebar) {
+                observer.disconnect();
+                console.log('Layout ready: triggering enhancements');
+                callback();
+            }
+        });
+
+        observer.observe(container, { childList: true, subtree: true });
+    }
+
+    // Run enhancements once #torrent_tags_list is ready
+    if (/torrents\.php/.test(window.location.href) && /id=\d+/.test(window.location.href)) {
+        waitForLayoutReady(() => {
+            runFunction(initializeEnhancements, 'nl5np2s75wewk9f9', []);
+        });
+    }
+
+    function rebuildTagLayout() {
+        setTimeout(() => {
+            try {
+                console.log("🔁 Rebuilding tag layout...");
+                runFunction(highlightDetailTags, '2c5anxv59ystmji1', []);
+                runFunction(rearrangeLayout, 'uxjouy2sjvedwly0', []);
+                runFunction(splitTagsIntoColumns, '4jiq2v8m4svjq0hk', []);
+                runFunction(enforceTagRowLayout, 'y0o8ew4hhbqe7jis', []);
+                runFunction(overrideTagLinkWidths, 'taec30gdt19szwdc', []);
+                runFunction(resizeAllTagText, '168o5p8wofx26w1h', []);
+                runFunction(addButtonToggle, 'vcjy4ldrxj8ycx6r', []);
+
+            } catch (err) {
+                console.warn("🔴 Tag layout rebuild failed:", err);
+            }
+        }, 300);
+    }
+
+    window.rebuildTagLayout = rebuildTagLayout;
+    // --- Mutation Observer: Tags7d (Hidden Tags) ---
+    // Monitors changes in the hidden tags container to trigger layout rebuilds.
+    (function observeTags7d() {
+        const hidden7d = document.querySelector('.s-Tag7d-tags');
+        if (!hidden7d) {
+            setTimeout(observeTags7d, 500);
+            return;
         }
 
-        function rebuildTagLayout() {
+        let isRebuilding = false;
+
+        const observer = new MutationObserver(() => {
+            if (isRebuilding) return;
+            isRebuilding = true;
+
+            // wait a bit so the add/remove operation finishes
             setTimeout(() => {
                 try {
-                    console.log("🔁 Rebuilding tag layout...");
-                    runFunction(highlightDetailTags, '2c5anxv59ystmji1', []);
-                    runFunction(rearrangeLayout, 'uxjouy2sjvedwly0', []);
-                    runFunction(splitTagsIntoColumns, '4jiq2v8m4svjq0hk', []);
-                    runFunction(enforceTagRowLayout, 'y0o8ew4hhbqe7jis', []);
-                    runFunction(overrideTagLinkWidths, 'taec30gdt19szwdc', []);
-                    runFunction(resizeAllTagText, '168o5p8wofx26w1h', []);
-                    runFunction(addButtonToggle, 'vcjy4ldrxj8ycx6r', []);
-
+                    runFunction(rearrangeLayout, 'fqvqjad6ovpf30pc', []);
+                    runFunction(splitTagsIntoColumns, 'fmpknv0vlkg063g0', []);
+                    runFunction(enforceTagRowLayout, 'gk6r3uw6oevo37zt', []);
+                    runFunction(overrideTagLinkWidths, 'op5tce1p2artfoaw', []);
+                    runFunction(addButtonToggle, 'jn34hbjb18o5u2zl', []);
+                    runFunction(resizeAllTagText, 'x7ewpozd8a63bcp4', []);
                 } catch (err) {
-                    console.warn("🔴 Tag layout rebuild failed:", err);
+                    console.warn('Tags7d observer rebuild failed:', err);
+                } finally {
+                    isRebuilding = false;
                 }
             }, 300);
-        }
+        });
 
-        window.rebuildTagLayout = rebuildTagLayout;
-        // --- Mutation Observer: Tags7d (Hidden Tags) ---
-        // Monitors changes in the hidden tags container to trigger layout rebuilds.
-        (function observeTags7d() {
-            const hidden7d = document.querySelector('.s-Tag7d-tags');
-            if (!hidden7d) {
-                setTimeout(observeTags7d, 500);
-                return;
-            }
+        observer.observe(hidden7d, { childList: true, subtree: false });
 
-            let isRebuilding = false;
+        console.log('Observer active: re-reading tags on Tags7d changes');
+    })();
 
-            const observer = new MutationObserver(() => {
-                if (isRebuilding) return;
-                isRebuilding = true;
+    // Observe for added tags and reapply the tag layout.
+    const tagAddContainer = document.querySelector(".tag_add");
 
-                // wait a bit so the add/remove operation finishes
-                setTimeout(() => {
-                    try {
-                        runFunction(rearrangeLayout, 'fqvqjad6ovpf30pc', []);
-                        runFunction(splitTagsIntoColumns, 'fmpknv0vlkg063g0', []);
-                        runFunction(enforceTagRowLayout, 'gk6r3uw6oevo37zt', []);
-                        runFunction(overrideTagLinkWidths, 'op5tce1p2artfoaw', []);
-                        runFunction(addButtonToggle, 'jn34hbjb18o5u2zl', []);
-                        runFunction(resizeAllTagText, 'x7ewpozd8a63bcp4', []);
-                    } catch (err) {
-                        console.warn('Tags7d observer rebuild failed:', err);
-                    } finally {
-                        isRebuilding = false;
-                    }
-                }, 300);
-            });
+    if (tagAddContainer) {
+        const observer = new MutationObserver((mutationsList) => {
+            for (const mutation of mutationsList) {
+                for (const node of mutation.addedNodes) {
+                    if (
+                        node.nodeType === 1 &&
+                        node.id === "messagebar0" &&
+                        node.textContent.includes("Added")
+                    ) {
+                        runFunction(processDetailsPage, 'fsjggygvnq7r875i', []);
+                        setTimeout(() => {
+                            runFunction(rebuildTagLayout, 'dadb29zs43ogorz9', []);
 
-            observer.observe(hidden7d, { childList: true, subtree: false });
-
-            console.log('Observer active: re-reading tags on Tags7d changes');
-        })();
-
-        // Observe for added tags and reapply the tag layout.
-        const tagAddContainer = document.querySelector(".tag_add");
-
-        if (tagAddContainer) {
-            const observer = new MutationObserver((mutationsList) => {
-                for (const mutation of mutationsList) {
-                    for (const node of mutation.addedNodes) {
-                        if (
-                            node.nodeType === 1 &&
-                            node.id === "messagebar0" &&
-                            node.textContent.includes("Added")
-                        ) {
-                            runFunction(processDetailsPage, 'fsjggygvnq7r875i', []);
-                            setTimeout(() => {
-                                runFunction(rebuildTagLayout, 'dadb29zs43ogorz9', []);
-
-                            }, 100);
-                        }
+                        }, 100);
                     }
                 }
-            });
+            }
+        });
 
-            observer.observe(tagAddContainer, {
-                childList: true,
-                subtree: false, // only direct children of .tag_add
-            });
-        }
+        observer.observe(tagAddContainer, {
+            childList: true,
+            subtree: false, // only direct children of .tag_add
+        });
+    }
 
-        // --- Focus Observer ---
-        // When the tab regains focus, rechecks and rebuilds tag layout if needed.
-        // Minor hack to fix the layout being "Off" when opening detials in new tab.
-        (function observeFocusForRebuild() {
-            // ✅ Only run on torrent details pages
-            if (!/torrents\.php\?id=/.test(window.location.href)) return;
-            let isRebuilding = false;
+    // --- Focus Observer ---
+    // When the tab regains focus, rechecks and rebuilds tag layout if needed.
+    // Minor hack to fix the layout being "Off" when opening detials in new tab.
+    (function observeFocusForRebuild() {
+        // ✅ Only run on torrent details pages
+        if (!/torrents\.php\?id=/.test(window.location.href)) return;
+        let isRebuilding = false;
 
-            window.addEventListener('focus', () => {
-                if (isRebuilding) return;
-                isRebuilding = true;
+        window.addEventListener('focus', () => {
+            if (isRebuilding) return;
+            isRebuilding = true;
 
-                console.log('Window focused — triggering layout recheck');
+            console.log('Window focused — triggering layout recheck');
 
-                setTimeout(() => {
-                    try {
-                        runFunction(rebuildTagLayout, 'llou6iuynqvw379q', []);
-                    } catch (err) {
-                        console.warn('Focus rebuild failed:', err);
-                    } finally {
-                        isRebuilding = false;
-                    }
-                }, 300);
-            });
-        })();
-
-
+            setTimeout(() => {
+                try {
+                    runFunction(rebuildTagLayout, 'llou6iuynqvw379q', []);
+                } catch (err) {
+                    console.warn('Focus rebuild failed:', err);
+                } finally {
+                    isRebuilding = false;
+                }
+            }, 300);
+        });
     })();
-    // This is the very end of this file.
+
+
+})();
+// This is the very end of this file.
