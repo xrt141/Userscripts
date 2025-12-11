@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.5.x Beta
 // @namespace    http://tampermonkey.net/
-// @version      2.5.63
+// @version      2.5.68
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -410,7 +410,7 @@ function runScript() {
         unknown:     { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 }
     };
 
-    // --- HappyFappy - Adjust Bublegum Theme Colors
+    // --- HappyFappy - Adjust Bubblegum Theme Colors
     if (settings.hfBetterBubblegum) {
         if (currentTheme === "Bubblegum") {
             const style = document.createElement("style");
@@ -471,24 +471,25 @@ function runScript() {
 
 
     // === Dynamic Tags7d (Previously "Useless" Tags) Visibility ===
-    (function apply7dVisibilitySetting() {
-        // Remove any previous rule to avoid duplicates
-        $j("#dynamic-7d-visibility").remove();
 
-        // Create a new style element
+    (function apply7dVisibilitySetting() {
+        $j("#dynamic-7d-visibility").remove();
         const style = document.createElement("style");
         style.id = "dynamic-7d-visibility";
 
         if (settings.hideTags7dTags) {
-            // Hide Tags7d everywhere EXCEPT on the tags listing page (body.emp-tags-page)
-            style.textContent = "body:not(.emp-tags-page) span.s-tag.s-Tag7d { display:none !important; }";
+            style.textContent = `
+      body:not(.emp-tags-page) span.s-tag.s-Tag7d { display: none !important; }
+    `;
         } else {
-            // When the toggle is OFF, ensure they show everywhere
-            //style.textContent = "span.s-tag.s-Tag7d { display:inline !important; }";
+            style.textContent = `
+      span.s-tag.s-Tag7d { display: inline }
+    `;
         }
 
         document.head.appendChild(style);
     })();
+
 
 
 
@@ -1035,7 +1036,7 @@ function runScript() {
       /* == Config Tabs == */
          .tab-row-container {height: 40px;box-sizing: border-box;  display: flex;cursor:pointer;}
          .tab-row-container li {display:inline-block;height: 30px;flex: 1; list-style: none; margin: 0; border: 1px solid #444; border-bottom: 0; border-radius: 4px 4px 0 0; line-height: normal; text-align: center;padding:5px;}
-         .tab-row-container a {color:#444;display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;box-sizing:border-box;height:30px;max-height:30px;min-height:20px;padding:0 0px;line-height:1;white-space:normal;overflow:hidden;text-overflow:ellipsis;font-size:clamp(11px,0.8vw,14px);transition:font-size 0.15s ease;}
+         .tab-row-container a {color:#444;display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;box-sizing:border-box;height:30px;max-height:30px;min-height:20px;padding:0 5px;line-height:1;white-space:normal;overflow:hidden;text-overflow:ellipsis;font-size:clamp(11px,1.1vw,14px);transition:font-size 0.15s ease;}
          .tab-row-container a:hover { text-decoration:none; color: black;}
          .tab-row-container li:hover {background-color: white;}
          .tab-row-container li.s-selected {background-color:#fff;text-decoration:none; color:black}
@@ -1816,39 +1817,53 @@ Tags Ignored: (${countIgnored})`
                 setTimeout(highlightDetailTags, 200);
                 return;
             }
+
             $j("<ul class='s-Tag7d-tags nobullet'></ul>").appendTo("#torrent_tags").on("spyder.change", function () {
-                var hiddenTagHolder = $j(this),
-                    hiddenTags = hiddenTagHolder.find("span.s-tag");
-
-                if (hiddenTags.length) {
-                    $j(".s-Tag7d-msg").text("There's " + hiddenTags.length + " " + settings.names.Tags7d + " tag" + (hiddenTags.length > 1 ? "s" : "") + " on this torrent ");
-                    $j(".s-Tag7d-msg, .s-Tag7d-toggle").show();
-
-                    // 🚨 Respect user toggle for hiding 7d tags
-                    if (settings.hideTags7dTags) {
-                        hiddenTagHolder.hide(); // user wants them hidden
-                    } else {
-                        hiddenTagHolder.show(); // user wants them visible
-                    }
+                // Persisted user override: null = not set yet (follow settings default)
+                if (typeof window.__Tags7dUserOpen === "undefined") {
+                    window.__Tags7dUserOpen = null;
                 }
-                else {
-                    $j(".s-Tag7d-msg, .s-Tag7d-toggle").hide();
+
+                var $ul = $j(this);
+                var hiddenTags = $ul.find("span.s-tag");
+
+                // Always show header controls; update count
+                $j(".s-Tag7d-msg").text("There's " + hiddenTags.length + " " + settings.names.Tags7d + " tag" + (hiddenTags.length > 1 ? "s" : "") + " on this torrent ");
+                $j(".s-Tag7d-msg, .s-Tag7d-toggle").show();
+
+                // Decide visibility: user override first; otherwise follow settings
+                var shouldShow = (window.__Tags7dUserOpen !== null) ? window.__Tags7dUserOpen : !settings.hideTags7dTags;
+
+                if (shouldShow) {
+                    $ul.show();
+                    $j(".s-Tag7d-toggle").text("HIDE");
+                } else {
+                    $ul.hide();
+                    $j(".s-Tag7d-toggle").text("SHOW");
                 }
             }).before("<div class='s-Tag7d-desc'><span class='s-Tag7d-msg'></span> <a class='s-Tag7d-toggle'>SHOW</a></div>");
 
 
 
 
-            $j(".s-Tag7d-toggle").on("click", function () {
-                $j(".s-Tag7d-tags").slideToggle("fast", function () {
-                    if ($j(this).is(":visible")) {
-                        $j(".s-Tag7d-toggle").text("HIDE");
-                    }
-                    else {
-                        $j(".s-Tag7d-toggle").text("SHOW");
-                    }
-                });
+
+
+            $j(".s-Tag7d-toggle").off("click").on("click", function () {
+                const $ul = $j(".s-Tag7d-tags");
+                const willShow = !$ul.is(":visible");
+
+                // Persist user choice so spyder.change honors it
+                window.__Tags7dUserOpen = willShow;
+
+                if (willShow) {
+                    $ul.stop(true, true).slideDown("fast");
+                    $j(".s-Tag7d-toggle").text("HIDE");
+                } else {
+                    $ul.stop(true, true).slideUp("fast");
+                    $j(".s-Tag7d-toggle").text("SHOW");
+                }
             });
+
 
 
             tagLinks.each(function (i, tagLink) {
@@ -1882,31 +1897,83 @@ Tags Ignored: (${countIgnored})`
                 var buttons = $j();
 
                 // --- Dynamically generate buttons for parent "a" tags ---
+
                 FILTERED_ONLY_A_TAGS_KEYS.forEach(tagsKey => {
-                    const tagKey = tagsKey.replace(/^Tags/, "Tag")
+                    const tagKey = tagsKey.replace(/^Tags/, "Tag");
                     if (settings[`use${tagKey}Tags`]) {
+                        // ADD
                         if (!settings[`${tagKey}ButtonVisibility`]) {
-                            buttons = buttons.add($j(`<div class='s-button s-add-${tagsKey}' title='Mark tag as ${settings.names[tagsKey]}'>+</div>`)
-                                                  .data("action", { fn: (function(h) { return function() { addTagElement(tagsKey, h, tag); }; })(tagHolder) }));
+                            buttons = buttons.add(
+                                $j(`<div class='s-button s-add-${tagsKey}' title='Mark tag as ${settings.names[tagsKey]}'>+</div>`)
+                                .data("action", {
+                                    fn: (h => () => {
+                                        if (tagsKey === "Tags7d") {
+                                            addTags7dTagElement("Tags7d", h, tag);   // ⬅️ call the special helper
+                                        } else {
+                                            addTagElement(tagsKey, h, tag);          // normal path
+                                        }
+                                    })(tagHolder)
+                                })
+                            );
                         }
-                        buttons = buttons.add($j(`<div class='s-button s-remove-${tagsKey}' title='Un-Mark tag as ${settings.names[tagsKey]}'>–</div>`)
-                                              .data("action", { fn: (function(h) { return function() { removeTagElement(tagsKey, h, tag); }; })(tagHolder) }));
+                        // REMOVE
+                        buttons = buttons.add(
+                            $j(`<div class='s-button s-remove-${tagsKey}' title='Un-Mark tag as ${settings.names[tagsKey]}'>–</div>`)
+                            .data("action", {
+                                fn: (h => () => {
+                                    if (tagsKey === "Tags7d") {
+                                        removeTags7dTagElement("Tags7d", h, tag);  // ⬅️ call the special helper
+                                    } else {
+                                        removeTagElement(tagsKey, h, tag);         // normal path
+                                    }
+                                })(tagHolder)
+                            })
+                        );
                     }
                 });
+
 
                 // --- Dynamically generate buttons for child "non a" tags ---
+
                 FILTERED_NON_A_TAGS_KEYS.forEach(tagsKey => {
-                    const tagKey = tagsKey.replace(/^Tags/, "Tag")
+                    const tagKey = tagsKey.replace(/^Tags/, "Tag");
                     const aVersionKey = tagsKey.slice(0, -1) + "a";
-
                     if (settings[`use${tagKey}Tags`]) {
-                        buttons = buttons.add($j(`<div class='s-button s-add-${tagsKey}' title='Upgrade tag to ${settings.names[tagsKey]}'>+</div>`)
-                                              .data("action", { fn: (function(h) { return function() { switchTagCategory(h, aVersionKey, tagsKey, tag); }; })(tagHolder) }));
+                        // ADD (upgrade to this child)
+                        buttons = buttons.add(
+                            $j(`<div class='s-button s-add-${tagsKey}' title='Upgrade tag to ${settings.names[tagsKey]}'>+</div>`)
+                            .data("action", {
+                                fn: (h => () => {
+                                    if (tagsKey === "Tags7d") {
+                                        // Persist via switch, then force move
+                                        switchTagCategory(h, aVersionKey, tagsKey, tag);
+                                        addTags7dTagElement("Tags7d", h, tag); // ensures class + move
+                                    } else {
+                                        switchTagCategory(h, aVersionKey, tagsKey, tag);
+                                    }
+                                })(tagHolder)
+                            })
+                        );
+                        // REMOVE (downgrade away from this child)
+                        buttons = buttons.add(
+                            $j(`<div class='s-button s-remove-${tagsKey}' title='Downgrade tag from ${settings.names[tagsKey]}'>–</div>`)
+                            .data("action", {
+                                fn: (h => () => {
 
-                        buttons = buttons.add($j(`<div class='s-button s-remove-${tagsKey}' title='Downgrade tag from ${settings.names[tagsKey]}'>–</div>`)
-                                              .data("action", { fn: (function(h) { return function() { switchTagCategory(h, tagsKey, aVersionKey, tag); }; })(tagHolder) }));
+                                    if (tagsKey === "Tags7d") {
+                                        // ✨ Unclassify when downgrading from 7d:
+                                        // Remove from 7d and DO NOT add to 7a/7b (no switchCategory here).
+                                        removeTags7dTagElement("Tags7d", h, tag);
+                                    } else {
+                                        switchTagCategory(h, tagsKey, aVersionKey, tag);
+                                    }
+
+                                })(tagHolder)
+                            })
+                        );
                     }
                 });
+
 
                 $j(buttons).addClass("s-button").prependTo(tagHolder);
 
@@ -3019,6 +3086,125 @@ Tags Ignored: (${countIgnored})`
     }
 
 
+    // --- 7d Hidden Section UI helpers ---
+    function ensureTags7dUI() {
+        // Create UL once
+        if ($j(".s-Tag7d-tags").length === 0) {
+            $j("<ul class='s-Tag7d-tags nobullet'></ul>")
+                .appendTo("#torrent_tags")
+
+                .on("spyder.change", function () {
+                // --- Honor user SHOW/HIDE choice if set ---
+                if (typeof window.__Tags7dUserOpen === "undefined") {
+                    window.__Tags7dUserOpen = null; // null = not set; fall back to settings
+                }
+
+                const $ul = $j(this);
+                const count = $ul.find("span.s-tag").length;
+
+                // Update header text and keep controls visible
+                $j(".s-Tag7d-msg").text(
+                    "There's " + count + " " + settings.names.Tags7d +
+                    " tag" + (count > 1 ? "s" : "") + " on this torrent "
+                );
+                $j(".s-Tag7d-msg, .s-Tag7d-toggle").show();
+
+                // Decide visibility:
+                //  - If the user clicked SHOW/HIDE, use window.__Tags7dUserOpen
+                //  - Else, default to !settings.hideTags7dTags
+                const shouldShow = (window.__Tags7dUserOpen !== null)
+                ? window.__Tags7dUserOpen
+                : !settings.hideTags7dTags;
+
+                if (shouldShow) {
+                    $ul.show();
+                    $j(".s-Tag7d-toggle").text("HIDE");
+                } else {
+                    $ul.hide();
+                    $j(".s-Tag7d-toggle").text("SHOW");
+                }
+            });
+
+
+            // Header (message + toggle), once
+            if ($j(".s-Tag7d-desc").length === 0) {
+                $j("<div class='s-Tag7d-desc'><span class='s-Tag7d-msg'></span> <a class='s-Tag7d-toggle'>SHOW</a></div>")
+                    .insertBefore(".s-Tag7d-tags");
+                $j(".s-Tag7d-toggle").off("click").on("click", function () {
+
+                    const $ul = $j(".s-Tag7d-tags");
+                    const willShow = !$ul.is(":visible");
+
+                    // Persist user choice so spyder.change honors it
+                    window.__Tags7dUserOpen = willShow;
+
+                    if (willShow) {
+                        $ul.stop(true, true).slideDown("fast");
+                        $j(".s-Tag7d-toggle").text("HIDE");
+                    } else {
+                        $ul.stop(true, true).slideUp("fast");
+                        $j(".s-Tag7d-toggle").text("SHOW");
+                    }
+
+                });
+            }
+        }
+    }
+
+    function moveRowToTags7d(holder) {
+        const $row = holder.closest("li, div, tr");
+        if (!$row.length) return;
+        ensureTags7dUI();
+        $row.detach().appendTo(".s-Tag7d-tags");
+        $j(".s-Tag7d-tags").trigger("spyder.change");
+    }
+
+
+    function moveRowFromTags7d(holder) {
+        const $row = holder.closest("li, div, tr");
+        if (!$row.length) return;
+
+        const $list = $j("#torrent_tags_list");
+        // If columns already exist, put the row back into the FIRST column,
+        // otherwise prepend to the UL root (exactly what you do today).
+        const $firstCol = $list.find(".tag-column").first();
+
+        if ($firstCol.length) {
+            // Put it at the top of column 1 so the next split/sort includes it
+            $row.detach().prependTo($firstCol);
+        } else {
+            // No wrappers yet—safe to put it under the UL
+            $row.detach().prependTo($list);
+        }
+
+        $j(".s-Tag7d-tags").trigger("spyder.change");
+    }
+
+
+    // --- Special 7d actions (persist + move) ---
+    function addTags7dTagElement(type, holder, tag) {
+        try {
+            // Persist in Tags7d (do not hard-remove other categories here)
+            runFunction(addTags, 'add7d_persist', ["Tags7d", [tag]]);
+            holder.addClass("s-Tag7d");
+            moveRowToTags7d(holder);
+        } catch (err) {
+            console.error("addTags7dTagElement failed:", err);
+        }
+    }
+
+    function removeTags7dTagElement(type, holder, tag) {
+        try {
+            // Persist removal from Tags7d
+            runFunction(removeTags, 'remove7d_persist', ["Tags7d", [tag]]);
+            holder.removeClass("s-Tag7d s-Tag7d-hidden");
+            moveRowFromTags7d(holder);
+        } catch (err) {
+            console.error("removeTags7dTagElement failed:", err);
+        }
+    }
+
+
     function addTagElement(type, holder, tag) {
         // Normalize incoming type names so we always add classes like "s-Tag1a"
         // Accepts either "Tags1a" or "Tag1a" and normalizes to "Tag1a"
@@ -3457,25 +3643,22 @@ function addJQuery(callback) {
 
         // Collect all <li> items regardless of whether they are directly under #torrent_tags_list
         // or nested inside column wrappers the site already created.
+
         const allItems = (function collectAllLis(root) {
             const lis = [];
-            // If the site already has column wrappers, pull LIs from each wrapper
-            const columns = existingColumnWrappers.length
-            ? existingColumnWrappers
-            : [root];
-
+            const columns = existingColumnWrappers.length ? existingColumnWrappers : [root];
             columns.forEach(col => {
                 lis.push(
                     ...Array.from(col.querySelectorAll(':scope > li')).filter(li => {
-                        if (li.closest('.s-Tag7d-tags')) return false; // ignore hidden 7d area
+                        if (li.closest('.s-Tag7d-tags')) return false;
                         const s = window.getComputedStyle(li);
                         return s.display !== 'none' && s.visibility !== 'hidden';
                     })
                 );
             });
-
             return lis;
         })(tagList);
+
 
         if (allItems.length === 0) return;
 
@@ -3490,38 +3673,37 @@ function addJQuery(callback) {
         // NOTE: we do NOT remove non-LI children (like the site’s column wrappers or your hidden 7d block)
         allItems.forEach(li => li.remove());
 
-        // === CASE A: Skip your own 3 columns (site already does columns or host excluded) ===
         if (window.shouldSkipTagSplit()) {
             if (existingColumnWrappers.length > 0) {
-                // The site already has column wrappers. Redistribute sorted LIs back into those wrappers,
-                // preserving the original item counts per column to keep their layout from breaking.
-                const originalCounts = existingColumnWrappers.map(col =>
-                                                                  col.querySelectorAll(':scope > li').length
-                                                                 );
-
-                let idx = 0;
-                existingColumnWrappers.forEach((col, colIdx) => {
-                    const take = originalCounts[colIdx];
-                    const slice = allItems.slice(idx, idx + take);
-                    slice.forEach(li => col.appendChild(li));
-                    idx += take;
+                // 1) Clear current LIs from each wrapper
+                existingColumnWrappers.forEach(col => {
+                    col.querySelectorAll(':scope > li').forEach(li => li.remove());
                 });
 
-                // If counts changed or were 0, any remaining items (unlikely) go to the last column wrapper.
+                // 2) Evenly redistribute the globally-sorted items by count (column-major)
+                const cols = existingColumnWrappers.length;
+                const perCol = Math.ceil(allItems.length / cols);
+
+                let idx = 0;
+                existingColumnWrappers.forEach((col) => {
+                    const slice = allItems.slice(idx, idx + perCol);
+                    slice.forEach(li => col.appendChild(li));
+                    idx += perCol;
+                });
+
+                // 3) Any leftovers (edge cases) go to the last column
                 if (idx < allItems.length) {
                     allItems.slice(idx).forEach(li => existingColumnWrappers.at(-1).appendChild(li));
                 }
-
             } else {
-                // No column wrappers (some sites don’t use wrappers but still control layout elsewhere).
-                // Just append sorted items back to #torrent_tags_list in order.
+                // No wrappers; just append sorted items back to the list
                 allItems.forEach(li => tagList.appendChild(li));
             }
 
-            // Keep the hidden 7d blocks at the end (no reflow/splitting for them).
+            // Keep hidden 7d blocks at the end (unchanged)
             hidden7dBlocks.forEach(h => tagList.appendChild(h));
 
-            // Apply your usual row alignment helpers (safe for any layout)
+            // Layout helpers (unchanged)
             runFunction(enforceTagRowLayout, 'eimqkzlubg0yg9jl', []);
             runFunction(overrideTagLinkWidths, 'rkeym2z93t9tr9id', []);
             runFunction(resizeAllTagText, '6f4bq7xg2omsqz8w', []);
@@ -3530,7 +3712,7 @@ function addJQuery(callback) {
                 span.style.flex = '0 0 auto';
                 span.style.alignItems = 'center';
             });
-            return; // 🚪 Done for “skip split” case
+            return; // ✅ done with skip path
         }
 
         // === CASE B: Do your own 3 columns ===
@@ -3948,8 +4130,6 @@ function addJQuery(callback) {
     // --- Focus Observer ---
     // When the tab regains focus, rechecks and rebuilds tag layout if needed.
     // Minor hack to fix the layout being "Off" when opening detials in new tab.
-
-
     (function observeFocusForRebuild() {
         // Only run on torrent details pages
         if (!/torrents\.php\?id=/.test(window.location.href)) return;
@@ -3973,7 +4153,6 @@ function addJQuery(callback) {
 
             setTimeout(() => {
                 try {
-                    // ❌ Do NOT set __lastRebuildTs here. Let rebuildTagLayout stamp AFTER it finishes.
                     runFunction(rebuildTagLayout, 'llou6iuynqvw379q', []);
                 } catch (err) {
                     console.warn('Focus rebuild failed:', err);
