@@ -15,8 +15,8 @@
 // @include      /^https://femdomcult\.org/
 // @include      /^https://www\.homeporntorrents\.club/
 // @match        *://*.empornium.sx/torrents.php*
-// @updateURL    https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highligter+%202.5%20Beta.user.js
-// @downloadURL  https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highligter+%202.5%20Beta.user.js
+// @updateURL    https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highlighter+%202.6.x.user.js
+// @downloadURL  https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highlighter+%202.6.x.user.js
 // @run-at       document-end
 // ==/UserScript==
 
