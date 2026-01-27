@@ -51,16 +51,23 @@ function runScript() {
 
     // Hosts that should NOT use 3-column tag splitting on detials page.
     const EXCLUDED_SPLIT_HOSTS = new Set([
-        'happyfappy.org',
-        'www.happyfappy.org',
+        'example.org', 
+        'example.com',
     ]);
 
 
     // Define globally so all IIFEs/functions can access
     window.shouldSkipTagSplit = function () {
         const host = (window.location.hostname || '').toLowerCase();
-        // Skip the 3-column split on happyfappy.org and any subdomain
-        return host === 'happyfappy.org' || host.endsWith('.happyfappy.org');
+        // Check if host or any parent domain is in the excluded set
+        if (EXCLUDED_SPLIT_HOSTS.has(host)) return true;
+        // Also check for subdomains (e.g., www.example.org if example.org is in the set)
+        const parts = host.split('.');
+        for (let i = 1; i < parts.length - 1; i++) {
+            const parent = parts.slice(i).join('.');
+            if (EXCLUDED_SPLIT_HOSTS.has(parent)) return true;
+        }
+        return false;
     };
 
 
