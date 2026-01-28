@@ -1,6 +1,6 @@
 // ==UserScript==
     // @name        Luminance direct thumbnails
-    // @version     2.6.1
+    // @version     2.6.3
     // @include     /https?://www\.empornium\.(is|sx)/*
     // @include     /https?://www\.happyfappy\.org/*
     // @include     /https?://femdomcult\.org/*
@@ -17,6 +17,7 @@
     // @connect     imgbox.com
     // @connect     empornium.is
     // @connect     *.empornium.sx
+    // @connect     imagebam.com
     // ==/UserScript==
 
 
