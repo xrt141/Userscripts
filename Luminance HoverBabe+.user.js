@@ -2,7 +2,7 @@
 // @name        Luminance HoverBabe+
 // @namespace   empornium Scripts
 // @description Hover over performer tag and get their Babepedia Bio.
-// @version     1.50.2
+// @version     1.50.3
 // @author      vandenium
 // @include     /^https://www\.empornium\.(me|sx|is)\/torrents.php/
 // @include     /^https://www\.empornium\.(me|sx|is)\/top10.php/
@@ -18,10 +18,14 @@
 // @grant       GM_getValue
 // @grant       GM_deleteValue
 // @grant       GM_info
-// @downloadURL https://update.sleazyfork.org/scripts/430670/HoverBabe.user.js
-// @updateURL https://update.sleazyfork.org/scripts/430670/HoverBabe.meta.js
+// @downloadURL https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20HoverBabe+.user.js
+// @updateURL   https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20HoverBabe+.user.js
 // ==/UserScript==
 // Changelog:
+
+/* ========================================================================================
+   Luminance HoverBabe+ - Forked from Hoverbabe (vandenium)
+   ======================================================================================== */
 
 let settings;
 let hovered;
@@ -3515,7 +3519,8 @@ const getLowerTagText = (el) => {
 
         const a = document.createElement("a");
         a.href = "#";
-        a.textContent = "HoverBabe Settings";
+        a.textContent = "⛭ LHB"; 
+        a.title = 'Luminance HoverBabe - Settings';
         a.addEventListener("click", () => {
             showSettings();
         });
@@ -3687,3 +3692,8 @@ const getLowerTagText = (el) => {
 
     // Go!
     run();
+
+    // Global CSS for menu positioning
+    GM_addStyle(`
+        #userinfo_username li ul {right:0; left:auto;}
+    `);

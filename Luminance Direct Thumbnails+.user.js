@@ -1,6 +1,6 @@
 // ==UserScript==
     // @name        Luminance Direct Thumbnails+
-    // @version     2.6.3
+    // @version     2.6.4
     // @include     /https?://www\.empornium\.(is|sx)/*
     // @include     /https?://www\.happyfappy\.org/*
     // @include     /https?://femdomcult\.org/*
@@ -18,9 +18,13 @@
     // @connect     empornium.is
     // @connect     *.empornium.sx
     // @connect     imagebam.com
+    // @downloadURL https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Direct%20Thumbnails+.user.js
+    // @updateURL   https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Direct%20Thumbnails+.user.js
     // ==/UserScript==
 
-
+/* ========================================================================================
+   Luminance Direct Thumbnails+ - Forked from Whatcd Gazelle Direct Thumbnails 12.x?
+   ======================================================================================== */
 
 
     "use strict";
@@ -429,6 +433,8 @@
 
 
     GM_addStyle(`
+        #major_stats_left { display: inline-block; position}
+        #userinfo_username li ul {right:0; left:auto;}
         .small-category { vertical-align: top !important; }
         .overlay-category td > div[title],
         .overlay-category .cats_col  > div,

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Luminance Tag Highlighter+
 // @namespace    http://tampermonkey.net/
-// @version      2.6.3
+// @version      2.6.4
 // @description  Branched from Emp++ Tag Highlighter v0.7.9b
 // @author       xrt141, allebady
 // @grant        GM_getValue
@@ -15,13 +15,13 @@
 // @include      /^https://femdomcult\.org/
 // @include      /^https://www\.homeporntorrents\.club/
 // @match        *://*.empornium.sx/torrents.php*
-// @updateURL    https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highlighter+%202.6.x.user.js
-// @downloadURL  https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highlighter+%202.6.x.user.js
+// @updateURL    https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highlighter+.user.js
+// @downloadURL  https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highlighter+.user.js
 // @run-at       document-end
 // ==/UserScript==
 
 /* ========================================================================================
-   Luminance Tag Highlighter+ XRT141 v2.5 - Built from Empornium++ Tag Highlighter 0.7.9b
+   Luminance Tag Highlighter+ - Forked from Empornium++ Tag Highlighter 0.7.9b (allebady)
    ======================================================================================== */
 
 //Change Log
@@ -1064,6 +1064,10 @@ function runScript() {
     var stylesheet = `
       <style type="text/css">
         #torrent_tags>li{border-bottom:1px solid #999; padding-bottom:2px;}
+
+    /* Keep settings from pushing the user profile menu to the left */
+        #major_stats_left { display: inline-block; position}
+        #userinfo_username li ul {right:0; left:auto;}
 
       /* Modal overlay and content */
         .info-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; z-index: 9999; }
