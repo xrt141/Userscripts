@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      2.5.68
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
-// @author       allebady, xrt141
+// @author       xrt141, allebady
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_addStyle

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.x (XRT141)
 // @namespace    http://tampermonkey.net/
-// @version      2.0.39
+// @version      2.0.40
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -60,6 +60,11 @@
        - Detail Page – Torrents are sorted alphabetically. Plugins like Hoverbabe add camera icons to actresses *after* sorting — using Refresh will sort actresses first.
        - Kept the parent-child relationship to reduce the total buttons for uncategorized tags, but they don’t need to be related. You just have to remember what parent the tag you want is under.
        - This has not been tested on any sites other than Empornium.
+
+// 2025-11-10 - 2.0.40
+       - Added a toggle on the general settings page to disable italics for tag font on the torrent list page.
+       - Added a toggle on the general settings page to spead space the tags more on the torrent listing page for easier reading.
+
 */
 
 
@@ -83,6 +88,8 @@ function runScript(){
         useBlacklistNoticeCollages : false,
         hideTags7cTorrents: false,
         hideTags7dTags: false,
+        disableItalics: false,
+        roomierTags: false,
 
         //Tag types to enable
         useTag1aTags : false,
@@ -551,17 +558,39 @@ function runScript(){
             "</tbody></table>" +
 
             "<br/><h2>Torrent Display Options:</h2>" +
-            "<h3>Torrent Display Options:</h3>" +
-            "<div class='torrent-options'>" +
-            "<label><input class='s-conf-gen-checkbox' type='checkbox' name='usePercentBar'/> Use Percent Bar</label>" +
-            "<label><input class='s-conf-gen-checkbox' type='checkbox' name='useTorrentOpacity'/> Use Opacity on Torrents</label>" +
-            "<label><input class='s-conf-gen-checkbox' type='checkbox' name='useTorrentColoring'/> Use Color on Torrents</label>" +
-            "<label><input class='s-conf-gen-checkbox' type='checkbox' name='useTorrentBlacklistNotice'/> Use Blacklist Notice</label>" +
-            "<label><input class='s-conf-gen-checkbox' type='checkbox' name='useBlacklistNoticeBookmark'/> Include Bookmarks</label>" +
-            "<label><input class='s-conf-gen-checkbox' type='checkbox' name='useBlacklistNoticeCollages'/> Include Collages</label>" +
-            "<label><input class='s-conf-gen-checkbox' type='checkbox' name='hideTags7cTorrents'/> Hide torrents with " + settings.names.Tags7c + " Tags</label>" +
-            "<label><input class='s-conf-gen-checkbox' type='checkbox' name='hideTags7dTags'/> Hide " + settings.names.Tags7d + " Tags</label>" +
-            "</div>" +
+            //Torrent Options Checkboxes
+"<div class='torrent-options'>" +
+"<label title='Show a color bar representing good vs bad tags'>" +
+  "<input class='s-conf-gen-checkbox' type='checkbox' name='usePercentBar'/> Use Percent Bar</label>" +
+
+"<label title='Adjust torrent opacity based on performance score'>" +
+  "<input class='s-conf-gen-checkbox' type='checkbox' name='useTorrentOpacity'/> Use Opacity on Torrents</label>" +
+
+"<label title='Color torrents according to tag scores (green=good, red=bad)'>" +
+  "<input class='s-conf-gen-checkbox' type='checkbox' name='useTorrentColoring'/> Use Color on Torrents</label>" +
+
+"<label title='Display a notice when a torrent contains blacklisted tags'>" +
+  "<input class='s-conf-gen-checkbox' type='checkbox' name='useTorrentBlacklistNotice'/> Use Blacklist Notice</label>" +
+
+"<label title='Also apply blacklist notice logic to bookmarked torrents'>" +
+  "<input class='s-conf-gen-checkbox' type='checkbox' name='useBlacklistNoticeBookmark'/> Include Bookmarks</label>" +
+
+"<label title='Also apply blacklist notice logic to collage items'>" +
+  "<input class='s-conf-gen-checkbox' type='checkbox' name='useBlacklistNoticeCollages'/> Include Collages</label>" +
+
+"<label title='Hide torrents that contain " + settings.names.Tags7c + " tags'>" +
+  "<input class='s-conf-gen-checkbox' type='checkbox' name='hideTags7cTorrents'/> Hide torrents with " + settings.names.Tags7c + " Tags</label>" +
+
+"<label title='Hide " + settings.names.Tags7d + " tags entirely from view'>" +
+  "<input class='s-conf-gen-checkbox' type='checkbox' name='hideTags7dTags'/> Hide " + settings.names.Tags7d + " Tags</label>" +
+
+"<label title='Removes italics from tags (Torrent List Page)'>" +
+  "<input class='s-conf-gen-checkbox' type='checkbox' name='disableItalics'/> Disable Italic Tags (List Page)</label>" +
+
+"<label title='Adds extra vertical spacing between tags for easier reading (Torrent List Page)'>" +
+  "<input class='s-conf-gen-checkbox' type='checkbox' name='roomierTags'/> More Space Between Tags (List Page)</label>" +
+"</div>"
+
             "<div class='s-conf-buttons'>" +
             "<input id='s-conf-save' type='button' value='Save Settings'/>" +
             "</div>" +
@@ -659,7 +688,7 @@ function runScript(){
 .s-conf-tag-table select.tag-value-select { font-size: 12px; padding: 2px 3px; }
 .s-conf-tag-table td:nth-child(6) { text-align: left; }
 .s-conf-tag-table td:nth-child(5) { text-align: center; }
-.torrent-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.torrent-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .torrent-options label { display: flex; align-items: center; white-space: nowrap; }
 /* Header info icon */
 .s-conf-tag-table .info-header-icon { position: relative; display: inline-block; cursor: help; font-size: 12px; color: #666; margin-left: 4px; }
@@ -831,11 +860,17 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
     function processBrowsePage(rowSelector, type) {
         var rows = $j(rowSelector);
 
-        rows.each(function (i, row) {
-            row = $j(row);
-            var tagContainer = row.find(".tags").addClass("s-browse-tag-holder").css({
-                "line-height": "18px"
-            }),
+rows.each(function (i, row) {
+    row = $j(row);
+
+    var lineHeight = settings.roomierTags ? "22px" : "18px";
+
+    var tagContainer = row.find(".tags")
+        .addClass("s-browse-tag-holder")
+        .css({
+            "line-height": lineHeight
+        }),
+
                 origTotalTagNum = tagContainer.find("a").length,
                 totalTagNum = origTotalTagNum,
                 rawGood = 0, rawVeryGood = 0, rawBad = 0, rawVeryBad = 0,
@@ -1038,6 +1073,19 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                     });
                 }
             }
+
+            if (settings.disableItalics) {
+                document.querySelectorAll(".tags.s-browse-tag-holder").forEach(div => {
+                    div.style.fontStyle = "normal";
+                });
+            } else {
+                document.querySelectorAll(".tags.s-browse-tag-holder").forEach(div => {
+                    div.style.fontStyle = "italic";
+                });
+            }
+
+
+
         });
     }
 

@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Luminance Tag Highlighter+ 2.5.x Beta
+// @name         Luminance Tag Highlighter+
 // @namespace    http://tampermonkey.net/
-// @version      2.5.70
+// @version      2.6.3
 // @description  Branched from Emp++ Tag Highlighter v0.7.9b
 // @author       xrt141, allebady
 // @grant        GM_getValue
@@ -15,8 +15,8 @@
 // @include      /^https://femdomcult\.org/
 // @include      /^https://www\.homeporntorrents\.club/
 // @match        *://*.empornium.sx/torrents.php*
-// @updateURL    https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highligter+%202.5%20Beta.user.js
-// @downloadURL  https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highligter+%202.5%20Beta.user.js
+// @updateURL    https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highlighter+%202.6.x.user.js
+// @downloadURL  https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highlighter+%202.6.x.user.js
 // @run-at       document-end
 // ==/UserScript==
 
@@ -34,7 +34,7 @@
 function runScript() {
     var $j = $.noConflict(true);
 
-    const debug = true;
+    const debug = false;
     // ======================================
     // === Default Configuration Settings ===
     // ======================================
@@ -51,16 +51,23 @@ function runScript() {
 
     // Hosts that should NOT use 3-column tag splitting on detials page.
     const EXCLUDED_SPLIT_HOSTS = new Set([
-        'happyfappy.org',
-        'www.happyfappy.org',
+        'example.org', 
+        'example.com',
     ]);
 
 
     // Define globally so all IIFEs/functions can access
     window.shouldSkipTagSplit = function () {
         const host = (window.location.hostname || '').toLowerCase();
-        // Skip the 3-column split on happyfappy.org and any subdomain
-        return host === 'happyfappy.org' || host.endsWith('.happyfappy.org');
+        // Check if host or any parent domain is in the excluded set
+        if (EXCLUDED_SPLIT_HOSTS.has(host)) return true;
+        // Also check for subdomains (e.g., www.example.org if example.org is in the set)
+        const parts = host.split('.');
+        for (let i = 1; i < parts.length - 1; i++) {
+            const parent = parts.slice(i).join('.');
+            if (EXCLUDED_SPLIT_HOSTS.has(parent)) return true;
+        }
+        return false;
     };
 
 
@@ -131,6 +138,15 @@ function runScript() {
         //Site Specific
         hfBetterBubblegum: false,
 
+        // === Size Indicator Settings ===
+        showSizeIndicators: true,
+        sizeThresholds: {
+            green: 2,      // <= 2 GiB
+            yellow: 5,     // <= 5 GiB
+            orange: 20,    // <= 20 GiB
+            red: 100,      // <= 100 GiB
+            purple: 100    // <= 100 TiB (stored as 100 means it will be multiplied by 1024 when comparing)
+        },
 
         //--- Tag types to enable - Dynamically generated above - Default: false ---
         ...tagEnableDefaults,
@@ -348,6 +364,7 @@ function runScript() {
     // HappyFappy
     themeStyles.find(url => url.includes("/standard/style.css")) ? "Standard" :
     themeStyles.find(url => url.includes("/bubblegum/style.css")) ? "Bubblegum" :
+    themeStyles.find(url => url.includes("/happyfappy/style.css")) ? "HappyFappy" :
     "unknown";
     // Debug - Output Theme to Console
     console.log("🧩 Detected theme from stylesheet:", currentTheme);
@@ -385,12 +402,12 @@ function runScript() {
         }
     }
 
-        // --- Use Wide Layout --
+    // --- Use Wide Layout --
     if (settings.useWideLayout) {
-            const style = document.createElement("style");
-            style.id = "Wide-Layout";
-            style.textContent = `#content {max-width: 2200px; width 95%}`;
-            document.head.appendChild(style);
+        const style = document.createElement("style");
+        style.id = "Wide-Layout";
+        style.textContent = `#content {max-width: 2200px; width 95%}`;
+        document.head.appendChild(style);
     }
 
 
@@ -437,6 +454,15 @@ function runScript() {
         }
     }
 
+
+    // Strip leading camera icon 📸 added by Hoverbabe.
+    function stripLeadingIcon(tag) {
+        if (!tag) return tag;
+        // Safe: (only fix 📸):
+        return tag.replace(/^[📸]+\s*/u, '');
+        // Agressive: (any leading non-letter/number like emojis, punctuation):
+        //return tag.replace(/^[^\p{L}\p{N}]+/u, '');
+    }
 
 
     // === Dynamic Tags7d (Previously "Useless" Tags) Visibility ===
@@ -803,6 +829,7 @@ function runScript() {
                 <li data-page="s-conf-general" class="s-selected"><a class="s-conf-tab">General</a></li>
                 <li data-page="s-conf-tag-styles"><a class="s-conf-tab">Tag Styles</a></li>
                 <li data-page="s-conf-tag-manager"><a class="s-conf-tab">Tag List Manager</a></li>
+                <li data-page="s-conf-size"><a class="s-conf-tab">Size</a></li>
                 <li data-page="s-conf-dupe-cleanup"><a class="s-conf-tab">Dupe Cleanup</a></li>
                 <li data-page="s-conf-import-export"><a class="s-conf-tab">Import/Export</a></li>
               </ul>
@@ -947,6 +974,59 @@ function runScript() {
                   <hr><br>
                   <textarea id="import-settings-textarea" rows="10" cols="100" placeholder="Paste your exported settings here."></textarea><br><br>
                   <button id="import-settings-button">Import Settings</button>
+                </div>
+
+                <!-- 📄📄 - Size Indicator Settings Page - 📄📄 -->
+                <div class="s-conf-page" id="s-conf-size">
+                  <h2>Size Indicators</h2>
+                  <div style="margin: 20px;">
+                    <label title="Enable size indicators (colored dots) on torrent titles">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="showSizeIndicators"/> Show Size Indicators in Title
+                    </label>
+                  </div>
+
+                  <h3 style="margin-left: 20px;">Size Thresholds (in GiB):</h3>
+                  <div style="margin: 15px 40px;">
+                    <div style="margin-bottom: 12px;">
+                      <label style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 20px;">🟢</span>
+                        <span style="min-width: 100px;">Green <= </span>
+                        <input type="number" id="threshold-green" name="threshold-green" min="0" max="1000" step="0.1" style="width: 80px; padding: 4px;" /> GiB
+                      </label>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                      <label style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 20px;">🟡</span>
+                        <span style="min-width: 100px;">Yellow <= </span>
+                        <input type="number" id="threshold-yellow" name="threshold-yellow" min="0" max="1000" step="0.1" style="width: 80px; padding: 4px;" /> GiB
+                      </label>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                      <label style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 20px;">🟠</span>
+                        <span style="min-width: 100px;">Orange <= </span>
+                        <input type="number" id="threshold-orange" name="threshold-orange" min="0" max="1000" step="0.1" style="width: 80px; padding: 4px;" /> GiB
+                      </label>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                      <label style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 20px;">🔴</span>
+                        <span style="min-width: 100px;">Red <= </span>
+                        <input type="number" id="threshold-red" name="threshold-red" min="0" max="1000" step="0.1" style="width: 80px; padding: 4px;" /> GiB
+                      </label>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                      <label style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 20px;">🟣</span>
+                        <span style="min-width: 100px;">Purple <= </span>
+                        <input type="number" id="threshold-purple" name="threshold-purple" min="0" max="1000" step="0.1" style="width: 80px; padding: 4px;" /> TiB
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- 📄📄 - Duplicate Category Cleanup Page - 📄📄 -->
@@ -1183,7 +1263,7 @@ function runScript() {
     }
 
     // --- Watch Dogs, Standard --
-    if (currentTheme === "WatchDogs" || currentTheme === "Standard") {
+    if (currentTheme === "WatchDogs" || currentTheme === "Standard" || currentTheme === "HappyFappy") {
         console.log ("Current Theme: ", currentTheme)
         console.log (" Applying Custom Settings for Watchdogs / Standard Theme");
         const style = document.createElement("style");
@@ -1220,8 +1300,8 @@ function runScript() {
         window.__lastRebuildTs = 0;
 
         // add config link
-        $j("<li class='brackets' title=\"Change Luminance Tag Highlighter+'s settings.\"><a href='#'>Tag-Config</a></li>")
-            .insertAfter(userInfoID)
+        $j("<li class='brackets' title=\"Luminance Tag Highlighter+ Settings.\"><a href='#'> ⛭ LTH </a></li>")
+            .insertBefore(userInfoID)
             .on("click", function (e) {
             e.preventDefault();
             initConfig($j(buildSettingsHTML()).prependTo("body"));
@@ -1328,16 +1408,93 @@ function runScript() {
     }
 
 
+    // --- Helper: Parse torrent size and return colored dot emoji ---
+    // Converts size text like "1.91 GiB" to bytes, then returns appropriate emoji based on thresholds
+    function getSizeDotEmoji(sizeText) {
+        if (!sizeText || !settings.showSizeIndicators) return '';
+
+        // Extract only the size part (e.g., "880.03 MiB" from "7 mins ago880.03 MiB")
+        const sizeMatch = sizeText.match(/([\d.]+)\s*(TiB|GiB|MiB|KiB)/i);
+        if (!sizeMatch) {
+            if (debug) console.log("[SIZE-EMOJI-PARSER] Could not parse size from:", sizeText);
+            return '';
+        }
+
+        const value = parseFloat(sizeMatch[1]);
+        const unit = sizeMatch[2].toUpperCase();
+        if (debug) console.log("Parsed value:", value, "unit:", unit);
+
+        // Convert to GiB for comparison
+        let sizeInGiB = 0;
+        switch (unit) {
+            case 'TIB': sizeInGiB = value * 1024; break;
+            case 'GIB': sizeInGiB = value; break;
+            case 'MIB': sizeInGiB = value / 1024; break;
+            case 'KIB': sizeInGiB = value / (1024 * 1024); break;
+        }
+
+        if (debug) console.log("Size in GiB:", sizeInGiB);
+
+        // Return emoji based on user-configurable thresholds (largest first)
+        // Each threshold is the MAXIMUM for that emoji
+        const t = settings.sizeThresholds;
+        if (sizeInGiB > t.red && sizeInGiB <= t.purple * 1024) return '🟣';
+        if (sizeInGiB > t.orange && sizeInGiB <= t.red) return '🔴';
+        if (sizeInGiB > t.yellow && sizeInGiB <= t.orange) return '🟠';
+        if (sizeInGiB > t.green && sizeInGiB <= t.yellow) return '🟡';
+        if (sizeInGiB <= t.green) return '🟢';
+        return '⁉️'; // (no indicator)
+    }
+
     // --- Page Processor: Browse/Lists ---
     // Handles torrent, collage, and request listing pages.
     // Highlights tags, applies coloring, and hides blacklisted/ignored torrents.
     function processBrowsePage(rowSelector, type) {
         var rows = $j(rowSelector);
 
+        if (debug) console.groupCollapsed(`[LTH] - Torrent Row Debug`);
         rows.each(function (i, row) {
             row = $j(row);
+var nameLink = row.find("td:nth-child(2) > a");
+            if (debug) console.groupCollapsed(`=== Processing - Row ${i} ===`);
+            if (debug) console.log("Name:", nameLink.text());
+            if (debug) console.groupCollapsed(`=== Size Indicator Debug ===`);
 
             var lineHeight = settings.roomierTags ? "22px" : "18px";
+
+            // === Add size-based emoji to torrent name ===
+            if (type === "torrent") {
+                var sizeCell = row.find("td.nobr:last");
+                // var nameLink = row.find("td:nth-child(2) > a");
+                if (debug) console.log("Name:", nameLink.text());
+                // if (debug) console.log("sizeCell.length:", sizeCell.length, "| nameLink.length:", nameLink.length);
+
+                if (sizeCell.length && nameLink.length) {
+                    var sizeText = sizeCell.text().trim();
+                    if (debug) console.log("Size text found:", sizeText);
+
+                    var sizeEmoji = getSizeDotEmoji(sizeText);
+                    if (debug) console.log("Size emoji:", sizeEmoji);
+
+                    if (sizeEmoji) {
+                        var currentText = nameLink.text();
+
+                        // Only prepend if not already prepended
+                        if (!currentText.startsWith(sizeEmoji)) {
+                            nameLink.text(sizeEmoji + ' ' + currentText);
+                            if (debug) console.log("✅ New Name:", nameLink.text());
+                        } else {
+                            if (debug) console.log("Emoji already present");
+                        }
+                    } else {
+                        if (debug) console.log("No emoji returned from getSizeDotEmoji");
+                    }
+                } else {
+                    if (debug) console.log("❌ Could not find size cell or name link");
+                }
+            }
+
+            if (debug) console.groupEnd();
 
             var tagContainer = row.find(".tags")
             .addClass("s-browse-tag-holder")
@@ -1358,6 +1515,8 @@ function runScript() {
             var countIgnored = 0;
 
             if (!totalTagNum) return;
+
+            if (debug) console.groupCollapsed(`=== Tag Debug === - Row ${i}`);
 
             tagContainer.find("a").each(function (i, tagLink) {
                 tagLink = $j(tagLink);
@@ -1423,6 +1582,8 @@ function runScript() {
 
                 let matched = false;
 
+
+
                 for (const [tagType, tagList] of Object.entries(settings.tags)) {
                     if (isTag(tagList, tag)) {
                         const rating = (settings.tagValues?.[tagType] !== undefined) ? settings.tagValues[tagType] : "(none)";
@@ -1444,8 +1605,10 @@ function runScript() {
 
                         }
                         // Do NOT increment undefined here — handle after loop
-                        //debug
-                        // console.log(`Tag: ${tag}, Value: ${numericVal}`);
+                        // Tag Score Group
+                        if (debug) console.log(`Tag: ${tag}, Value: ${numericVal}`);
+                        //  if (debug) console.groupEnd();
+
                         matched = true;
                         break; // found match, stop looping through lists
 
@@ -1470,7 +1633,7 @@ function runScript() {
             });
 
 
-
+            if (debug) console.groupCollapsed(`=== Tag Value Summary === - Row ${i}`);
             // === Percentages (numeric-based, include undefined) ===
             // Compute weighted values from numeric tag values
             var weightedGood = rawGood; // sum of all positive values
@@ -1502,13 +1665,11 @@ function runScript() {
             }
 
             //Debug
-            /*
-            console.log("=== Weighted Scoring Debug ===");
-            console.log("Positive (weightedGood):", weightedGood, countPositive);
-            console.log("Negative (weightedBad):", weightedBad, countNegative);
-            console.log("Total (weightedTotal):", weightedTotal);
-            console.log("Percentages -> Good:", pctGood.toFixed(2), "% | Bad:", pctBad.toFixed(2), "%");
-*/
+            if (debug) console.log("Positive (weightedGood):", weightedGood, countPositive);
+            if (debug) console.log("Negative (weightedBad):", weightedBad, countNegative);
+            if (debug) console.log("Total (weightedTotal):", weightedTotal);
+            if (debug) console.log("Percentages -> Good:", pctGood.toFixed(2), "% | Bad:", pctBad.toFixed(2), "%");
+            if (debug) console.groupEnd();
 
             // Render the percent bar: Good(left, green), Bad(middle, red), Undefined(right, gray)
             // === Updated Percent Bar Tooltip Logic ===
@@ -1619,9 +1780,11 @@ Tags Ignored: (${countIgnored})`
                 });
             }
 
-
-
+            if (debug) console.groupEnd();
+            if (debug) console.groupEnd();
         });
+
+        if (debug) console.groupEnd();
 
         // ====================================
         // === Add Button to adjust columns ===
@@ -2262,6 +2425,14 @@ Tags Ignored: (${countIgnored})`
             }
         }
 
+        // === Initialize Size Threshold Inputs ===
+        if (settings.sizeThresholds) {
+            document.getElementById('threshold-green').value = settings.sizeThresholds.green;
+            document.getElementById('threshold-yellow').value = settings.sizeThresholds.yellow;
+            document.getElementById('threshold-orange').value = settings.sizeThresholds.orange;
+            document.getElementById('threshold-red').value = settings.sizeThresholds.red;
+            document.getElementById('threshold-purple').value = settings.sizeThresholds.purple;
+        }
 
         //Init Listeners
         $j(".s-conf-tab").parent().on("click", function () {
@@ -2497,6 +2668,21 @@ Tags Ignored: (${countIgnored})`
                 runFunction(refreshPercentBars, 'g2rk1c27nzi956jn', []);
             }
         });
+
+        // === Size Threshold Input Listeners ===
+        const thresholdInputs = ['threshold-green', 'threshold-yellow', 'threshold-orange', 'threshold-red', 'threshold-purple'];
+        thresholdInputs.forEach(id => {
+            $j(`#${id}`).on('change', function() {
+                const value = parseFloat($j(this).val());
+                if (!isNaN(value)) {
+                    const colorKey = id.replace('threshold-', '');
+                    settings.sizeThresholds[colorKey] = value;
+                    runFunction(saveSettings, 'size-threshold-change', []);
+                    if (debug) console.log(`[SIZE-SETTINGS] Updated ${colorKey} threshold to ${value}`);
+                }
+            });
+        });
+
         // On Click Save
         // remove any old bindings that target #s-conf-save to avoid duplicates
         $j(document).off("click", "#s-conf-save, .s-conf-save");
@@ -2570,6 +2756,13 @@ Tags Ignored: (${countIgnored})`
 
             //Tag Layout Compact, Normal, Roomy
             settings.tagLayoutStyle = $j("select[name='tagLayoutStyle']").val();
+
+            // === Save Size Thresholds ===
+            settings.sizeThresholds.green = parseFloat($j('#threshold-green').val()) || 2;
+            settings.sizeThresholds.yellow = parseFloat($j('#threshold-yellow').val()) || 5;
+            settings.sizeThresholds.orange = parseFloat($j('#threshold-orange').val()) || 20;
+            settings.sizeThresholds.red = parseFloat($j('#threshold-red').val()) || 100;
+            settings.sizeThresholds.purple = parseFloat($j('#threshold-purple').val()) || 100;
 
             // Save and apply
             saveSettings();
@@ -3229,7 +3422,7 @@ Tags Ignored: (${countIgnored})`
             settings.tags[type] = tagArray;
         }
 
-        var tmp = getEquivalentTags(tags);
+        var tmp = getEquivalentTags(tags).map(stripLeadingIcon);
         for (var i = 0; i < tmp.length; i++) {
             var tag = tmp[i];
             if (tag.length > 0 && tagArray.indexOf(tag) < 0) {
@@ -3262,7 +3455,9 @@ Tags Ignored: (${countIgnored})`
         settings = getSettings();
         var tagArray = settings.tags[type];
         if (!Array.isArray(tagArray)) return;
-        var tmp = getEquivalentTags(tags);
+
+        var tmp = getEquivalentTags(tags).map(stripLeadingIcon);
+        ``
         for (var i = 0; i < tmp.length; i++) {
             var tag = tmp[i];
             var idx = tagArray.indexOf(tag);
@@ -3279,10 +3474,10 @@ Tags Ignored: (${countIgnored})`
         if (!tags || !Array.isArray(tags)) return false;
 
         // Normalize both sides for reliable, exact comparison
-        const normalizedTag = tag.toLowerCase().trim();
+        const normalizedTag = stripLeadingIcon(tag).toLowerCase().trim();
 
         for (let i = 0; i < tags.length; i++) {
-            const listTag = tags[i].toLowerCase().trim();
+            const listTag = stripLeadingIcon(tags[i]).toLowerCase().trim();
             if (normalizedTag === listTag) {
                 return true; // exact match only
             }
@@ -3537,68 +3732,6 @@ function addJQuery(callback) {
     }
 
 
-
-    /*
-    // --- Layout Helper: 3-Column Tag Splitter ---
-    // Reorganizes the tag list on detail pages into evenly spaced columns.
-    function splitTagsIntoColumns() {
-
-        const tagList = document.querySelector('#torrent_tags_list');
-        if (!tagList) return;
-
-        const allItems = Array.from(tagList.querySelectorAll('li')).filter(li => {
-            if (li.closest('.s-Tag7d-tags')) return false;
-            const s = window.getComputedStyle(li);
-            return s.display !== 'none' && s.visibility !== 'hidden';
-        });
-
-        if (allItems.length === 0) return;
-
-        // Always sort alphabetically
-        allItems.sort((a, b) => {
-            const textA = a.textContent.trim().toLowerCase();
-            const textB = b.textContent.trim().toLowerCase();
-            return textA.localeCompare(textB, undefined, { numeric: true, sensitivity: 'base' });
-        });
-
-        // Create 3 columns
-        if (!window.shouldSkipTagSplit()) {
-            const cols = Array.from({ length: 3 }, (_, i) => {
-                const d = document.createElement('div');
-                d.className = `tag-column col-${i + 1}`;
-                Object.assign(d.style, {
-                    width: '33.33%',
-                    float: 'left',
-                    boxSizing: 'border-box'
-                });
-                return d;
-            });
-
-            const perCol = Math.ceil(allItems.length / 3);
-            cols[0].append(...allItems.slice(0, perCol));
-            cols[1].append(...allItems.slice(perCol, perCol * 2));
-            cols[2].append(...allItems.slice(perCol * 2));
-
-            const hiddenBlocks = Array.from(tagList.children)
-            .filter(c => c.classList && c.classList.contains('s-Tag7d-tags'));
-
-            tagList.textContent = '';
-            cols.forEach(c => tagList.appendChild(c));
-            hiddenBlocks.forEach(h => tagList.appendChild(h));
-        }
-        // Reapply layout helpers for correct spacing/backgrounds
-        runFunction(enforceTagRowLayout, 'eimqkzlubg0yg9jl', []);
-        runFunction(overrideTagLinkWidths, 'rkeym2z93t9tr9id', []);
-        runFunction(resizeAllTagText, '6f4bq7xg2omsqz8w', []);
-
-        // Ensure tag spans don’t stretch full width
-        tagList.querySelectorAll('span.s-tag').forEach(span => {
-            span.style.display = 'inline-flex';
-            span.style.flex = '0 0 auto';
-            span.style.alignItems = 'center';
-        });
-    }
-*/
 
     function splitTagsIntoColumns() {
         const tagList = document.querySelector('#torrent_tags_list');

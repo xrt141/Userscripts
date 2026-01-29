@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emp++ Tag Highlighter 2.x Beta
 // @namespace    http://tampermonkey.net/
-// @version      2.0.57
+// @version      2.0.68
 // @description  Enhanced Emp++ Tag Highlighter branched from v0.7.9b
 // @author       allebady, xrt141
 // @grant        GM_getValue
@@ -177,6 +177,76 @@ function runScript() {
         "Tags5a", "Tags5b", "Tags6a", "Tags6b", "Tags7a", "Tags7b", "Tags7c", "Tags7d"
     ];
 
+    // === Tag Metadata for Notes and Info ===
+    const TAG_META = {
+        Tags1a: {
+            note: "Main <b>" + settings.names.Tags1a + "</b> Tags",
+            info: "Enable highlighting for <b>" + settings.names.Tags1a + "</b> tags. These will appear in torrent lists."
+        },
+        Tags1b: {
+            note: "Requires <b>" + settings.names.Tags1a + "</b> enabled",
+            info: "<b>" + settings.names.Tags1b + "</b> tags are a subset of <b>" + settings.names.Tags1a + "</b> tags."
+        },
+        Tags2a: {
+            note: "Main <b>" + settings.names.Tags2a + "</b> Tags",
+            info: "Enable highlighting for <b>" + settings.names.Tags2a + "</b> tags. These will appear in torrent lists."
+        },
+        Tags2b: {
+            note: "Requires <b>" + settings.names.Tags2a + "</b> enabled",
+            info: "<b>" + settings.names.Tags2b + "</b> tags are a subset of <b>" + settings.names.Tags2a + "</b> tags."
+        },
+        Tags3a: {
+            note: "Main <b>" + settings.names.Tags3a + "</b> Tags",
+            info: "Enable highlighting for <b>" + settings.names.Tags3a + "</b> tags. These will appear in torrent lists."
+        },
+        Tags3b: {
+            note: "Requires <b>" + settings.names.Tags3a + "</b> enabled",
+            info: "<b>" + settings.names.Tags3b + "</b> tags are a subset of <b>" + settings.names.Tags3a + "</b> tags."
+        },
+        Tags4a: {
+            note: "Main <b>" + settings.names.Tags4a + "</b> Tags",
+            info: "Enable highlighting for <b>" + settings.names.Tags4a + "</b> tags. These will appear in torrent lists."
+        },
+        Tags4b: {
+            note: "Requires <b>" + settings.names.Tags4a + "</b> enabled",
+            info: "<b>" + settings.names.Tags4b + "</b> tags are a subset of <b>" + settings.names.Tags4a + "</b> tags."
+        },
+        Tags5a: {
+            note: "Main <b>" + settings.names.Tags5a + "</b> Tags",
+            info: "Enable highlighting for <b>" + settings.names.Tags5a + "</b> tags. These will appear in torrent lists."
+        },
+        Tags5b: {
+            note: "Requires <b>" + settings.names.Tags5a + "</b> enabled",
+            info: "<b>" + settings.names.Tags5b + "</b> tags are a subset of <b>" + settings.names.Tags5a + "</b> tags."
+        },
+        Tags6a: {
+            note: "Main <b>" + settings.names.Tags6a + "</b> Tags",
+            info: "Enable highlighting for <b>" + settings.names.Tags6a + "</b> tags. These will appear in torrent lists."
+        },
+        Tags6b: {
+            note: "Requires <b>" + settings.names.Tags6a + "</b> enabled",
+            info: "<b>" + settings.names.Tags6b + "</b> tags are a subset of <b>" + settings.names.Tags6a + "</b> tags."
+        },
+        Tags7a: {
+            note: "Main <b>" + settings.names.Tags7a + "</b> Tags",
+            info: "Enable highlighting for <b>" + settings.names.Tags7a + "</b> tags. These will appear in torrent lists."
+        },
+        Tags7b: {
+            note: "Requires <b>" + settings.names.Tags7a + "</b> enabled",
+            info: "<b>" + settings.names.Tags7b + "</b> tags are a subset of <b>" + settings.names.Tags7a + "</b> tags."
+        },
+        Tags7c: {
+            note: "Requires <b>" + settings.names.Tags7a + "</b> enabled",
+            info: "Enable highlighting for <b>" + settings.names.Tags7c + "</b> tags. These will appear in torrent lists."
+        },
+        Tags7d: {
+            note: "Requires <b>" + settings.names.Tags7a + "</b> enabled",
+            info: "<b>" + settings.names.Tags7d + "</b> tags are a subset of <b>" + settings.names.Tags7c + "</b> tags."
+        },
+
+    };
+
+
     // --- Settings Migration ---
     // Converts v0.7 Emp++ Tag Highlighter data to the new dynamic format.
     // Renames old keys and flag structures into the modern standardized layout.
@@ -332,27 +402,44 @@ function runScript() {
         unknown:     { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 }
     };
 
-    // Default values for the tag effect on the percent bar and torrent good / bad color
+
+    // Default numeric values for tag effect on percent bar and torrent coloring
+    // Migration: old categories → numeric values
+    // Very Good = +2, Good = +1, Ignore = 0, Bad = -1, Very Bad = -2
     if (!settings.tagValues) {
         settings.tagValues = {
-            Tags1a: "good",
-            Tags1b: "verygood",
-            Tags2a: "good",
-            Tags2b: "verygood",
-            Tags3a: "good",
-            Tags3b: "verygood",
-            Tags4a: "good",
-            Tags4b: "verygood",
-            Tags5a: "good",
-            Tags5b: "verygood",
-            Tags6a: "good",
-            Tags6b: "verygood",
-            Tags7a: "bad",
-            Tags7b: "verybad",
-            Tags7c: "verybad",
-            Tags7d: "ignore"
+            Tags1a: 1,
+            Tags1b: 2,
+            Tags2a: 1,
+            Tags2b: 2,
+            Tags3a: 1,
+            Tags3b: 2,
+            Tags4a: 1,
+            Tags4b: 2,
+            Tags5a: 1,
+            Tags5b: 2,
+            Tags6a: 1,
+            Tags6b: 2,
+            Tags7a: -1,
+            Tags7b: -2,
+            Tags7c: -2,
+            Tags7d: 0
         };
     }
+
+    // Migration for old string values (if present)
+    for (const [key, val] of Object.entries(settings.tagValues)) {
+        if (typeof val === "string") {
+            switch (val) {
+                case "verygood": settings.tagValues[key] = 2; break;
+                case "good": settings.tagValues[key] = 1; break;
+                case "ignore": settings.tagValues[key] = 0; break;
+                case "bad": settings.tagValues[key] = -1; break;
+                case "verybad": settings.tagValues[key] = -2; break;
+            }
+        }
+    }
+
 
 
     // === Dynamic Tags7d (Previously "Useless" Tags) Visibility ===
@@ -506,31 +593,81 @@ function runScript() {
         document.head.appendChild(style);
     })();
 
+    // --- ADD (helpers for outline weight units) ---
+    function ensurePx(v) {
+        // turn 0|1|2|"1"|"1px" into a string with a px unit
+        if (v == null) return "";
+        const s = String(v).trim();
+        if (s === "") return "";
+        return /^\d+(\.\d+)?px$/i.test(s) ? s : (parseFloat(s) + "px");
+    }
 
+    function stripPx(v) {
+        // turn "1px" -> "1", "1.5px" -> "1.5", "2" -> "2"
+        if (v == null) return "";
+        const m = String(v).trim().match(/^(\d+(?:\.\d+)?)(?:px)?$/i);
+        return m ? m[1] : "";
+    }
 
     // --- UI Builder: Dynamic Generators ---
     // Dynamically generate HTML instead of large repetetive blocks
+    // -- General Rows
+    function buildGeneralRow(tagKey) {
+        const name = settings.names[tagKey];
+        const meta = TAG_META[tagKey] || { info: "" };
+        const colorObj = settings.colors[tagKey];
+        const hideCheckbox = (["Tags1b","Tags2b","Tags3b","Tags4b","Tags5b","Tags6b","Tags7b","Tags7c","Tags7d"].includes(tagKey))
+        ? "—"
+        : "<input class='s-conf-gen-checkbox' type='checkbox' name='button" + tagKey.replace("Tags", "Tag") + "Tags'/>";
+
+        return (
+            "<tr>" +
+            "<td><button class='info-btn' data-info='" + meta.info + "'>ℹ</button></td>" +
+            "<td><button class='edit-label' data-name='" + tagKey + "'>✎</button></td>" +
+            "<td class='label-cell' data-name='" + tagKey + "'>" + name + "</td>" +
+            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='use" + tagKey.replace("Tags", "Tag") + "Tags'/></td>" +
+            "<td>" + hideCheckbox + "</td>" +
+            "<td>" + buildTagValueSpinner(tagKey) + "</td>" +
+            "<td><input type='color' class='tag-color-picker' id='color-" + tagKey + "-bg' value='" + colorObj.background + "'/></td>" +
+            "<td><input type='color' class='tag-color-picker' id='color-" + tagKey + "-text' value='" + colorObj.text + "'/></td>" +
+            "<td><input type='color' class='tag-color-picker' id='outline-" + tagKey + "-color' value='" + colorObj.outlineColor + "'/></td>" +
+            "<td><select id='outline-" + tagKey + "-style'>" +
+            "<option value='solid' " + (colorObj.outlineStyle === "solid" ? "selected" : "") + ">Solid</option>" +
+            "<option value='dashed' " + (colorObj.outlineStyle === "dashed" ? "selected" : "") + ">Dashed</option>" +
+            "</select></td>" +
+            "<td>" + buildOutlineWeightSpinner(tagKey) + "</td>" +
+            "<td><span id='sample-" + tagKey + "' class='sample-tag'>Sample.Tag" +
+            "<div class='s-button s-remove-" + tagKey + "' title='Un-Mark tag as " + name + "'>–</div>" +
+            "</span></td>" +
+            "</tr>"
+        );
+    }
 
     // --- UI Builder: Tag Value Dropdown ---
     // Creates HTML <select> menus for setting tag sentiment weights (Good/Bad/Ignore).
-    function buildTagValueSelect(tagKey) {
-        // tagKey example: "Tags1a"
-        var v = settings.tagValues && settings.tagValues[tagKey] ? settings.tagValues[tagKey] : "";
-        var opts = [
-            ["ignore", "Ignore"],
-            ["good", "Good"],
-            ["verygood", "Very Good"],
-            ["bad", "Bad"],
-            ["verybad", "Very Bad"]
-        ];
-        var out = "<select class='tag-value-select' data-tag='" + tagKey + "'>";
-        for (var i = 0; i < opts.length; i++) {
-            var val = opts[i][0], label = opts[i][1];
-            out += "<option value='" + val + "'" + (v === val ? " selected" : "") + ">" + label + "</option>";
-        }
-        out += "</select>";
-        return out;
+    function buildTagValueSpinner(tagKey) {
+        var v = (typeof settings.tagValues[tagKey] === 'number') ? settings.tagValues[tagKey] : 0;
+        var html = '<div class="spinner" data-tag="' + tagKey + '">';
+        html += '<button type="button" class="decrement">◀</button>';
+        html += '<input type="number" class="tag-value-spinner" min="-20" max="20" step="1" value="' + v + '" readonly />';
+        html += '<button type="button" class="increment">▶</button>';
+        html += '</div>';
+        return html;
     }
+    //Cuistomize Tag Outlines
+    function buildOutlineWeightSpinner(tagKey) {
+        const raw = (settings.colors && settings.colors[tagKey] && settings.colors[tagKey].outlineWeight) || 0;
+        const value = stripPx(raw); // <-- ensure the input shows a bare number
+        let html = '<div class="spinner" data-tag="' + tagKey + '">';
+        html += '<button type="button" class="decrement">◀</button>'; // match value spinner
+        html += '<input type="number" class="outline-weight-spinner" id="outline-' + tagKey + '-weight" ' +
+            'value="' + value + '" min="0" max="4" step="1" readonly />';
+        html += '<button type="button" class="increment">▶</button>'; // match value spinner
+        html += '</div>';
+        return html;
+    }
+
+
 
     // --- UI Builder: Tag Configuration Panels ---
     // Dynamically generates tabbed configuration sections for each tag type.
@@ -553,7 +690,9 @@ function runScript() {
     }
 
     // --- UI Builder: Color Settings Table Row ---
+
     // Generates a table row with color pickers for each tag type.
+    /* Replaced
     function buildColorRow(tagKey) {
         var name = settings.names[tagKey];
         var colorObj = settings.colors[tagKey];
@@ -578,7 +717,7 @@ function runScript() {
             "</tr>"
         );
     }
-
+*/
     // --- Build the html for the settings interface ---
     function buildSettingsHTML() {
         console.group("🧩 buildSettingsHTML() Debug");
@@ -602,147 +741,58 @@ function runScript() {
             "<li data-page='s-conf-Tags3b-tags'><a class='s-conf-tab'>" + settings.names.Tags3b + " Tags</a></li>" +
             "<li data-page='s-conf-Tags4a-tags'><a class='s-conf-tab'>" + settings.names.Tags4a + " Tags</a></li>" +
             "<li data-page='s-conf-Tags4b-tags'><a class='s-conf-tab'>" + settings.names.Tags4b + " Tags</a></li>" +
-            "<li data-page='s-conf-Tags5a-tags'><a class='s-conf-tab'>" + settings.names.Tags5a + " Tags</a></li>" +
-            "<li data-page='s-conf-Tags5b-tags'><a class='s-conf-tab'>" + settings.names.Tags5b + " Tags</a></li>" +
             "</ul>" +
             "</div>" +
             "<div class='tab-row-container'" +
             "<ul class='tab-row'>" +
+            "<li data-page='s-conf-Tags5a-tags'><a class='s-conf-tab'>" + settings.names.Tags5a + " Tags</a></li>" +
+            "<li data-page='s-conf-Tags5b-tags'><a class='s-conf-tab'>" + settings.names.Tags5b + " Tags</a></li>" +
             "<li data-page='s-conf-Tags6a-tags'><a class='s-conf-tab'>" + settings.names.Tags6a + " Tags</a></li>" +
             "<li data-page='s-conf-Tags6b-tags'><a class='s-conf-tab'>" + settings.names.Tags6b + " Tags</a></li>" +
             "<li data-page='s-conf-Tags7a-tags'><a class='s-conf-tab'>" + settings.names.Tags7a + " Tags</a></li>" +
             "<li data-page='s-conf-Tags7b-tags'><a class='s-conf-tab'>" + settings.names.Tags7b + " Tags</a></li>" +
             "<li data-page='s-conf-Tags7c-tags'><a class='s-conf-tab'>" + settings.names.Tags7c + " Tags</a></li>" +
             "<li data-page='s-conf-Tags7d-tags'><a class='s-conf-tab'>" + settings.names.Tags7d + " Tags</a></li>" +
-            "<li data-page='s-conf-colors'><a class='s-conf-tab'>Color/Names</a></li>" +
+            //"<li data-page='s-conf-colors'><a class='s-conf-tab'>Color/Names</a></li>" +
             "<li data-page='s-conf-dupe-cleanup'><a class='s-conf-tab'>Dupe Cleanup</a></li>" +
             "<li data-page='s-conf-import-export'><a class='s-conf-tab'>Import/Export</a></li>" +
             "</ul>" +
-            "</div>" +
+            "</div>";
 
-            // General
+        // General
+        let generalRowsHTML = "";
+        for (const key of ALL_TAG_KEYS) {
+            generalRowsHTML += buildGeneralRow(key);
+        }
+
+        // resume normal concatenation
+        configHTML +=
             "<div id='s-conf-content'>" +
             "<form id='s-conf-form'>" +
             "<div class='s-conf-page s-selected' id='s-conf-general'>" +
             "<h2>Enable/Disable Tag Types:</h2>" +
             "<table class='s-conf-tag-table'>" +
-            "<thead><tr>" +
-            "<thead><tr><th></th><th>Name</th><th>Enable</th><th>Hide</th><th>Value <span class='info-header-icon' data-tooltip='Affects the percent bar (if enabled)'>i</span></th><th>Note</th></tr></thead><tbody>" +
-            "</tr></thead><tbody>" +
+            "<thead>" +
+            "<tr>" +
+            "<th></th>" +
+            "<th></th>"+
+            "<th>Name</th>" +
+            "<th>Enable</th>" +
+            "<th>Hide</th>" +
+            "<th>Value <span class='info-header-icon' data-tooltip='Affects the percent bar (if enabled)'>i</span></th>" +
+            "<th>Background</th>" +
+            "<th>Text</th>" +
+            "<th>Outline Color</th>" +
+            "<th>Outline Style</th>" +
+            "<th>Outline Weight</th>" +
+            "<th>Sample</th>" +
+            "</tr>" +
+            "</thead>" +
+            "<tbody>" +
+            generalRowsHTML +
+            "</tbody>" +
+            "</table>" +
 
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags1a + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags1a + "</b> and display them in the torrent list.'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags1a + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag1aTags'/></td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='buttonTag1aTags'/></td>" +
-            "<td>" + buildTagValueSelect('Tags1a') + "</td>" +
-            "<td>Main " + settings.names.Tags1a + " Tags</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags1b + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags1b + "</b> and display them in the torrent list.'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags1b + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag1bTags'/></td>" +
-            "<td>—</td>" +
-            "<td>" + buildTagValueSelect('Tags1b') + "</td>" +
-            "<td><b><b>Requires:</b></b> " + settings.names.Tags1a + " enabled</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags2a + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags2a + "</b> and display them in the torrent list.'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags2a + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag2aTags'/></td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='buttonTag2aTags'/></td>" +
-            "<td>" + buildTagValueSelect('Tags2a') + "</td>" +
-            "<td>Main " + settings.names.Tags2a + " Tags</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags2b + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags2b + "</b> and display them in the torrent list.'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags2b + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag2bTags'/></td>" +
-            "<td>—</td>" +
-            "<td>" + buildTagValueSelect('Tags2b') + "</td>" +
-            "<td><b><b>Requires:</b></b> " + settings.names.Tags2a + " enabled</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags3a + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags3a + "</b> and display them in the torrent list.'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags3a + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag3aTags'/></td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='buttonTag3aTags'/></td>" +
-            "<td>" + buildTagValueSelect('Tags3a') + "</td>" +
-            "<td>Main " + settings.names.Tags3a + " Tags</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags3b + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags3b + "</b> and display them in the torrent list.'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags3b + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag3bTags'/></td>" +
-            "<td>—</td>" +
-            "<td>" + buildTagValueSelect('Tags3b') + "</td>" +
-            "<td><b><b>Requires:</b></b> " + settings.names.Tags3a + " enabled</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags4a + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags4a + "</b> and display them in the torrent list.'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags4a + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag4aTags'/></td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='buttonTag4aTags'/></td>" +
-            "<td>" + buildTagValueSelect('Tags4a') + "</td>" +
-            "<td>Main " + settings.names.Tags4a + " Tags</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags4b + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags4b + "</b> and display them in the torrent list.'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags4b + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag4bTags'/></td>" +
-            "<td>—</td>" +
-            "<td>" + buildTagValueSelect('Tags4b') + "</td>" +
-            "<td><b><b>Requires:</b></b> " + settings.names.Tags4a + " enabled</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags5a + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags5a + "</b> and display them in the torrent list.'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags5a + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag5aTags'/></td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='buttonTag5aTags'/></td>" +
-            "<td>" + buildTagValueSelect('Tags5a') + "</td>" +
-            "<td>Main " + settings.names.Tags5a + " Tags</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags5b + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags5b + "</b> and display them in the torrent list.'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags5b + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag5bTags'/></td>" +
-            "<td>—</td>" +
-            "<td>" + buildTagValueSelect('Tags5b') + "</td>" +
-            "<td><b><b>Requires:</b></b> " + settings.names.Tags5a + " enabled</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags6a + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags6a + "</b> and display them in the torrent list.'>i</button></td>" +
-            "<td>" + settings.names.Tags6a + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag6aTags'/></td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='buttonTag6aTags'/></td>" +
-            "<td>" + buildTagValueSelect('Tags6a') + "</td>" +
-            "<td>Main " + settings.names.Tags6a + " Tags</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags6b + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags6b + "</b> and display them in the torrent list.'>i</button></td>" +
-            "<td>" + settings.names.Tags6b + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag6bTags'/></td>" +
-            "<td>—</td>" +
-            "<td>" + buildTagValueSelect('Tags6b') + "</td>" +
-            "<td><b><b>Requires:</b></b> " + settings.names.Tags6a + " enabled</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags7a + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags7a + "</b> and display them in the torrent list.'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags7a + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag7aTags'/></td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='buttonTag7aTags'/></td>" +
-            "<td>" + buildTagValueSelect('Tags7a') + "</td>" +
-            "<td>Main " + settings.names.Tags7a + " Tags</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags7b + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags7b + "</b> and display them in the torrent list.'>i</button></td>" +
-            "<td>" + settings.names.Tags7b + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag7bTags'/></td>" +
-            "<td>—</td>" +
-            "<td>" + buildTagValueSelect('Tags7b') + "</td>" +
-            "<td><b><b>Requires:</b></b> " + settings.names.Tags7a + " enabled</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags7c + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags7c + "</b> and display them in the torrent list. <br> <br> <b> Note:</b> Torrents with these tags will be hidden from view'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags7c + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag7cTags'/></td>" +
-            "<td>—</td>" +
-            "<td>" + buildTagValueSelect('Tags7c') + "</td>" +
-            "<td><b><b>Requires:</b></b> " + settings.names.Tags7a + " enabled</td></tr>" +
-
-            "<tr><td><button class='info-btn' data-info='Enable basic <b>" + settings.names.Tags7d + "</b> tag highlighting. This will highlight all tags you have marked as <b>" + settings.names.Tags7d + "</b> and display them in the torrent list. <br> <br> <b> Note:</b> These tags will be hidden from view. They can be viewed by choosing \"Show hidden tags\"'>ℹ</button></td>" +
-            "<td>" + settings.names.Tags7d + "</td>" +
-            "<td><input class='s-conf-gen-checkbox' type='checkbox' name='useTag7dTags'/></td>" +
-            "<td>—</td>" +
-            "<td>" + buildTagValueSelect('Tags7d') + "</td>" +
-            "<td><b><b>Requires:</b></b> " + settings.names.Tags7a + " enabled</td></tr>" +
-
-            "</tbody></table>" +
 
             "<h2 style='display:flex; align-items:center; justify-content:space-between; gap:8px;'>Torrent Display Options:" +
             "  <label style='font-weight:normal; font-size:13px; display:flex; align-items:center; gap:6px; margin:0;'>" +
@@ -805,6 +855,7 @@ function runScript() {
 
         // resume normal concatenation
         configHTML +=
+            /*
             "<div class='s-conf-page' id='s-conf-colors'>" +
             "<h2>Customize Tag Colors</h2>" +
             "<div class='s-conf-color-single'>";
@@ -828,6 +879,7 @@ function runScript() {
             "<input id='s-conf-save-colors' class='s-conf-save' data-page='s-conf-colors' type='button' value='Save Settings'/>" +
             "</div>" +
             "</div>" +
+            */
             // Import/Export panel
             "<div class='s-conf-page' id='s-conf-import-export'>" +
             "<h3>Export Settings</h3>" +
@@ -865,7 +917,8 @@ function runScript() {
     var stylesheet = `
 <style type="text/css">
 #torrent_tags>li{border-bottom:1px solid #999; padding-bottom:2px;}
-.s-conf-tag-table {border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 12px; line-height: 1.1;}
+
+.s-conf-tag-table {border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 12px; line-height: 1.1;table-layout: auto;}
 .s-conf-tag-table th, .s-conf-tag-table td { border: 1px solid #ccc; padding: 2px 6px; text-align: left;}
 .s-conf-tag-table th {background: #eee;}
 .s-conf-tag-table th:first-child, .s-conf-tag-table td:first-child { width: 26px; text-align: center; padding: 0; }
@@ -882,7 +935,7 @@ function runScript() {
 .s-conf-tag-table .info-header-icon::after { content: attr(data-tooltip); position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #fff; padding: 4px 6px; border-radius: 4px; font-size: 11px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 10000; }
 .s-conf-tag-table .info-header-icon:hover::after { opacity: 1; }
 /* Info button */
-.info-btn { cursor: pointer; font-size: 14px; border: none; background: none; color: #444; padding: 0; line-height: 1; }
+.info-btn { cursor: pointer; font-size: 14px; border: none; background: none; color: #444; padding: 0; line-height: 1;}
 .info-btn:hover { color: #000; }
 /* Modal overlay and content */
 .info-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; z-index: 9999; }
@@ -890,6 +943,25 @@ function runScript() {
 .info-modal h3 { margin-top: 0; }
 .info-modal-close { position: absolute; top: 6px; right: 10px; border: none; background: none; font-size: 18px; cursor: pointer; color: #666; }
 .info-modal-close:hover { color: #000; }
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {-webkit-appearance: none;margin: 0;}
+input[type="number"] {-moz-appearance: textfield; /* Firefox */}
+
+.tag-color-picker {width: 40px; height: 28px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; padding: 0;display: inline-block;}
+
+.s-conf-tag-table td {text-align: center; vertical-align: middle;}
+
+
+
+.spinner {display: inline-flex; align-items: center; gap: 4px;}
+.spinner button {background: #ccc;border: 1px solid #888;padding: 1px 1px;cursor: pointer;font-size: 10px;}
+.spinner button:hover {background: #bbb;}
+
+.tag-value-spinner {width: 30px;text-align: center;font-size: 12px;border: 1px solid #888;box-sizing: border-box;padding: 0;}
+.outline-weight-spinner {width: 30px;text-align: center;font-size: 12px;border: 1px solid #888;box-sizing: border-box;padding: 0;}
+
+#s-conf-general > table > tbody div > input {padding: 1px 1px;}
 #s-conf-background{position:fixed; top:0; bottom:0; left:0; right:0; z-index:1000; background-color:rgba(50,50,50,0.6);}
 #s-conf-wrapper{background:#eee; color:#444; position:relative; width:1200px; overflow:hidden; margin:50px auto; font-size:14px;padding:15px 20px; border-radius:16px; box-shadow: 0 0 20px black;max-height:90vh;overflow-y:auto;overflow-x:hidden;z-index:9999;}
 #s-conf-wrapper h2{background:none; text-align:left; color:#444; padding:0; border-radius: unset;}
@@ -937,6 +1009,7 @@ ul.s-Tag7d-tags span.s-tag.s-Tag7d{display:inline-block !important; float:none; 
 .s-percent{height:4px;}
 .s-percent-good{background:#A9DF9C; float:left;}
 .s-percent-bad{background:#9E3333; float:right}
+.s-percent-undef { background:#999; float:right; }
 .tag_inner .s-tag{background:#CCC; border-bottom:1px solid #888; border-radius:16px; padding:1px 5px;}
 .tag_inner .s-tag> a{color:#000000}
 .tag_inner span.s-tag {border-width: 2px; display:block; float:left; line-height: 18px; margin: 2px 3px; padding: 0 6px; white-space: nowrap;}
@@ -1115,6 +1188,10 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                 terribleNum = 0,
                 undefinedNum = 0;
 
+            var countPositive = 0;
+            var countNegative = 0;
+            var countUndefined = 0;
+            var countIgnored = 0;
 
             if (!totalTagNum) return;
 
@@ -1185,29 +1262,30 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
 
                 for (const [tagType, tagList] of Object.entries(settings.tags)) {
                     if (isTag(tagList, tag)) {
-                        const rating = settings.tagValues?.[tagType] || "(none)";
+                        const rating = (settings.tagValues?.[tagType] !== undefined) ? settings.tagValues[tagType] : "(none)";
                         matched = true;
 
                         // Count it normally
 
-                        switch (rating) {
-                            case "good":
-                                rawGood += 1;
-                                break;
-                            case "verygood":
-                                rawVeryGood += 1;
-                                break;
-                            case "bad":
-                                rawBad += 1;
-                                break;
-                            case "verybad":
-                                rawVeryBad += 1;
-                                break;
-                            case "ignore":
-                                totalTagNum--; // unchanged: ignore removed from denominator
-                                ignoredNum++;
-                                break;
+                        // Replace string-based rating logic with numeric-based calculation
+                        var numericVal = parseInt(rating, 10);
+                        if (!isNaN(numericVal)) {
+                            if (numericVal > 0) {
+                                rawGood += numericVal;
+                                countPositive++;
+                            } else if (numericVal < 0) {
+                                rawBad += Math.abs(numericVal);
+                                countNegative++;
+                            } else {
+                                countIgnored++; // numericVal === 0
+                            }
+
                         }
+                        // Do NOT increment undefined here — handle after loop
+                        //debug
+                        console.log(`Tag: ${tag}, Value: ${numericVal}`);
+                        matched = true;
+                        break; // found match, stop looping through lists
 
 
 
@@ -1217,6 +1295,12 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                         break; // found match, stop looping through lists
                     }
                 }
+
+
+                if (!matched) {
+                    undefinedNum++;
+                }
+
 
                 // If it didn't match any tag list => undefined classification
                 // 💬 Console output - Wrap in an "enable debug" later.
@@ -1231,19 +1315,20 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
 
 
 
-            // === Percentages (weighted, include undefined) ===
-            // Compute weighted values from raw counters
-            var weightedGood = (rawGood || 0) + 2 * (rawVeryGood || 0);
-            var weightedBad = (rawBad || 0) + 2 * (rawVeryBad || 0);
-            var weightedUndef = undefinedNum || 0; // each undefined counts as 1 unit
+            // === Percentages (numeric-based, include undefined) ===
+            // Compute weighted values from numeric tag values
+            // Compute weighted values from numeric tag values
+            var weightedGood = rawGood; // sum of all positive values
+            var weightedBad = rawBad;   // sum of absolute negative values
+            var weightedTotal = weightedGood + weightedBad; // exclude undefined and ignore zeros
 
-            // The denominator is weightedGood + weightedBad + weightedUndef
-            var weightedTotal = weightedGood + weightedBad + weightedUndef;
-
-            // percentages (as floats)
+            // Calculate percentages
             var pctGood = weightedTotal ? (weightedGood / weightedTotal) * 100 : 0;
             var pctBad = weightedTotal ? (weightedBad / weightedTotal) * 100 : 0;
-            var pctUndef = weightedTotal ? (weightedUndef / weightedTotal) * 100 : 0;
+
+            // Undefined percentage is based on total tags (weightedTotal + undefinedNum)
+            var totalWithUndefined = weightedTotal + undefinedNum;
+            var pctUndef = totalWithUndefined ? (undefinedNum / totalWithUndefined) * 100 : 0;
 
             // Round for display but keep the sum exactly 100 by correcting rounding residue
             var goodPercent = Math.round(pctGood);
@@ -1261,20 +1346,29 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                 else undefPercent += diff;
             }
 
-            // Render the percent bar: Good(left, green) and Bad(right, red)
+            console.log("=== Weighted Scoring Debug ===");
+            console.log("Positive (weightedGood):", weightedGood);
+            console.log("Negative (weightedBad):", weightedBad);
+            console.log("Total (weightedTotal):", weightedTotal);
+            console.log("Percentages -> Good:", pctGood.toFixed(2), "% | Bad:", pctBad.toFixed(2), "%");
+
+            // Render the percent bar: Good(left, green), Bad(middle, red), Undefined(right, gray)
             if (settings.usePercentBar) {
-                // --- create a wrapper so the bar always sits on its own line in a table cell ---
                 const $wrap = $j("<div class='s-percent-wrap' style='display:block;width:100%;clear:both;'></div>");
                 $wrap.insertBefore(tagContainer);
-
                 const percentContainer = $j("<div class='s-percent-container'></div>")
+
                 .attr(
                     "title",
-                    `Good: ${goodPercent}%  |  Bad: ${badPercent}%  |  Undefined: ${100 - (goodPercent + badPercent)}%`
+                    `Good: ${goodPercent}%   (${countPositive}) (${weightedGood})
+Bad: ${badPercent}%        (${countNegative}) (${weightedBad})
+Undef: ${undefPercent}%  (${undefinedNum})
+Ignored:       (${countIgnored})`
                 )
+
                 .appendTo($wrap);
 
-                // Good (left)
+                // Good segment
                 if (goodPercent > 0) {
                     $j("<div></div>")
                         .appendTo(percentContainer)
@@ -1282,12 +1376,20 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                         .width(goodPercent + "%");
                 }
 
-                // Bad (right)
+                // Bad segment
                 if (badPercent > 0) {
                     $j("<div></div>")
                         .appendTo(percentContainer)
                         .addClass("s-percent s-percent-bad")
                         .width(badPercent + "%");
+                }
+
+                // Undefined segment
+                if (undefPercent > 0) {
+                    $j("<div></div>")
+                        .appendTo(percentContainer)
+                        .addClass("s-percent s-percent-undef")
+                        .width(undefPercent + "%");
                 }
             }
 
@@ -1331,6 +1433,13 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
 
 
         });
+
+    }
+
+    // === Dynamic Percent Bar Refresh ===
+    function refreshPercentBars() {
+        $j(".s-percent-wrap").remove(); // remove old bars
+        processBrowsePage(".torrent", "torrent"); // re-run logic for torrents
     }
 
     // --- Page Processor: Details Page ---
@@ -2164,7 +2273,11 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                 document.head.appendChild(style);
             }
 
-
+            // Live toggle for Percent Bar
+            if (name === "usePercentBar") {
+                saveSettings();
+                refreshPercentBars();
+            }
         });
 
 
@@ -2213,7 +2326,7 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                 node.border = "#000000"; // constant as before
                 node.outlineColor = readOrKeep(`#outline-${key}-color`, node.outlineColor);
                 node.outlineStyle = readOrKeep(`#outline-${key}-style`, node.outlineStyle);
-                node.outlineWeight = readOrKeep(`#outline-${key}-weight`, node.outlineWeight);
+                node.outlineWeight = ensurePx(readOrKeep(`#outline-${key}-weight`, node.outlineWeight));
             });
             // --- FIXED: Capture updated display names from color table ---
             if (!settings.names) settings.names = {};
@@ -2233,12 +2346,15 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
                 }
             });
 
+
             // --- Save tag value selections for Percent Bar---
-            settings.tagValues = {};
-            $j(".tag-value-select").each(function () {
-                const tagKey = $j(this).data("tag");
-                const tagVal = $j(this).val();
-                settings.tagValues[tagKey] = tagVal;
+            $j(".spinner[data-tag]").each(function () {
+                var tagKey = $j(this).data("tag");
+                var input = $j(this).find(".tag-value-spinner");
+                if (input.length) {
+                    var tagVal = parseInt(input.val(), 10);
+                    settings.tagValues[tagKey] = isNaN(tagVal) ? 0 : tagVal;
+                }
             });
 
             //Tag Layout Compact, Normal, Roomy
@@ -2254,6 +2370,69 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
             if (ta) ta.textContent = JSON.stringify(getSettings());
             displayStatus("success", "Settings updated successfully");
         });
+
+
+        // === Spinner Increment/Decrement Handlers (Global) ===
+
+        // Remove any prior bindings to prevent duplicates
+        $j(document).off("click", ".spinner .decrement");
+        $j(document).off("click", ".spinner .increment");
+
+        // Helper: apply delta to a number input respecting step/min/max
+        function adjustNumeric(input, delta) {
+            var step = parseFloat(input.attr("step")) || 1;
+            var min  = parseFloat(input.attr("min"));
+            var max  = parseFloat(input.attr("max"));
+
+            var current = parseFloat(input.val());
+            if (isNaN(current)) current = 0;
+
+            var next = current + delta * step;
+            if (!isNaN(min)) next = Math.max(min, next);
+            if (!isNaN(max)) next = Math.min(max, next);
+
+            var decimals = (step % 1 !== 0) ? 1 : 0;
+            return next.toFixed(decimals);
+        }
+
+        // Helper: dispatch the correct value for listeners:
+        // - For outline weight inputs (id: outline-<TagKey>-weight) => fire "Npx"
+        // - For all others => fire numeric as-is
+        function commitSpinnerValue(input, numericString) {
+            var id = input.attr("id") || "";
+            var isOutlineWeight = /^outline-.*-weight$/.test(id);
+
+            // Keep the visible input numeric
+            input.val(numericString);
+
+            if (isOutlineWeight) {
+                // Temporarily provide "Npx" for listeners, then remove
+                var pxVal = parseFloat(numericString) + "px";
+                input.data("emittedValue", pxVal);
+                input.trigger("change");
+                input.removeData("emittedValue");
+            } else {
+                input.trigger("change");
+            }
+        }
+
+        // Decrement (only)
+        $j(document).on("click", ".spinner .decrement", function () {
+            var $input = $j(this).siblings("input[type='number']");
+            if (!$input.length) return;
+            var next = adjustNumeric($input, -1);
+            commitSpinnerValue($input, next);
+        });
+
+        // Increment (only)
+        $j(document).on("click", ".spinner .increment", function () {
+            var $input = $j(this).siblings("input[type='number']");
+            if (!$input.length) return;
+            var next = adjustNumeric($input, +1);
+            commitSpinnerValue($input, next);
+        });
+
+
         // --- Import button wiring: read textarea, import, refresh UI & export box ---
         $j('#import-settings-button').on('click', function (e) {
             e.preventDefault();
@@ -2411,7 +2590,7 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
             const text = $j(`#color-${tagType}-text`).val();
             const outlineColor = $j(`#outline-${tagType}-color`).val();
             const outlineStyle = $j(`#outline-${tagType}-style`).val();
-            const outlineWeight = $j(`#outline-${tagType}-weight`).val();
+            const outlineWeight = ensurePx($j(`#outline-${tagType}-weight`).val());
 
             // Sync settings
             if (!settings.colors) settings.colors = {};
@@ -2521,15 +2700,26 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
 
 
         function updateSamples() {
-            for (const [type, c] of Object.entries(settings.colors)) {
-                $j("#sample-" + type).css({
-                    "background-color": $j("#color-" + type + "-bg").val(),
-                    "color": $j("#color-" + type + "-text").val(),
-                    "outline": $j("#outline-" + type + "-weight").val() + " " +
-                    $j("#outline-" + type + "-style").val() + " " +
-                    $j("#outline-" + type + "-color").val()
-                });
+            if (!settings.colors) return;
 
+            for (const [type, cfg] of Object.entries(settings.colors)) {
+                const bg = $j("#color-" + type + "-bg").val();
+                const text = $j("#color-" + type + "-text").val();
+                const oc = $j("#outline-" + type + "-color").val();
+                const os = $j("#outline-" + type + "-style").val();
+                let ow = $j("#outline-" + type + "-weight").val();
+
+                // normalize weight to px for preview
+                if (!/px$/i.test(String(ow))) {
+                    const n = parseFloat(ow);
+                    ow = isNaN(n) ? "" : (n + "px");
+                }
+
+                $j("#sample-" + type).css({
+                    "background-color": bg,
+                    "color": text,
+                    "outline": ow && oc && os ? (ow + " " + os + " " + oc) : ""
+                });
             }
         }
 
@@ -3011,34 +3201,36 @@ body.emp-tags-page td:nth-child(2) .s-tag .s-button { order:1; flex:0 0 auto; ma
 
         let css = "";
         for (const [type, c] of Object.entries(settings.colors)) {
-            // convert settings key "Tags1a" -> DOM/CSS key "Tag1a"
             const styleKey = (type || "").replace(/^Tags/, "Tag");
 
-            // Tag styling (use styleKey so DOM classes .s-Tag1a are targeted)
-            css += `
-span.s-tag.s-${styleKey} {
-  background: ${c.background} !important;
-  border-bottom: 1px solid ${c.border};
-  outline: ${c.outlineWeight} ${c.outlineStyle} ${c.outlineColor} !important;
-}
-span.s-tag.s-${styleKey} > a {
-  color: ${c.text} !important;
-}
-`;
+            // Ensure outline weight has px (in case anything wrote a bare number)
+            const w = String((c && c.outlineWeight) || "").trim();
+            const weightPx = /px$/i.test(w) ? w : (isNaN(parseFloat(w)) ? "0px" : (parseFloat(w) + "px"));
 
-            // Button styling should continue to target the .s-add-<TagsX> / .s-remove-<TagsX> classes
+            // Decide border-bottom based on outline weight
+            const weightNum = parseFloat(weightPx) || 0; // "2px" -> 2
+            const borderBottom = (weightNum > 0)
+            ? "0 !important"
+            : `1px solid ${c.border}`;
+
             css += `
-    .s-add-${type}, .s-remove-${type} {
-        background: ${c.background} !important;
-        border: 1px solid ${c.border} !important;
-        color: #fff !important;
-    }
-    `;
+            span.s-tag.s-${styleKey} {
+                background: ${c.background} !important;
+                border-bottom: ${borderBottom};
+                outline: ${weightPx} ${c.outlineStyle} ${c.outlineColor} !important;
+            }
+            span.s-tag.s-${styleKey} > a {
+                color: ${c.text} !important;
+            }
+            .s-add-${type}, .s-remove-${type} {
+                background: ${c.background} !important;
+                border: 1px solid ${c.border} !important;
+                color: #fff !important;
+            }
+        `;
         }
-
-
         $j("#customColorStyles").remove();
-        $j("<style id='customColorStyles'>" + css + "</style>").appendTo("head");
+        $j("<style id='customColorStyles'>").text(css).appendTo("head");
     }
 }
 
