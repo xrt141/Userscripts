@@ -70,80 +70,60 @@
         // Load persisted settings (GM_getValue if available, else localStorage) and override defaults
         (function loadPersistedLDTSettings() {
             const hasGM = typeof GM_getValue === 'function' && typeof GM_setValue === 'function';
+            window.ldt_persistence_source = hasGM ? 'GM' : 'localStorage';
+            if (debug_logging) console.log('LDT: persistence source = ' + window.ldt_persistence_source);
 
-            // NEW: expose which persistence backend is active so we can tell if values are loaded from localStorage
-            try {
-                window.ldt_persistence_source = hasGM ? 'GM' : 'localStorage';
-                // Always emit a console message for the persistence source here so it's visible
-                // even if the debug flag hasn't been loaded/applied yet.
-                try {
-                    console.log('LDT: persistence source = ' + window.ldt_persistence_source);
-                } catch (e) { /* ignore console failures in restricted envs */ }
-            } catch (e) { /* non-fatal */ }
-
-            function getRaw(key, def) {
+            const getRaw = (key, def) => {
                 try {
                     if (hasGM) return GM_getValue(key, def);
                     const v = localStorage.getItem(key);
                     return v === null ? def : v;
                 } catch (e) { return def; }
-            }
-            function boolVal(key, def) {
+            };
+            const boolVal = (key, def) => {
                 const v = getRaw(key, def);
                 return v === true || v === 'true' || v === 1 || v === '1';
-            }
+            };
             try {
-                // Numeric and string values (use existing defaults if parsing fails)
-                var p_max_image_size = Number(getRaw('ldt_max_thumb', max_image_size)) || max_image_size;
-                var p_image_size = String(getRaw('ldt_image_size', image_size)) || image_size;
-
+                // Numeric and string values
+                const p_max_image_size = Number(getRaw('ldt_max_thumb', max_image_size)) || max_image_size;
+                const p_image_size = String(getRaw('ldt_image_size', image_size)) || image_size;
                 // Boolean flags
-                var p_preserve_animated = boolVal('ldt_preserve_animated', preserve_animated_images);
-                var p_disable_site_hover = boolVal('ldt_disable_site_hover', disable_site_hover_images);
-                var p_replace_categories = boolVal('ldt_replace_categories', replace_categories);
-                var p_remove_categories = boolVal('ldt_remove_categories', remove_categories);
-
+                const p_preserve_animated = boolVal('ldt_preserve_animated', preserve_animated_images);
+                const p_disable_site_hover = boolVal('ldt_disable_site_hover', disable_site_hover_images);
+                const p_replace_categories = boolVal('ldt_replace_categories', replace_categories);
+                const p_remove_categories = boolVal('ldt_remove_categories', remove_categories);
                 // Retry/timing
-                var p_max_retry_attempts = Number(getRaw('ldt_max_retry_attempts', max_retry_attempts)) || max_retry_attempts;
-                var p_retry_delay_ms = Number(getRaw('ldt_retry_delay_ms', retry_delay_ms)) || retry_delay_ms;
-
-                // NEW: read sequential mode as a string if present, else fall back to legacy boolean
-                var raw_seq_mode = getRaw('ldt_sequential_mode', null);
-                var p_sequential_mode = null;
-                if (raw_seq_mode !== null && raw_seq_mode !== undefined) {
-                    try { p_sequential_mode = String(raw_seq_mode); } catch (e) { p_sequential_mode = null; }
-                }
-                if (!p_sequential_mode) {
-                    // Legacy fallback: boolean key
-                    p_sequential_mode = boolVal('ldt_sequential_load', sequential_load) ? 'sequential' : 'off';
-                }
-
-                // Optional concurrent setting for Sequential+ (fallback to existing global)
-                var p_concurrent_active_loads = Number(getRaw('ldt_concurrent_active_loads', concurrent_active_loads));
+                const p_max_retry_attempts = Number(getRaw('ldt_max_retry_attempts', max_retry_attempts)) || max_retry_attempts;
+                const p_retry_delay_ms = Number(getRaw('ldt_retry_delay_ms', retry_delay_ms)) || retry_delay_ms;
+                // Sequential mode (string or legacy boolean fallback)
+                let p_sequential_mode = getRaw('ldt_sequential_mode', null);
+                p_sequential_mode = p_sequential_mode ? String(p_sequential_mode) : (boolVal('ldt_sequential_load', sequential_load) ? 'sequential' : 'off');
+                // Concurrent setting for Sequential+
+                let p_concurrent_active_loads = Number(getRaw('ldt_concurrent_active_loads', concurrent_active_loads));
                 if (!Number.isFinite(p_concurrent_active_loads) || p_concurrent_active_loads < 1) p_concurrent_active_loads = concurrent_active_loads || 1;
-
-                var p_sequential_load_delay_ms = Number(getRaw('ldt_sequential_load_delay_ms', sequential_load_delay_ms)) || sequential_load_delay_ms;
-                var p_auto_refresh_failed_after_ms = Number(getRaw('ldt_auto_refresh_failed_after_ms', auto_refresh_failed_after_ms)) || auto_refresh_failed_after_ms;
-                var p_stall_timeout_ms = Number(getRaw('ldt_stall_timeout_ms', stall_timeout_ms)) || stall_timeout_ms;
-                var p_debug_logging = boolVal('ldt_debug_logging', debug_logging);
-                var p_enable_image_caching = boolVal('ldt_enable_image_caching', enable_image_caching);
-                var p_max_cached_images = Number(getRaw('ldt_max_cached_images', max_cached_images)) || max_cached_images;
+                const p_sequential_load_delay_ms = Number(getRaw('ldt_sequential_load_delay_ms', sequential_load_delay_ms)) || sequential_load_delay_ms;
+                const p_auto_refresh_failed_after_ms = Number(getRaw('ldt_auto_refresh_failed_after_ms', auto_refresh_failed_after_ms)) || auto_refresh_failed_after_ms;
+                const p_stall_timeout_ms = Number(getRaw('ldt_stall_timeout_ms', stall_timeout_ms)) || stall_timeout_ms;
+                const p_debug_logging = boolVal('ldt_debug_logging', debug_logging);
+                const p_enable_image_caching = boolVal('ldt_enable_image_caching', enable_image_caching);
+                const p_max_cached_images = Number(getRaw('ldt_max_cached_images', max_cached_images)) || max_cached_images;
 
                 // Apply overrides to the local defaults
                 max_image_size = p_max_image_size;
                 image_size = p_image_size;
-                preserve_animated_images = !!p_preserve_animated;
-                disable_site_hover_images = !!p_disable_site_hover;
-                replace_categories = !!p_replace_categories;
-                remove_categories = !!p_remove_categories;
+                preserve_animated_images = p_preserve_animated;
+                disable_site_hover_images = p_disable_site_hover;
+                replace_categories = p_replace_categories;
+                remove_categories = p_remove_categories;
                 max_retry_attempts = p_max_retry_attempts;
                 retry_delay_ms = p_retry_delay_ms;
                 sequential_load_delay_ms = p_sequential_load_delay_ms;
                 auto_refresh_failed_after_ms = p_auto_refresh_failed_after_ms;
                 stall_timeout_ms = p_stall_timeout_ms;
-                debug_logging = !!p_debug_logging;
+                debug_logging = p_debug_logging;
                 window.debug_logging = debug_logging;
-                enable_image_caching = !!p_enable_image_caching;
+                enable_image_caching = p_enable_image_caching;
                 max_cached_images = p_max_cached_images;
 
                 // Map the string mode into the boolean and concurrency globals used by the rest of the script
@@ -200,43 +180,27 @@
         (function installHoverImageDisabler() {
             if (!disable_site_hover_images) return;
 
-            // Heuristics: common containers sites use for hover tooltips/previews
-            // Add or adjust selectors if needed for your site(s).
             const HOVER_SELECTORS = [
                 '.tooltip', '.hover', '.preview', '.bubble', '.popup',
                 '#tooltip', '[class*="hover"]', '[class*="tooltip"]', '[id*="tooltip"]'
             ];
+            const HOVER_SELECTOR_STR = HOVER_SELECTORS.join(',');
 
-            // Utility: does the node or its ancestors look like a hover container?
             function isHoverContainer(node) {
                 if (!node || node.nodeType !== 1) return false;
-                const el = /** @type {HTMLElement} */(node);
-                // Quick checks: class/id matches or high z-index floating containers
-                const selMatch = HOVER_SELECTORS.some(sel => el.matches(sel));
-                if (selMatch) return true;
-
-                // Walk up a few ancestors to catch nested structures
-                let p = el;
-                for (let i = 0; i < 4 && p; i++, p = p.parentElement) {
-                    if (!p) break;
-                    if (HOVER_SELECTORS.some(sel => p.matches(sel))) return true;
+                const el = node;
+                if (el.matches(HOVER_SELECTOR_STR)) return true;
+                // Walk up ancestors to catch nested structures
+                for (let p = el, i = 0; i < 4 && p; i++, p = p.parentElement) {
+                    if (p.matches(HOVER_SELECTOR_STR)) return true;
                     const style = getComputedStyle(p);
-                    // Typical hover box properties: absolute/fixed + high z-index
-                    const posIsFloaty = style.position === 'absolute' || style.position === 'fixed';
-                    const zHigh = parseInt(style.zIndex || '0', 10) >= 1000;
-                    if (posIsFloaty && zHigh) return true;
+                    if ((style.position === 'absolute' || style.position === 'fixed') && parseInt(style.zIndex || '0', 10) >= 1000) return true;
                 }
                 return false;
             }
 
-            // Strip <img src> → <img data-src> (prevents network load)
             function neutralizeImages(root) {
-                const imgs = root.querySelectorAll('img[src]');
-                imgs.forEach(img => {
-                    // Skip images created/managed by your script (optional tag you can add)
-                    if (img.classList.contains('tn-controlled')) return;
-
-                    // Move src → data-src, then remove src
+                root.querySelectorAll('img[src]:not(.tn-controlled)').forEach(img => {
                     const url = img.getAttribute('src');
                     if (url) {
                         img.setAttribute('data-src', url);
@@ -245,35 +209,15 @@
                 });
             }
 
-            // Observe DOM for inserted hover containers and strip their <img src>
             const mo = new MutationObserver(mutations => {
                 for (const m of mutations) {
-                    // Handle directly added nodes
                     m.addedNodes.forEach(node => {
                         if (node.nodeType !== 1) return;
-                        const el = /** @type {HTMLElement} */(node);
-
-                        // Case 1: Node itself looks like hover container
-                        if (isHoverContainer(el)) {
+                        const el = node;
+                        if (isHoverContainer(el) || el.querySelector(HOVER_SELECTOR_STR)) {
                             neutralizeImages(el);
                         }
-
-                        // Case 2: Any descendants contain hover containers or images in them
-                        // (Fast path: if subtree has images, check the closest hover parent)
-                        const imgs = el.querySelectorAll('img[src]');
-                        if (imgs.length) {
-                            // If the subtree includes a hover box, neutralize all images inside it
-                            let hasHover = false;
-                            HOVER_SELECTORS.forEach(sel => {
-                                if (!hasHover && el.querySelector(sel)) hasHover = true;
-                            });
-                            if (hasHover || isHoverContainer(el)) {
-                                neutralizeImages(el);
-                            }
-                        }
                     });
-
-                    // Also neutralize if class/id changes turn an existing node into hover
                     if (m.type === 'attributes' && m.target && isHoverContainer(m.target)) {
                         neutralizeImages(m.target);
                     }
@@ -290,34 +234,23 @@
 
 
         // --- DEBUG LOGGER (inside the IIFE) ---
-        function dbg(line) {
-            if (!debug_logging) return;
-            //console.log((line.startsWith('-') ? '' : '-----') + line);
-            console.log(line);
-        }
+        const dbg = (line) => { if (debug_logging) console.log(line); };
+        const isSingleWorkerSeq = () => {
+            const inst = window.lazyThumbsInstance;
+            return inst && inst.sequential_load && (typeof inst.concurrent_limit !== 'number' || inst.concurrent_limit <= 1);
+        };
         function logBegin(url) {
-
-            if (window.lazyThumbsInstance &&
-                window.lazyThumbsInstance.sequential_load &&
-                (typeof window.lazyThumbsInstance.concurrent_limit !== 'number' || window.lazyThumbsInstance.concurrent_limit <= 1)) {
-                dbg('');
-                dbg('==========================================');
-            }
+            if (isSingleWorkerSeq()) { dbg(''); dbg('=========================================='); }
             dbg('--- Begin Loading image: ' + url);
         }
         function logFinish(url) {
             dbg('--- Finished loading image: ' + url);
-            if (window.lazyThumbsInstance &&
-                window.lazyThumbsInstance.sequential_load &&
-                (typeof window.lazyThumbsInstance.concurrent_limit !== 'number' || window.lazyThumbsInstance.concurrent_limit <= 1)) {
-                dbg('==========================================');
-                dbg('');
-            }
+            if (isSingleWorkerSeq()) { dbg('=========================================='); dbg(''); }
         }
-        function logWait(ms) { dbg('----- Waiting ' + ms + 'ms'); }
-        function logTimeout(url) { dbg('----- Timeout expired Image Stalled. ' + url); }
-        function logRetry(n, url){ dbg('----- Retry #' + n + ' Image ' + url); }
-        function logSkip(msg) { dbg('----- ' + msg); }
+        const logWait = (ms) => dbg('----- Waiting ' + ms + 'ms');
+        const logTimeout = (url) => dbg('----- Timeout expired Image Stalled. ' + url);
+        const logRetry = (n, url) => dbg('----- Retry #' + n + ' Image ' + url);
+        const logSkip = (msg) => dbg('----- ' + msg);
 
 
 
@@ -336,7 +269,6 @@
              backend,
              image_size,
              preserve_animated_images,
-             false,
              replace_categories,
              remove_categories,
              max_image_size,
@@ -346,7 +278,7 @@
              blocked_placeholder_scale,
              sequential_load,
              sequential_load_delay_ms,
-+            concurrent_active_loads,
+             concurrent_active_loads,
              host_rewrites,
              auto_refresh_failed_after_ms,
              stall_timeout_ms,
@@ -355,7 +287,6 @@
              blob_fetch_on_stall,
              enable_image_caching,
              max_cached_images
-
          );
 
 
@@ -779,36 +710,34 @@
         };
     }
 
-    function LazyThumbnails(progress, backend, image_size, preserve_animated_images, full_thumbnails, replace_categories, remove_categories,
+    function LazyThumbnails(progress, backend, image_size, preserve_animated_images, replace_categories, remove_categories,
                             max_image_size, max_retry_attempts, retry_delay_ms, blacklisted_domains, blocked_placeholder_scale,
                             sequential_load, sequential_load_delay_ms, concurrent_active_loads, host_rewrites, auto_refresh_failed_after_ms, stall_timeout_ms,
                             blob_fetch_hosts, blob_fetch_on_error, blob_fetch_on_stall, enable_image_caching, max_cached_images) {
         var self = this;
         // --- Helper: schedule a single timer for retry or stall per image ---
-        function scheduleImageTimer($img, ms, cb) {
+        const scheduleImageTimer = ($img, ms, cb) => {
             const prev = $img.data('imgTimerId');
             if (prev) { clearTimeout(prev); $img.removeData('imgTimerId'); }
-            if (typeof ms === 'number' && ms > 0 && typeof cb === 'function') {
-                const tid = setTimeout(cb, ms);
-                $img.data('imgTimerId', tid);
+            if (ms > 0 && typeof cb === 'function') {
+                $img.data('imgTimerId', setTimeout(cb, ms));
             }
-        }
+        };
 
-        this.image_size = (typeof image_size === 'string') ? image_size : "Thumbnail"
-        // keep backwards-compatible behaviour: preserve_animated_images === true prevents rewrites for GIF/WebP
+        this.image_size = (typeof image_size === 'string') ? image_size : 'Thumbnail';
         this.preserve_animated_images = !!preserve_animated_images;
 
         this.$torrent_table = null;
-        this.images = []
-        this._seqTimerId = null; // guard for sequential mode
+        this.images = [];
+        this._seqTimerId = null;
         this.attach_image = backend.attach_image;
         this.get_image_src = backend.get_image_src;
         this.image_index = 0;
         this.preload_ratio = 0.6;
         this.max_retry_attempts = Number.isFinite(max_retry_attempts) ? max_retry_attempts : 0;
         this.retry_delay_ms = Number.isFinite(retry_delay_ms) ? retry_delay_ms : 0;
-        this.blacklisted_domains = Array.isArray(blacklisted_domains) ? blacklisted_domains : [];
-        this.host_rewrites = Array.isArray(host_rewrites) ? host_rewrites : [];
+        this.blacklisted_domains = blacklisted_domains || [];
+        this.host_rewrites = host_rewrites || [];
 
         // Initialize image cache manager
         this.cache = new ImageCacheManager(enable_image_caching, max_cached_images);
@@ -818,158 +747,93 @@
                 replace_to_small: [/(?:\.(?:th|md))?\.([^.]+)$/, '.th.$1'],
                 replace_to_full: [/(?:\.(?:th|md))?\.([^.]+)$/, '.$1']
             },
+            {
+                pattern: /https?:\/\/hamsterimg\.net.*/,
+                replace_to_small: [/(?:\.(?:th|md))?\.([^.]+)$/, '.th.$1'],
+                replace_to_full: [/(?:\.(?:th|md))?\.([^.]+)$/, '.$1']
+            }
         ];
 
 
-        this.friendly_hosts.push({
-            pattern: /https?:\/\/hamsterimg\.net.*/,
-            // small/thumbnail: ensure `.th.` right before the extension
-            replace_to_small: [/(?:\.(?:th|md))?\.([^.]+)$/, '.th.$1'],
-            // full: strip `.th`/`.md`
-            replace_to_full:  [/(?:\.(?:th|md))?\.([^.]+)$/, '.$1']
-        });
 
-
-
-        // --- Helper: convert a rewritten (thumbnail/medium) URL back to "original/full" ---
         this.to_original_url = function (src) {
-            if (!src || typeof src !== 'string') return src;
-            var rule = null;
-            for (var i = 0; i < self.friendly_hosts.length; i++) {
-                if (self.friendly_hosts[i].pattern.test(src)) { rule = self.friendly_hosts[i]; break; }
+            if (!src) return src;
+            const rule = self.friendly_hosts.find(h => h.pattern.test(src));
+            return rule ? String.prototype.replace.apply(src, rule.replace_to_full) : src;
+        };
+
+        this._isAnimatedExt = (url) => url && /\.(gif|webp)(?:$|[?#])/i.test(url);
+
+
+
+        // Helper: safely apply replace pattern to URL pathname only
+        const applyReplaceToPath = (urlStr, replacePattern) => {
+            try {
+                const u = new URL(urlStr, window.location.href);
+                const origPath = u.pathname || '/';
+                const newPath = String.prototype.replace.apply(origPath, replacePattern);
+                if (newPath !== origPath) { u.pathname = newPath; return u.toString(); }
+                return urlStr;
+            } catch (e) {
+                return String.prototype.replace.apply(urlStr, replacePattern);
             }
-            if (!rule) return src;
-            // Use the host's "full" replacement to strip ".th." / ".md."
-            return String.prototype.replace.apply(src, rule.replace_to_full);
         };
-
-
-        this._isAnimatedExt = function (url) {
-            if (!url || typeof url !== 'string') return false;
-            // Covers endings like .gif, .gif?x=y, .webp, .webp#...
-            return /\.(gif|webp)(?:$|[?#])/i.test(url);
-        };
-
-
 
         this.rewrite_by_image_size = function (src, imageSize) {
-            if (!src || typeof src !== 'string') return src;
-
-            // NEW: if user requested preserving animated formats (GIF/WebP), keep original URL
-            if (self.preserve_animated_images && self._isAnimatedExt(src)) {
-                return src; // do not rewrite animated formats
+            if (!src) return src;
+            if (self.preserve_animated_images && self._isAnimatedExt(src)) return src;
+            const rule = self.friendly_hosts.find(h => h.pattern.test(src));
+            if (!rule) return src;
+            const size = String(imageSize || '').toLowerCase();
+            if (size === 'thumbnail') return applyReplaceToPath(src, rule.replace_to_small);
+            if (size === 'medium') {
+                rule.replace_to_medium = rule.replace_to_medium || [/(?:\.(?:th|md))?\.([^.]+)$/, '.md.$1'];
+                return applyReplaceToPath(src, rule.replace_to_medium);
             }
-
-            // Pick the friendly host rule
-            var rule = null;
-            for (var i = 0; i < self.friendly_hosts.length; i++) {
-                if (self.friendly_hosts[i].pattern.test(src)) { rule = self.friendly_hosts[i]; break; }
-            }
-            if (!rule) return src; // not a known host
-
-            // Helper: safely apply the replace pattern to the URL's pathname only
-            function applyReplaceToPath(urlStr, replacePattern) {
-                try {
-                    var u = new URL(urlStr, window.location.href);
-                    var origPath = u.pathname || '/';
-                    var newPath = String.prototype.replace.apply(origPath, replacePattern);
-                    if (newPath !== origPath) {
-                        u.pathname = newPath;
-                        return u.toString();
-                    }
-                    // If nothing changed in the pathname, do not alter the host or other parts of the URL.
-                    return urlStr;
-                } catch (e) {
-                    // If URL parsing fails, fall back to legacy behavior of applying replacement on the whole string
-                    return String.prototype.replace.apply(urlStr, replacePattern);
-                }
-            }
-
-            switch (String(imageSize || '').toLowerCase()) {
-                case 'thumbnail': // remove .md, add .th
-                    return applyReplaceToPath(src, rule.replace_to_small);
-
-                case 'medium': // remove .th, add .md
-                    if (!rule.replace_to_medium) {
-                        rule.replace_to_medium = [/(?:\.(?:th|md))?\.([^.]+)$/, '.md.$1'];
-                    }
-                    return applyReplaceToPath(src, rule.replace_to_medium);
-
-                case 'full': // remove .th/.md
-                    return applyReplaceToPath(src, rule.replace_to_full);
-
-                default:
-                    return src;
-            }
+            if (size === 'full') return applyReplaceToPath(src, rule.replace_to_full);
+            return src;
         };
 
 
 
-        this.sequential_load = typeof sequential_load === 'boolean' ? sequential_load : false;
+        this.sequential_load = !!sequential_load;
         this.sequential_load_delay_ms = Number.isFinite(sequential_load_delay_ms) ? sequential_load_delay_ms : 0;
-        // concurrent_limit controls Parallelism in Sequential+ mode
-        this.concurrent_limit = (typeof concurrent_active_loads === 'number' && concurrent_active_loads > 0) ? Math.max(1, Math.floor(concurrent_active_loads)) : 1;
-
-
-        // Bring IIFE configs into instance state
-        this.auto_refresh_failed_after_ms =
-            (typeof auto_refresh_failed_after_ms === 'number' && auto_refresh_failed_after_ms >= 0)
-            ? auto_refresh_failed_after_ms
-        : 0;
-
-        this.stall_timeout_ms =
-            (typeof stall_timeout_ms === 'number' && stall_timeout_ms > 0)
-            ? stall_timeout_ms
-        : 6000; // default 6s
-
-        // Blob fetch fallback configuration
-        this.blob_fetch_hosts = Array.isArray(blob_fetch_hosts) ? blob_fetch_hosts : [];
+        this.concurrent_limit = Math.max(1, Math.floor(concurrent_active_loads) || 1);
+        this.auto_refresh_failed_after_ms = (auto_refresh_failed_after_ms >= 0) ? auto_refresh_failed_after_ms : 0;
+        this.stall_timeout_ms = (stall_timeout_ms > 0) ? stall_timeout_ms : 6000;
+        this.blob_fetch_hosts = blob_fetch_hosts || [];
         this.blob_fetch_on_error = !!blob_fetch_on_error;
         this.blob_fetch_on_stall = !!blob_fetch_on_stall;
 
 
-        // --- Unified URL parser for all host/domain matching operations ---
-        this._parseURLHost = function (url) {
-            if (!url || typeof url !== 'string') return null;
+        this._parseURLHost = (url) => {
+            if (!url) return null;
             try {
                 const u = new URL(url, window.location.href);
                 return { url: u, host: (u.hostname || '').toLowerCase() };
-            } catch (e) {
-                return null;
-            }
+            } catch (e) { return null; }
         };
 
-        // --- Helper: Check if host matches domain list (exact or subdomain) ---
-        this._hostMatches = function (host, domainList) {
-            if (!host || !Array.isArray(domainList)) return false;
+        this._hostMatches = (host, domainList) => {
+            if (!host || !domainList) return false;
             return domainList.some(d => {
                 const dom = (d || '').toLowerCase().trim();
                 return dom && (host === dom || host.endsWith('.' + dom));
             });
         };
 
-        // --- NEW: Host rewrite helper ---
-
         this.rewrite_host = function (url) {
             const parsed = self._parseURLHost(url);
-            if (!parsed) return url;
-
-            const rules = Array.isArray(self.host_rewrites) ? self.host_rewrites : [];
-            if (rules.length === 0) return url;
-
+            if (!parsed || !self.host_rewrites.length) return url;
             const { url: u, host } = parsed;
-
-            for (const rule of rules) {
+            for (const rule of self.host_rewrites) {
                 const from = (rule.from || '').toLowerCase().trim();
                 const to = (rule.to || '').trim();
-                const sub = !!rule.subdomains;
-                const forceHttps = !!rule.force_https;
                 if (!from || !to) continue;
-
-                const matches = sub ? (host === from || host.endsWith('.' + from)) : (host === from);
+                const matches = rule.subdomains ? (host === from || host.endsWith('.' + from)) : (host === from);
                 if (matches) {
                     u.hostname = to;
-                    if (forceHttps) u.protocol = 'https:';
+                    if (rule.force_https) u.protocol = 'https:';
                     return u.toString();
                 }
             }
@@ -977,11 +841,9 @@
         };
 
 
-        // Host match helper (exact or subdomain)
-        this._isBlobFetchHost = function (url) {
+        this._isBlobFetchHost = (url) => {
             const parsed = self._parseURLHost(url);
-            if (!parsed) return false;
-            return self._hostMatches(parsed.host, self.blob_fetch_hosts);
+            return parsed ? self._hostMatches(parsed.host, self.blob_fetch_hosts) : false;
         };
 
         // Fetch the image as a Blob via Tampermonkey, set it on <img> as a blob: URL
@@ -989,9 +851,12 @@
 
 
         this._fetchImageAsBlob = function (url, $img) {
-            if (!url || !$img || !$img[0]) return;
-            if ($img.data('blobFetchInFlight')) return; // avoid duplicate launches
+            if (!url || !$img || !$img[0] || $img.data('blobFetchInFlight')) return;
             $img.data('blobFetchInFlight', true);
+
+            const markFailed = () => {
+                $img.addClass('tn-failed').data('isLoading', false).removeData('blobFetchInFlight').trigger('tnDone');
+            };
 
             GM_xmlhttpRequest({
                 method: 'GET',
@@ -1001,65 +866,30 @@
                 onload: function (resp) {
                     if (resp.status >= 200 && resp.status < 300 && resp.response) {
                         try {
-                            const blob = resp.response;
                             const reader = new FileReader();
                             reader.onloadend = function () {
-                                const dataUrl = reader.result; // data:image/...;base64,....
-
-                                // Use centralized state clearing to cancel timers and remove classes
                                 self.clearImageState($img);
-
-                                // Mark in-flight only for the src assignment;
-                                // the <img> load handler will finalize and fire tnDone.
-                                $img.data('isLoading', true);
-                                $img.prop('src', dataUrl);
-
-                                $img.removeData('blobFetchInFlight');
+                                $img.data('isLoading', true).prop('src', reader.result).removeData('blobFetchInFlight');
                             };
-                            reader.readAsDataURL(blob);
-                        } catch (e) {
-                            $img.addClass('tn-failed');
-                            $img.data('isLoading', false);
-                            $img.removeData('blobFetchInFlight');
-                            $img.trigger('tnDone'); // ensure sequential chain advances
-                        }
-                    } else {
-                        $img.addClass('tn-failed');
-                        $img.data('isLoading', false);
-                        $img.removeData('blobFetchInFlight');
-                        $img.trigger('tnDone'); // advance on non-2xx
-                    }
+                            reader.readAsDataURL(resp.response);
+                        } catch (e) { markFailed(); }
+                    } else { markFailed(); }
                 },
-                onerror: function () {
-                    $img.addClass('tn-failed');
-                    $img.data('isLoading', false);
-                    $img.removeData('blobFetchInFlight');
-                    $img.trigger('tnDone'); // advance on blob failure
-                },
-                ontimeout: function () {
-                    $img.addClass('tn-failed');
-                    $img.data('isLoading', false);
-                    $img.removeData('blobFetchInFlight');
-                    $img.trigger('tnDone'); // advance on blob timeout
-                }
+                onerror: markFailed,
+                ontimeout: markFailed
             });
         };
 
 
 
-        // Checks if a URL's hostname matches a blacklisted domain (exact or subdomain)
-        this.isBlacklisted = function (url) {
+        this.isBlacklisted = (url) => {
             const parsed = self._parseURLHost(url);
-            if (!parsed) return false;
-            return self._hostMatches(parsed.host, self.blacklisted_domains);
+            return parsed ? self._hostMatches(parsed.host, self.blacklisted_domains) : false;
         };
 
-        // Creates a simple "blocked" SVG data URI as a placeholder
-
-        this.block_placeholder_data_uri = function (size) {
+        this.block_placeholder_data_uri = (size) => {
             const h = Math.max(1, Math.round((size || max_image_size) * blocked_placeholder_scale));
-            const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${h}' height='${h}' viewBox='0 0 32 32'><rect fill='#eee' width='32' height='32'/><circle cx='16' cy='16' r='11' fill='#e33'/><path d='M10 10L22 22M22 10L10 22' stroke='#fff' stroke-width='4' stroke-linecap='round'/></svg>`;
-            return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+            return `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${h}' height='${h}' viewBox='0 0 32 32'><rect fill='#eee' width='32' height='32'/><circle cx='16' cy='16' r='11' fill='#e33'/><path d='M10 10L22 22M22 10L10 22' stroke='#fff' stroke-width='4' stroke-linecap='round'/></svg>`)}`;
         };
 
 
@@ -1111,32 +941,20 @@
             const $row = $img.data('row');
             const imgEl = $img[0];
 
-            // --- Skip hidden torrent rows (display:none or zero size) ---
-            if ($row && (
-                $row.is(':hidden') ||
-                $row.css('display') === 'none' ||
-                $row[0].offsetParent === null ||
-                ($row[0].offsetWidth === 0 && $row[0].offsetHeight === 0)
-            )) {
-                $img.off('error.lazyRetry load.lazyRetry');
-                $img.data('loaded', false);
-                // Use centralized state clearing
+            // Skip hidden torrent rows
+            const rowEl = $row && $row[0];
+            if (rowEl && (rowEl.offsetParent === null || (rowEl.offsetWidth === 0 && rowEl.offsetHeight === 0))) {
+                $img.off('error.lazyRetry load.lazyRetry').data('loaded', false);
                 self.clearImageState($img);
-                if (typeof window.logSkip === 'function') {
-                    window.logSkip('Torrent Row Hidden - Skipping Image');
-                } else {
-                    console.log('----- Torrent Row Hidden - Skipping Image');
-                }
+                window.logSkip('Torrent Row Hidden - Skipping Image');
                 $img.trigger('tnDone');
                 return;
             }
 
-            // --- Short-circuit for blacklisted hosts ---
+            // Short-circuit for blacklisted hosts
             if (self.isBlacklisted(originalSrc)) {
-                const ph = self.block_placeholder_data_uri(max_image_size);
-                $img.prop('src', ph)
-                    .data('blocked', true)
-                    .addClass('tn-blocked')
+                $img.prop('src', self.block_placeholder_data_uri(max_image_size))
+                    .data('blocked', true).addClass('tn-blocked')
                     .css({ 'min-width': '', 'min-height': '' })
                     .off('error.lazyRetry load.lazyRetry');
                 return;
@@ -1164,36 +982,19 @@
 
             // --- Helper: start/cancel a per-attempt stall timer ---
             function startStallTimer($img, onStall) {
-                // Default onStall handler: mark as stalled, try blob fetch fallback, and trigger tnDone to allow Sequential+ to continue
-                const defaultStallHandler = function() {
-                    if ($img.data('loaded') || !$img.data('isLoading')) return; // already done
-                    
-                    // Double-check: if image has rendered successfully, don't add stall styling
+                const defaultStallHandler = () => {
+                    if ($img.data('loaded') || !$img.data('isLoading')) return;
                     const el = $img[0];
-                    const renderOK = (el && el.complete && el.naturalWidth > 0);
-                    if (renderOK || $img.data('loaded')) return;
-                    
-                    // Only add stall styling if not already loaded
+                    if (el && el.complete && el.naturalWidth > 0) return;
                     $img.addClass('tn-stalled');
-                    
                     window.logTimeout($img.data('src'));
-                    
-                    // Try blob fetch fallback if enabled
                     if (self.blob_fetch_on_stall && self._isBlobFetchHost($img.data('src'))) {
                         self._fetchImageAsBlob($img.data('src'), $img);
-                        // Don't fire tnDone yet - let blob handler take over
                         return;
                     }
-                    // Fire tnDone to allow Sequential+ workers to continue processing queue
-                    // (this image will be marked stalled but can still be auto-refreshed later if enabled)
                     $img.trigger('tnDone');
                 };
                 scheduleImageTimer($img, self.stall_timeout_ms, onStall || defaultStallHandler);
-            }
-
-            // --- Helper: start a retry timer ---
-            function startRetryTimer($img, delayMs, onRetry) {
-                scheduleImageTimer($img, delayMs, onRetry);
             }
 
             // --- Attach handlers ---
@@ -1205,27 +1006,13 @@
             $img.off('load.lazyRetry error.lazyRetry');
 
             $img.one('load.lazyRetry', function () {
-                const el = imgEl;
-                const renderOK = (el && el.complete && el.naturalWidth > 0);
-                
-                // Use centralized state clearing FIRST to cancel all timers and clear state
                 self.clearImageState($img);
-                
-                // Set success flags
-                $img.data('retryCount', 0);
-                $img.data('loaded', true);
-                
+                $img.data('retryCount', 0).data('loaded', true);
                 window.logFinish($img.data('src'));
-
-                // Cache the loaded image if caching is enabled
-                if (self.cache && self.cache.enabled && renderOK && imgEl.src && !imgEl.src.startsWith('data:')) {
-                    try {
-                        self.cache.setImage(originalSrc, imgEl.src);
-                    } catch (e) {
-                        if (window.debug_logging) console.error('LDT: Cache store error', e);
-                    }
+                // Cache if enabled and not already a data URL
+                if (self.cache && self.cache.enabled && imgEl.complete && imgEl.naturalWidth > 0 && imgEl.src && !imgEl.src.startsWith('data:')) {
+                    try { self.cache.setImage(originalSrc, imgEl.src); } catch (e) {}
                 }
-
                 $img.trigger('tnDone');
             });
 
@@ -1233,60 +1020,39 @@
 
             // --- Helper: Schedule a retry with optional delay ---
             function scheduleRetry(count, delaySrc, delayMs) {
-                if (count < self.max_retry_attempts) {
-                    const nextCount = count + 1;
-                    $img.data('retryCount', nextCount);
-                    if (delayMs > 0) {
-                        window.logWait(delayMs);
-                        $img.data('isLoading', true);
-                        const tid = setTimeout(function () {
-                            const el2 = $img[0];
-                            const isRenderable2 = (el2 && el2.complete && el2.naturalWidth > 0) || $img.data('loaded');
-                            if (isRenderable2) return;
-                            window.logRetry(nextCount, delaySrc);
-                            $img.prop('src', delaySrc);
-                            startStallTimer($img);
-                        }, delayMs);
-                        $img.data('retryTimeoutId', tid);
-                    } else {
-                        const el2 = $img[0];
-                        const isRenderable2 = (el2 && el2.complete && el2.naturalWidth > 0) || $img.data('loaded');
-                        if (!isRenderable2) {
-                            $img.data('isLoading', true);
-                            window.logRetry(nextCount, delaySrc);
-                            $img.prop('src', delaySrc);
-                            startStallTimer($img);
-                        }
-                    }
+                if (count >= self.max_retry_attempts) {
+                    $img.removeClass('tn-loading tn-stalled').addClass('tn-failed').off('error.lazyRetry').data('isLoading', false).trigger('tnDone');
+                    return;
+                }
+                const nextCount = count + 1;
+                $img.data('retryCount', nextCount);
+                const doRetry = () => {
+                    const el = $img[0];
+                    if ((el && el.complete && el.naturalWidth > 0) || $img.data('loaded')) return;
+                    window.logRetry(nextCount, delaySrc);
+                    $img.data('isLoading', true).prop('src', delaySrc);
+                    startStallTimer($img);
+                };
+                if (delayMs > 0) {
+                    window.logWait(delayMs);
+                    $img.data('isLoading', true).data('retryTimeoutId', setTimeout(doRetry, delayMs));
                 } else {
-                    // All retries exhausted - mark as failed
-                    $img.removeClass('tn-loading tn-stalled');
-                    $img.addClass('tn-failed');
-                    $img.off('error.lazyRetry');
-                    $img.data('isLoading', false);
-                    $img.trigger('tnDone');
+                    doRetry();
                 }
             }
 
             $img.one('error.lazyRetry', function () {
-                const el = imgEl;
-                const renderOK = (el && el.complete && el.naturalWidth > 0);
-                if (renderOK) {
-                    // Image actually loaded successfully despite error event
+                if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
                     self.clearImageState($img);
-                    $img.data('retryCount', 0);
-                    $img.data('loaded', true);
+                    $img.data('retryCount', 0).data('loaded', true);
                     window.logFinish($img.data('src'));
-                    
                     $img.trigger('tnDone');
                     return;
                 }
-
-                // IMPORTANT: keep ownership; do not set isLoading=false here
                 const currentCount = $img.data('retryCount') || 0;
+                const retryDelay = self.retry_delay_ms > 0 ? self.retry_delay_ms : 0;
 
-                // --- Step 1: Probe the failing URL to detect a true 404 ---
-                // We only special-case 404; other errors keep normal retry behavior.
+                // Probe the failing URL to detect 404 or non-image content
                 GM_xmlhttpRequest({
                     method: 'GET',
                     url: originalSrc,
@@ -1303,41 +1069,22 @@
                             const bodyText = (typeof resp.responseText === 'string') ? resp.responseText : '';
                             const looksLikeHtml = /<\s*html/i.test(bodyText);
 
-                            // Helper to perform the normal bounded retry behavior (used by multiple branches)
-                            function scheduleNormalRetry() {
-                                scheduleRetry(currentCount, originalSrc, self.retry_delay_ms > 0 ? self.retry_delay_ms : 0);
-                            }
+                            // Helper to perform the normal bounded retry behavior
+                            const scheduleNormalRetry = () => scheduleRetry(currentCount, originalSrc, retryDelay);
 
                             // If probe returns a HTTP 404, prefer the original/full URL first.
                             const is404 = (status === 404);
 
                             if (is404) {
-                                // First time we see a 404 on the rewritten URL?
-                                const first404Done = !!$img.data('first404Done');
-
-                                if (!first404Done) {
-                                    // Mark that we've seen 404 on the rewritten URL
+                                if (!$img.data('first404Done')) {
                                     $img.data('first404Done', true);
-
-                                    // Log and retry ONCE with the "original" (strip .th/.md)
                                     window.logRetry(currentCount + 1, originalSrc);
                                     window.logBegin(originalSrc);
-                                    console.log('----- 404 on URL: ' + originalSrc);
-
                                     const originalFull = self.to_original_url(originalSrc);
-                                    console.log('----- Retrying with original URL: ' + originalFull);
-
-                                    // Keep ownership while we switch URLs
-                                    $img.data('isLoading', true);
-                                    $img.data('retryCount', currentCount + 1);
-                                    $img.prop('src', originalFull);
-
-                                    // Arm stall timer for this new attempt
+                                    $img.data('isLoading', true).data('retryCount', currentCount + 1).prop('src', originalFull);
                                     startStallTimer($img);
                                     return;
                                 }
-
-                                // If we've already tried the original, fall back to the normal retry loop
                                 scheduleNormalRetry();
                                 return;
                             }
@@ -1401,17 +1148,11 @@
                             console.error('LDT probe parse error', e);
                         }
 
-                        // --- Not a 404 and not non-image/HTML that we handled above: use normal bounded retry behavior ---
-                        scheduleRetry(currentCount, originalSrc, self.retry_delay_ms > 0 ? self.retry_delay_ms : 0);
+                        // --- Not a 404 and not non-image/HTML: normal retry ---
+                        scheduleRetry(currentCount, originalSrc, retryDelay);
                     },
-                    onerror: function () {
-                        // Could not probe (network error); treat like non-404 and do normal retry
-                        scheduleRetry(currentCount, originalSrc, self.retry_delay_ms > 0 ? self.retry_delay_ms : 0);
-                    },
-                    ontimeout: function () {
-                        // Probe timed out; treat as non-404 error → normal retry
-                        scheduleRetry(currentCount, originalSrc, self.retry_delay_ms > 0 ? self.retry_delay_ms : 0);
-                    }
+                    onerror: () => scheduleRetry(currentCount, originalSrc, retryDelay),
+                    ontimeout: () => scheduleRetry(currentCount, originalSrc, retryDelay)
                 });
             });
 
@@ -1512,100 +1253,69 @@
 
 
     this.load_next_image = function (force_check) {
-    // SEQUENTIAL MODE: load one image immediately, then schedule the next with a small delay.
-    if (self.sequential_load) {
-        // Support Sequential+ (concurrent workers) when concurrent_limit > 1
-        self._activeLoads = (typeof self._activeLoads === 'number') ? self._activeLoads : 0;
-        const concurrent = (typeof self.concurrent_limit === 'number' && self.concurrent_limit > 0) ? self.concurrent_limit : 1;
+        if (self.sequential_load) {
+            self._activeLoads = self._activeLoads || 0;
+            const concurrent = self.concurrent_limit || 1;
 
-        if (concurrent > 1) {
-            // Start up to `concurrent` image loads in parallel from the current image_index
-            while (self.image_index < self.images.length && self._activeLoads < concurrent) {
-                const $img = self.images[self.image_index];
-                // Advance index immediately to claim the work item
-                self.image_index += 1;
-                self._activeLoads += 1;
-
-                // Attach one-shot completion handler BEFORE starting the load
-                const onDone = function () {
-                    // Decrement active count and try to start more work
-                    try { self._activeLoads = Math.max(0, (self._activeLoads || 1) - 1); } catch (e) { self._activeLoads = 0; }
-                    $img.off('tnDone', onDone);
-                    // Update progress (based on claimed items)
-                    try { self.progress_set_value(Math.min(1, (self.image_index) / Math.max(1, self.images.length))); } catch (e) {}
-                    // Kick the loader again to fill vacancies
-                    self.load_next_image(true);
-                };
-                $img.one('tnDone', onDone);
-
-                // Start loading the image
-                self.show_img($img);
+            if (concurrent > 1) {
+                while (self.image_index < self.images.length && self._activeLoads < concurrent) {
+                    const $img = self.images[self.image_index++];
+                    self._activeLoads++;
+                    const onDone = function () {
+                        self._activeLoads = Math.max(0, self._activeLoads - 1);
+                        $img.off('tnDone', onDone);
+                        self.progress_set_value(self.image_index / self.images.length);
+                        self.load_next_image(true);
+                    };
+                    $img.one('tnDone', onDone);
+                    self.show_img($img);
+                }
+                if (self.image_index >= self.images.length && !self._activeLoads) self.detach_scroll_event();
+                return;
             }
 
-            // If we've consumed the list and no active loads remain, we're done
-            if (self.image_index >= self.images.length && self._activeLoads === 0) {
+            // Single-worker sequential
+            if (self._seqTimerId !== null) return;
+            if (self.image_index < self.images.length) {
+                const $currentImg = self.images[self.image_index];
+                let tnDoneCalled = false;
+                const onDone = function () {
+                    tnDoneCalled = true;
+                    const gap = self.sequential_load_delay_ms || 0;
+                    self._seqTimerId = setTimeout(() => {
+                        self._seqTimerId = null;
+                        $currentImg.off('tnDone', onDone);
+                        self.load_next_image(true);
+                    }, gap);
+                };
+                $currentImg.one('tnDone', onDone);
+                self.show_img($currentImg);
+                self.image_index++;
+                self.progress_set_value(self.image_index / self.images.length);
+                if (tnDoneCalled && self._seqTimerId !== null) {
+                    clearTimeout(self._seqTimerId);
+                    self._seqTimerId = null;
+                    $currentImg.off('tnDone', onDone);
+                    self.load_next_image(true);
+                }
+            } else {
                 self.detach_scroll_event();
             }
             return;
         }
 
-        // FALLBACK: original single-worker sequential behavior
-        // If a pause timer is already scheduled, do nothing
-        if (self._seqTimerId !== null) return;
-
+        // LAZY-IN-VIEWPORT MODE
         if (self.image_index < self.images.length) {
-            // IMPORTANT: self.images holds jQuery <img> objects
-            const $currentImg = self.images[self.image_index];
-            let tnDoneCalled = false;
-            // Attach the completion handler BEFORE show_img, in case show_img completes synchronously
-            const onDone = function () {
-                tnDoneCalled = true;
-                const gap = (self.sequential_load_delay_ms > 0 ? self.sequential_load_delay_ms : 0);
-                if (gap > 0 && !tnDoneCalled) window.logWait(gap); // Only log if not skipped
-                self._seqTimerId = setTimeout(function () {
-                    self._seqTimerId = null;
-                    $currentImg.off('tnDone', onDone);
-                    self.load_next_image(true);
-                }, gap);
-            };
-            $currentImg.one('tnDone', onDone);
-
-            // Start loading AFTER the handler is attached
-            self.show_img($currentImg);
-
-            // Advance index and update progress immediately
-            self.image_index += 1;
-            self.progress_set_value(self.image_index / self.images.length);
-
-            // If tnDone was called synchronously (e.g., row hidden), skip delay and immediately advance
-            if (tnDoneCalled && self._seqTimerId !== null) {
-                clearTimeout(self._seqTimerId);
-                self._seqTimerId = null;
-                $currentImg.off('tnDone', onDone);
+            const nextImg = self.images[self.image_index];
+            const [y, height] = self.visible_area();
+            const bottomLimit = y + height * (1 + self.preload_ratio);
+            const imgEl = nextImg[0];
+            const imgTop = imgEl ? imgEl.getBoundingClientRect().top + window.scrollY : 0;
+            if (bottomLimit >= imgTop) {
+                self.show_img(nextImg);
+                self.image_index++;
+                self.progress_set_value(self.image_index / self.images.length);
                 self.load_next_image(true);
-            }
-        } else {
-            // Done with the list
-            self.detach_scroll_event();
-        }
-        return;
-    }
-
-    // ORIGINAL LAZY-IN-VIEWPORT MODE (fallback when sequential_load=false)
-    if (self.image_index < self.images.length) {
-        var nextImg = self.images[self.image_index];
-        var _ = self.visible_area(),
-            y = _[0],
-            height = _[1];
-        var bottom_limit = y + height * (1 + self.preload_ratio);
-        // Use native DOM for position
-        var imgEl = nextImg[0];
-        var imgTop = imgEl ? imgEl.getBoundingClientRect().top + window.scrollY : 0;
-        if (bottom_limit >= imgTop) {
-            self.show_img(nextImg);
-            self.image_index += 1;
-            self.progress_set_value(self.image_index / self.images.length);
-            self.load_next_image(true);
         } else if (force_check) {
             setTimeout(self.load_next_image, 0);
         }
@@ -1632,118 +1342,53 @@
         this.detach_scroll_event = function () {
             jQuery(document).off('scroll resize', self.on_scroll_event);
             self.progress_hide();
-
-            // Auto-refresh failed/stalled thumbnails after a short grace period
-            const delay = (typeof self.auto_refresh_failed_after_ms === 'number' && self.auto_refresh_failed_after_ms >= 0)
-            ? self.auto_refresh_failed_after_ms
-            : 0;
-
-            // Consider the initial pass finished when we've advanced past the image list
-            const finishedInitialPass = (typeof self.image_index === 'number' && Array.isArray(self.images) && self.image_index >= self.images.length);
-
-            if (typeof self.refreshFailedThumbnails === 'function') {
-                // Only schedule the auto-refresh when we've actually completed the initial pass.
-                // detach_scroll_event may be called in other contexts (e.g. switching to sequential mode),
-                // so avoid scheduling retries prematurely.
-                if (!finishedInitialPass) {
-                    if (window.debug_logging) {
-                        // console.log('LDT: detach_scroll_event called before finishing initial pass; skipping auto-refresh scheduling');
-                    }
-                    return;
-                }
-
-                // If the initial pass just completed, announce completion (honor debug flag)
-                if (window.debug_logging) {
-                    console.log('================================================');
-                    console.log('⏹️ - LDT - Finished Image Processing (Initial Pass)');
-                    console.log('================================================');
-                    console.log('LDT: Scheduling auto-refresh of failed thumbnails in ' + delay + 'ms');
-                }
-
-                setTimeout(function () {
-                    if (window.debug_logging) {
-                        console.log('LDT: Auto-refresh triggered after ' + delay + 'ms');
-                    }
-                    try {
-                        self.refreshFailedThumbnails();
-                    } catch (e) {
-                        if (window.debug_logging) console.error('LDT: auto-refresh error', e);
-                    }
-                }, delay);
+            const delay = self.auto_refresh_failed_after_ms || 0;
+            if (self.image_index < self.images.length) return;
+            if (window.debug_logging) {
+                console.log('================================================');
+                console.log('⏹️ - LDT - Finished Image Processing (Initial Pass)');
+                console.log('================================================');
             }
+            setTimeout(() => {
+                if (window.debug_logging) console.log('LDT: Auto-refresh triggered');
+                try { self.refreshFailedThumbnails(); } catch (e) {}
+            }, delay);
         };
 
 
-
         // Refresh only failed or stalled thumbnails
-
         this.refreshFailedThumbnails = function () {
-            // Build a queue of images that truly need a restart (failed or stalled)
             const queue = [];
-
-            self.images.forEach(function ($img) {
-                // Cancel any pending retry timers
+            self.images.forEach($img => {
                 const tid = $img.data('retryTimeoutId');
                 if (tid) { clearTimeout(tid); $img.removeData('retryTimeoutId'); }
-
                 const src = $img.data('src');
-                const isBlocked = self.isBlacklisted(src);
-
-                // Skip already-good images
                 const el = $img[0];
-                const naturalOK = (el && el.complete && el.naturalWidth > 0) || $img.data('loaded');
-                if (naturalOK) {
-                    $img.off('error.lazyRetry load.lazyRetry');
-                    $img.data('isLoading', false);
+                const isGood = (el && el.complete && el.naturalWidth > 0) || $img.data('loaded');
+                if (isGood) {
+                    $img.off('error.lazyRetry load.lazyRetry').data('isLoading', false);
                     return;
                 }
-
-                const exceededRetries = ($img.data('retryCount') >= self.max_retry_attempts);
-                const isFailed = $img.hasClass('tn-failed') || exceededRetries;
-                const isStalled = $img.hasClass('tn-stalled');
-
-                // Handle blocked immediately with a placeholder and skip
-                if (isBlocked) {
-                    const ph = self.block_placeholder_data_uri(self.max_image_size);
-                    $img.prop('src', ph).addClass('tn-blocked');
+                if (self.isBlacklisted(src)) {
+                    $img.prop('src', self.block_placeholder_data_uri(max_image_size)).addClass('tn-blocked');
                     return;
                 }
-
-                // Queue only items that need a restart
-                if (isFailed || isStalled) {
-                    // Reset flags/handlers so we can safely restart this image
-                    $img
-                        .data('retryCount', $img.data('retryCount') || 0)
+                if ($img.hasClass('tn-failed') || $img.hasClass('tn-stalled') || $img.data('retryCount') >= self.max_retry_attempts) {
+                    $img.data('retryCount', $img.data('retryCount') || 0)
                         .removeClass('tn-failed tn-stalled tn-blocked')
                         .off('error.lazyRetry load.lazyRetry')
                         .data('isLoading', false)
-                        .removeData('loaded')
-                        .removeData('retryTimeoutId');
-
+                        .removeData('loaded retryTimeoutId');
                     queue.push($img);
                 }
             });
-
-            // Process the queue one-by-one with the same sequential pause
             (function processNext(i) {
                 if (i >= queue.length) return;
-
                 const $img = queue[i];
                 const src = $img.data('src');
-
-                // Announce begin before each restart
                 window.logBegin(src);
-
-                // Prefer Blob fallback for designated hosts; otherwise use normal show path
-                if (self._isBlobFetchHost(src)) {
-                    self._fetchImageAsBlob(src, $img);
-                } else {
-                    self.show_img($img);
-                }
-
-                // Pause before the next restart to avoid host throttling
-                const gap = (self.sequential_load_delay_ms > 0 ? self.sequential_load_delay_ms : 0);
-                if (gap > 0) window.logWait(gap);
+                self._isBlobFetchHost(src) ? self._fetchImageAsBlob(src, $img) : self.show_img($img);
+                const gap = self.sequential_load_delay_ms || 0;
                 setTimeout(() => processNext(i + 1), gap);
             })(0);
         };
@@ -1763,65 +1408,33 @@
 
         this.init = function () {
             self.$torrent_table = jQuery('.torrent_table, #torrent_table, .request_table, #request_table');
-
-            // Announce start of page processing including active loading mode
-            try {
-                var _mode = 'Lazy';
-                if (self.sequential_load) {
-                    _mode = (typeof self.concurrent_limit === 'number' && self.concurrent_limit > 1) ? 'Sequential+' : 'Sequential';
-                }
-                if (window.debug_logging) {
-                    console.log('================================================');
-                    if (_mode === 'Sequential+' && typeof self.concurrent_limit === 'number') {
-                        console.log('▶️ - LDT - Starting Image Processing (' + _mode + ' - workers=' + self.concurrent_limit + ')');
-                    } else {
-                        console.log('▶️ - LDT - Starting Image Processing (' + _mode + ')');
-                    }
-                    console.log('================================================');
-                }
-            } catch (e) { /* non-fatal */ }
-
+            if (window.debug_logging) {
+                const mode = self.sequential_load ? (self.concurrent_limit > 1 ? `Sequential+ (workers=${self.concurrent_limit})` : 'Sequential') : 'Lazy';
+                console.log('================================================');
+                console.log(`▶️ - LDT - Starting Image Processing (${mode})`);
+                console.log('================================================');
+            }
             if (replace_categories) self.replace_categories();
             if (remove_categories) self.remove_categories();
+            self.attach_thumbnails();
+            self.load_next_image();
+            self.sequential_load ? self.detach_scroll_event() : self.attach_scroll_event();
 
-            self.attach_thumbnails(); // build the list of images
-            self.load_next_image(); // start loading
-            // ✅ Attach scroll/resize only in lazy-in-viewport mode
-            if (!self.sequential_load) {
-                self.attach_scroll_event();
-            } else {
-                // Ensure no scroll/resize events can trigger extra loads in sequential mode
-                self.detach_scroll_event();
-            }
-
-            // --- NEW: Observe for unhide events on rows and trigger image load ---
-    if (self.$torrent_table && self.$torrent_table.length) {
-        const table = self.$torrent_table[0];
-        const observer = new MutationObserver(mutations => {
-            for (const m of mutations) {
-                if (m.type === 'attributes' && (m.attributeName === 'style' || m.attributeName === 'class')) {
-                    const row = m.target;
-                    if (row && row.matches && row.matches('tr.torrent')) {
-                        // Check if now visible
+            // Observe for unhide events on rows
+            if (self.$torrent_table && self.$torrent_table.length) {
+                new MutationObserver(mutations => {
+                    for (const m of mutations) {
+                        if (m.type !== 'attributes') continue;
+                        const row = m.target;
+                        if (!row.matches || !row.matches('tr.torrent')) continue;
                         if (row.offsetParent !== null && row.offsetWidth > 0 && row.offsetHeight > 0) {
-                            // Find the image for this row
-                            const $row = jQuery(row);
-                            const $img = self.images.find($img => $img.data('row') && $img.data('row')[0] === row);
-                            if ($img && !$img.data('loaded') && !$img.data('isLoading')) {
-                                self.show_img($img);
-                            }
+                            const $img = self.images.find($i => $i.data('row') && $i.data('row')[0] === row);
+                            if ($img && !$img.data('loaded') && !$img.data('isLoading')) self.show_img($img);
                         }
                     }
-                }
+                }).observe(self.$torrent_table[0], { subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
             }
-        });
-        observer.observe(table, {
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['style', 'class']
-        });
-    }
-};
+        };
 
 
         this.init();
@@ -2064,57 +1677,27 @@ modalBg.innerHTML = `
                             inst.image_size = ldt_image_size;
                             // preserve animated flag (instance uses preserve_animated_images property)
                             inst.preserve_animated_images = ldt_preserve_animated;
-                            inst.max_retry_attempts = Number.isFinite(ldt_max_retries) ? ldt_max_retries : inst.max_retry_attempts;
-                            inst.retry_delay_ms = Number.isFinite(ldt_retry_delay) ? ldt_retry_delay : inst.retry_delay_ms;
-                            // Map mode to instance flags
-                            if (ldt_sequential_mode === 'off') {
-                                inst.sequential_load = false;
-                                // keep concurrent_limit as-is; ensure scroll events attached for lazy mode
-                                try { inst.attach_scroll_event(); } catch(e){}
-                            } else if (ldt_sequential_mode === 'sequential') {
-                                inst.sequential_load = true;
-                                // single-worker behavior
-                                try { inst.concurrent_limit = 1; } catch(e){}
-                                try { inst.detach_scroll_event(); } catch(e){}
-                            } else if (ldt_sequential_mode === 'sequential_plus') {
-                                inst.sequential_load = true;
-                                // keep inst.concurrent_limit as configured elsewhere (allow >1)
-                                try { inst.detach_scroll_event(); } catch(e){}
-                            }
-                            inst.sequential_load_delay_ms = Number.isFinite(ldt_sequential_delay) ? ldt_sequential_delay : inst.sequential_load_delay_ms;
-                            inst.auto_refresh_failed_after_ms = Number.isFinite(ldt_auto_refresh_failed) ? ldt_auto_refresh_failed : inst.auto_refresh_failed_after_ms;
-                            inst.stall_timeout_ms = Number.isFinite(ldt_stall_timeout) ? ldt_stall_timeout : inst.stall_timeout_ms;
-
+                            inst.max_retry_attempts = ldt_max_retries;
+                            inst.retry_delay_ms = ldt_retry_delay;
+                            inst.sequential_load = ldt_sequential_mode !== 'off';
+                            if (ldt_sequential_mode === 'sequential') inst.concurrent_limit = 1;
+                            inst.sequential_load ? inst.detach_scroll_event() : inst.attach_scroll_event();
+                            inst.sequential_load_delay_ms = ldt_sequential_delay;
+                            inst.auto_refresh_failed_after_ms = ldt_auto_refresh_failed;
+                            inst.stall_timeout_ms = ldt_stall_timeout;
                             // Update displayed image constraints
-                            if (Array.isArray(inst.images)) {
-                                inst.images.forEach(function($img) {
-                                    try { $img.css({'max-width': ldt_max_thumb + 'px', 'max-height': ldt_max_thumb + 'px'}); } catch(e){}
-                                });
-                            }
-
-                            // Update table classes for replace/remove categories immediately if table exists
-                            try {
-                                if (inst.$torrent_table && inst.$torrent_table.length) {
-                                    if (ldt_replace_categories) inst.$torrent_table.addClass('overlay-category'); else inst.$torrent_table.removeClass('overlay-category');
-                                    if (ldt_remove_categories) inst.$torrent_table.addClass('remove-category'); else inst.$torrent_table.removeClass('remove-category');
-                                    if (window.location.hostname.indexOf('empornium.') !== -1 || window.location.hostname.indexOf('cheggit.') !== -1) {
-                                        if (ldt_replace_categories) inst.$torrent_table.addClass('overlay-category-small'); else inst.$torrent_table.removeClass('overlay-category-small');
-                                    }
+                            inst.images.forEach($img => $img.css({'max-width': ldt_max_thumb + 'px', 'max-height': ldt_max_thumb + 'px'}));
+                            // Update table classes
+                            if (inst.$torrent_table && inst.$torrent_table.length) {
+                                inst.$torrent_table.toggleClass('overlay-category', ldt_replace_categories)
+                                    .toggleClass('remove-category', ldt_remove_categories);
+                                if (/empornium\.|cheggit\./.test(window.location.hostname)) {
+                                    inst.$torrent_table.toggleClass('overlay-category-small', ldt_replace_categories);
                                 }
-                            } catch (e) {}
-
-                            // Update debug flag for global logging
-                            window.debug_logging = !!ldt_debug;
-
-                            // If switching between sequential/non-sequential, re-attach/detach scroll events handled above
-                            if (!inst.sequential_load) {
-                                try { inst.attach_scroll_event(); } catch(e){}
-                                try { inst.load_next_image(true); } catch(e){}
-                            } else {
-                                try {
-                                    if (inst._seqTimerId) { clearTimeout(inst._seqTimerId); inst._seqTimerId = null; }
-                                } catch(e){}
                             }
+                            window.debug_logging = ldt_debug;
+                            if (!inst.sequential_load) inst.load_next_image(true);
+                            else if (inst._seqTimerId) { clearTimeout(inst._seqTimerId); inst._seqTimerId = null; }
                         }
                     } catch (e) { /* non-fatal */ }
 
