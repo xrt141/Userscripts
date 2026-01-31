@@ -56,6 +56,10 @@
         var debug_logging = true; // enable/disable console output per your request
         var debug_prefix = ''; // keep empty for clean lines, or set to '[TN] '
 
+        // NEW: Image caching settings
+        var enable_image_caching = true; // enable/disable IndexedDB image caching
+        var max_cached_images = 100; // maximum number of images to cache
+
 
 
         var host_rewrites = [
@@ -122,6 +126,8 @@
                 var p_auto_refresh_failed_after_ms = Number(getRaw('ldt_auto_refresh_failed_after_ms', auto_refresh_failed_after_ms)) || auto_refresh_failed_after_ms;
                 var p_stall_timeout_ms = Number(getRaw('ldt_stall_timeout_ms', stall_timeout_ms)) || stall_timeout_ms;
                 var p_debug_logging = boolVal('ldt_debug_logging', debug_logging);
+                var p_enable_image_caching = boolVal('ldt_enable_image_caching', enable_image_caching);
+                var p_max_cached_images = Number(getRaw('ldt_max_cached_images', max_cached_images)) || max_cached_images;
 
                 // Apply overrides to the local defaults
                 max_image_size = p_max_image_size;
@@ -137,6 +143,8 @@
                 stall_timeout_ms = p_stall_timeout_ms;
                 debug_logging = !!p_debug_logging;
                 window.debug_logging = debug_logging;
+                enable_image_caching = !!p_enable_image_caching;
+                max_cached_images = p_max_cached_images;
 
                 // Map the string mode into the boolean and concurrency globals used by the rest of the script
                 switch (String(p_sequential_mode).toLowerCase()) {
@@ -178,6 +186,8 @@
                         console.log('auto_refresh_failed_after_ms:', auto_refresh_failed_after_ms);
                         console.log('stall_timeout_ms:', stall_timeout_ms);
                         console.log('debug_logging:', debug_logging);
+                        console.log('enable_image_caching:', enable_image_caching);
+                        console.log('max_cached_images:', max_cached_images);
                         console.groupEnd();
                     } catch (e) { /* ignore */ }
                 }
@@ -342,7 +352,9 @@
              stall_timeout_ms,
              blob_fetch_hosts,
              blob_fetch_on_error,
-             blob_fetch_on_stall
+             blob_fetch_on_stall,
+             enable_image_caching,
+             max_cached_images
 
          );
 
@@ -445,30 +457,41 @@
         .remove-category td > div[title],
         .remove-category .cats_col  > div,
         .remove-category .cats_cols > div { display: none; }
+        /* Loading states */
         .tn-blocked { outline: 2px dashed #999; opacity: 0.9; }
-        .tn-failed  { outline: 2px dashed #A33B39; opacity: 0.5; }
         .tn-stalled  { outline: 2px dashed #3954A3; opacity: 0.7; }
+        
+        /* Loading indicator - subtle opacity and animation */
+        .tn-loading {
+            animation: tn-pulse-loading 1.5s ease-in-out infinite;
+        }
+        @keyframes tn-pulse-loading {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 0.5; }
+        }
 
-        /* Modal / Config UI styles */
+        /* Modal / Config UI styles - Aligned with LTH */
         #s-conf-background-ldt { position:fixed; top:0; bottom:0; left:0; right:0; z-index:1000; background-color:rgba(50,50,50,0.6); }
-        #s-conf-wrapper-ldt { background:#eee; color:#444; position:relative; width:80%; min-width:500px; max-width:900px; min-height:200px; overflow:hidden; margin:50px auto; font-size:14px; padding:10px 10px; border-radius:12px; box-shadow:0 0 20px rgba(0,0,0,0.6); max-height:90vh; overflow-y:auto; overflow-x:hidden; z-index:9999; }
-        #s-conf-wrapper-ldt h2 { margin:8px 0 12px 0; background:none; text-align:left; color:#444; padding: 1px 1px 1px 10px; }
-        .ldt-section { margin:5px 0 5px 0; padding:4px 6px; border-radius:6px; background:linear-gradient(180deg,#ffffff,#f2f4f6); border:1px solid rgba(0,0,0,0.04); }
-        .ldt-section h2 { margin:6px 0 10px 0; font-size:14px; color:#333; }
-        .ldt-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px 18px; align-items:start; }
+        #s-conf-wrapper-ldt { background:#eee; color:#444; position:relative; width:80%; min-width:500px; max-width:900px; min-height:200px; overflow:hidden; margin:50px auto; font-size:14px; padding:15px 20px; border-radius:12px; box-shadow:0 0 20px rgba(0,0,0,0.6); max-height:90vh; overflow-y:auto; overflow-x:hidden; z-index:9999; }
+        #s-conf-wrapper-ldt h1 { margin:0 0 12px 0; color:#333; font-size:18px; }
+        #s-conf-wrapper-ldt h2 { margin:10px 0 8px 0; background:none; text-align:left; color:#333; padding:0px 0px 0px 10px; font-size:14px; font-weight:bold; }
+        .ldt-section { margin:5px 0; padding:5px; border-radius:6px; background:linear-gradient(180deg,#ffffff,#f2f4f6); border:1px solid rgba(0,0,0,0.06); }
+        .ldt-section h2 { margin:0 0 8px 0; font-size:13px; color:#333; font-weight:bold; }
+        .ldt-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 15px; align-items:start; }
         @media (max-width:780px) { .ldt-grid { grid-template-columns:1fr; } #s-conf-wrapper-ldt { min-width:320px; } }
-        .ldt-row { display:flex; align-items:center; gap:8px;}
-        .ldt-label { display:flex; align-items:center; gap:8px; width:100%; position:relative; }
-        .ldt-label input[type='checkbox'] { margin:0 6px 0 0; transform:scale(1.05); }
+        .ldt-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; line-height:1.4; padding: 0px 0px 0px 18px;}
+        .ldt-label { display:flex; align-items:center; gap:6px; width:100%; position:relative; font-size:13px; }
+        .ldt-label-text { white-space:nowrap; }
+        .ldt-label input[type='checkbox'] { margin:0; transform:scale(1.1); flex-shrink:0; }
         .ldt-label .ldt-control { flex:1; display:flex; justify-content:space-between; align-items:center; position:relative; }
-        .ldt-tooltip { display:none; position:absolute; left:calc(100% + 8px); top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.85); color:#fff; padding:6px 8px; border-radius:4px; font-size:12px; white-space:nowrap; z-index:10001; }
-        .ldt-label:hover .ldt-tooltip, .ldt-label:focus-within .ldt-tooltip, .ldt-control:hover .ldt-tooltip, .ldt-control:focus-within .ldt-tooltip { display:block; }
-        input[type='number'].ldt-number { width:100px; padding:4px; border-radius:4px; border:1px solid #cfcfcf; }
-        select.ldt-select { padding:5px 6px; border-radius:4px; border:1px solid #cfcfcf; }
-        .s-conf-buttons-ldt { display:flex; justify-content:center; gap:12px; margin-top:12px; padding-top:8px; border-top:1px dashed rgba(0,0,0,0.06); }
-        .s-conf-buttons-ldt input[type='button'] { padding:8px 12px; border-radius:6px; border:1px solid rgba(0,0,0,0.08); background:#fff; cursor:pointer; }
-        .s-conf-buttons-ldt input[type='button']:hover { box-shadow:0 2px 6px rgba(0,0,0,0.08); }
-        .ldt-note { color:#666; font-size:12px; margin-top:6px; }
+        label { cursor:pointer; }
+        input[type='number'].ldt-number { width:90px; padding:4px 6px; border-radius:4px; border:1px solid #ccc; font-size:12px; }
+        select.ldt-select { padding:4px 6px; border-radius:4px; border:1px solid #ccc; font-size:12px; background:#fff; }
+        .s-conf-save-ldt, .s-conf-close-ldt {background: #cfcfcf; margin-top: 12px; height: 22px; color: #000; border: 1px solid #777; border-radius: 6px; padding: 0px 4px; font-size: 12px; cursor: pointer; text-align: center;box-sizing: border-box;}
+        .s-conf-buttons-ldt { display:flex; justify-content:center; gap:12px; margin-top:12px; border-top:1px solid #999; }
+        .s-conf-buttons-ldt input[type='button'] { border-radius:6px; border:1px solid #444; }
+        .s-conf-buttons-ldt input[type='button']:hover { background:#f0f0f0; }
+        .ldt-note { color:#666; font-size:12px; margin-top:6px; line-height:1.4; }
     `);
 
     this.$ = this.jQuery = jQuery.noConflict(true);
@@ -579,6 +602,145 @@
         return html.replace(/ src=/g, ' data-src=');
     }
 
+    // --- Image Cache Manager for IndexedDB ---
+    function ImageCacheManager(enableCaching, maxCachedImages) {
+        var self = this;
+        this.enabled = !!enableCaching;
+        this.maxImages = Math.max(1, Math.floor(maxCachedImages || 100));
+        this.dbName = 'LDT_ImageCache';
+        this.storeName = 'images';
+        this.db = null;
+        this.initPromise = null;
+
+        // Initialize IndexedDB
+        this.init = function() {
+            if (!self.enabled) return Promise.resolve();
+            if (self.initPromise) return self.initPromise;
+
+            self.initPromise = new Promise((resolve, reject) => {
+                try {
+                    const request = indexedDB.open(self.dbName, 1);
+                    request.onerror = () => {
+                        console.error('LDT: IndexedDB open failed', request.error);
+                        self.enabled = false;
+                        reject(request.error);
+                    };
+                    request.onsuccess = () => {
+                        self.db = request.result;
+                        if (window.debug_logging) console.log('LDT: IndexedDB initialized');
+                        resolve();
+                    };
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(self.storeName)) {
+                            const store = db.createObjectStore(self.storeName, { keyPath: 'url' });
+                            store.createIndex('timestamp', 'timestamp', { unique: false });
+                        }
+                    };
+                } catch (e) {
+                    console.error('LDT: IndexedDB init error', e);
+                    self.enabled = false;
+                    reject(e);
+                }
+            });
+            return self.initPromise;
+        };
+
+        // Get image from cache
+        this.getImage = function(url) {
+            if (!self.enabled || !self.db) return Promise.resolve(null);
+            return new Promise((resolve) => {
+                try {
+                    const tx = self.db.transaction([self.storeName], 'readonly');
+                    const store = tx.objectStore(self.storeName);
+                    const request = store.get(url);
+                    request.onsuccess = () => {
+                        if (window.debug_logging && request.result) {
+                            console.log('LDT: Cache hit for ' + url);
+                        }
+                        resolve(request.result || null);
+                    };
+                    request.onerror = () => resolve(null);
+                } catch (e) {
+                    console.error('LDT: Cache get error', e);
+                    resolve(null);
+                }
+            });
+        };
+
+        // Store image in cache
+        this.setImage = function(url, dataUrl) {
+            if (!self.enabled || !self.db) return Promise.resolve();
+            return new Promise((resolve) => {
+                try {
+                    const tx = self.db.transaction([self.storeName], 'readwrite');
+                    const store = tx.objectStore(self.storeName);
+                    const data = { url: url, dataUrl: dataUrl, timestamp: Date.now() };
+                    const request = store.put(data);
+                    request.onsuccess = () => {
+                        if (window.debug_logging) console.log('LDT: Cached image ' + url);
+                        self.enforceMaxSize();
+                        resolve();
+                    };
+                    request.onerror = () => {
+                        console.error('LDT: Cache set error', request.error);
+                        resolve();
+                    };
+                } catch (e) {
+                    console.error('LDT: Cache set error', e);
+                    resolve();
+                }
+            });
+        };
+
+        // Enforce max cache size by deleting oldest entries
+        this.enforceMaxSize = function() {
+            if (!self.enabled || !self.db) return;
+            try {
+                const tx = self.db.transaction([self.storeName], 'readwrite');
+                const store = tx.objectStore(self.storeName);
+                const countRequest = store.count();
+                countRequest.onsuccess = () => {
+                    const count = countRequest.result;
+                    if (count > self.maxImages) {
+                        const index = store.index('timestamp');
+                        const range = IDBKeyRange.upperBound(Date.now());
+                        const delRequest = index.openCursor(range);
+                        let deleted = 0;
+                        delRequest.onsuccess = (event) => {
+                            const cursor = event.target.result;
+                            if (cursor && deleted < (count - self.maxImages)) {
+                                cursor.delete();
+                                deleted++;
+                                cursor.continue();
+                            }
+                        };
+                    }
+                };
+            } catch (e) {
+                console.error('LDT: Cache cleanup error', e);
+            }
+        };
+
+        // Clear entire cache
+        this.clear = function() {
+            if (!self.db) return Promise.resolve();
+            return new Promise((resolve) => {
+                try {
+                    const tx = self.db.transaction([self.storeName], 'readwrite');
+                    const store = tx.objectStore(self.storeName);
+                    store.clear().onsuccess = () => resolve();
+                } catch (e) {
+                    console.error('LDT: Cache clear error', e);
+                    resolve();
+                }
+            });
+        };
+
+        // Initialize on creation
+        this.init();
+    }
+
     function ImagesFromHover(replace_categories) {
         this.get_image_src = function ($row) {
             var script = jQuery('script', $row).text().trim();
@@ -620,7 +782,7 @@
     function LazyThumbnails(progress, backend, image_size, preserve_animated_images, full_thumbnails, replace_categories, remove_categories,
                             max_image_size, max_retry_attempts, retry_delay_ms, blacklisted_domains, blocked_placeholder_scale,
                             sequential_load, sequential_load_delay_ms, concurrent_active_loads, host_rewrites, auto_refresh_failed_after_ms, stall_timeout_ms,
-                            blob_fetch_hosts, blob_fetch_on_error, blob_fetch_on_stall) {
+                            blob_fetch_hosts, blob_fetch_on_error, blob_fetch_on_stall, enable_image_caching, max_cached_images) {
         var self = this;
         // --- Helper: schedule a single timer for retry or stall per image ---
         function scheduleImageTimer($img, ms, cb) {
@@ -647,6 +809,9 @@
         this.retry_delay_ms = Number.isFinite(retry_delay_ms) ? retry_delay_ms : 0;
         this.blacklisted_domains = Array.isArray(blacklisted_domains) ? blacklisted_domains : [];
         this.host_rewrites = Array.isArray(host_rewrites) ? host_rewrites : [];
+
+        // Initialize image cache manager
+        this.cache = new ImageCacheManager(enable_image_caching, max_cached_images);
         this.friendly_hosts = [
             {
                 pattern: /https?:\/\/(jerking|fapping|cache)\.empornium\.(ph|sx).*/,
@@ -841,11 +1006,8 @@
                             reader.onloadend = function () {
                                 const dataUrl = reader.result; // data:image/...;base64,....
 
-                                // Cancel pending timers for this attempt
-                                const rt = $img.data('retryTimeoutId');
-                                if (rt) { clearTimeout(rt); $img.removeData('retryTimeoutId'); }
-                                const at = $img.data('attemptTimerId');
-                                if (at) { clearTimeout(at); $img.removeData('attemptTimerId'); }
+                                // Use centralized state clearing to cancel timers and remove classes
+                                self.clearImageState($img);
 
                                 // Mark in-flight only for the src assignment;
                                 // the <img> load handler will finalize and fire tnDone.
@@ -917,6 +1079,33 @@
         };
 
 
+        // Centralized function to completely reset image visual state
+        this.clearImageState = function($img) {
+            const imgEl = $img[0];
+            
+            // Cancel ALL pending timers for this image
+            const timers = ['imgTimerId', 'retryTimeoutId', 'attemptTimerId'];
+            timers.forEach(timerKey => {
+                const tid = $img.data(timerKey);
+                if (tid) {
+                    clearTimeout(tid);
+                    $img.removeData(timerKey);
+                }
+            });
+            
+            // Force remove classes using DOM directly
+            if (imgEl) {
+                imgEl.classList.remove('tn-failed', 'tn-stalled', 'tn-blocked', 'tn-loading');
+                imgEl.style.opacity = '';
+                imgEl.style.outline = '';
+                imgEl.style.minWidth = '';
+                imgEl.style.minHeight = '';
+            }
+            
+            // Clear loading flags
+            $img.data('isLoading', false);
+        };
+
         this.show_img = function ($img) {
             const originalSrc = $img.data('src');
             const $row = $img.data('row');
@@ -930,9 +1119,9 @@
                 ($row[0].offsetWidth === 0 && $row[0].offsetHeight === 0)
             )) {
                 $img.off('error.lazyRetry load.lazyRetry');
-                $img.data('isLoading', false);
                 $img.data('loaded', false);
-                $img.removeClass('tn-failed tn-stalled tn-blocked');
+                // Use centralized state clearing
+                self.clearImageState($img);
                 if (typeof window.logSkip === 'function') {
                     window.logSkip('Torrent Row Hidden - Skipping Image');
                 } else {
@@ -975,7 +1164,31 @@
 
             // --- Helper: start/cancel a per-attempt stall timer ---
             function startStallTimer($img, onStall) {
-                scheduleImageTimer($img, self.stall_timeout_ms, onStall);
+                // Default onStall handler: mark as stalled, try blob fetch fallback, and trigger tnDone to allow Sequential+ to continue
+                const defaultStallHandler = function() {
+                    if ($img.data('loaded') || !$img.data('isLoading')) return; // already done
+                    
+                    // Double-check: if image has rendered successfully, don't add stall styling
+                    const el = $img[0];
+                    const renderOK = (el && el.complete && el.naturalWidth > 0);
+                    if (renderOK || $img.data('loaded')) return;
+                    
+                    // Only add stall styling if not already loaded
+                    $img.addClass('tn-stalled');
+                    
+                    window.logTimeout($img.data('src'));
+                    
+                    // Try blob fetch fallback if enabled
+                    if (self.blob_fetch_on_stall && self._isBlobFetchHost($img.data('src'))) {
+                        self._fetchImageAsBlob($img.data('src'), $img);
+                        // Don't fire tnDone yet - let blob handler take over
+                        return;
+                    }
+                    // Fire tnDone to allow Sequential+ workers to continue processing queue
+                    // (this image will be marked stalled but can still be auto-refreshed later if enabled)
+                    $img.trigger('tnDone');
+                };
+                scheduleImageTimer($img, self.stall_timeout_ms, onStall || defaultStallHandler);
             }
 
             // --- Helper: start a retry timer ---
@@ -986,22 +1199,33 @@
             // --- Attach handlers ---
             window.logBegin(originalSrc);
             $img.data('isLoading', true);
+            $img.addClass('tn-loading');
 
+            // Remove any old handlers to ensure clean state
+            $img.off('load.lazyRetry error.lazyRetry');
 
-            $img.on('load.lazyRetry', function () {
-                scheduleImageTimer($img);
+            $img.one('load.lazyRetry', function () {
                 const el = imgEl;
                 const renderOK = (el && el.complete && el.naturalWidth > 0);
-                $img.removeClass('tn-failed tn-stalled tn-blocked');
+                
+                // Use centralized state clearing FIRST to cancel all timers and clear state
+                self.clearImageState($img);
+                
+                // Set success flags
                 $img.data('retryCount', 0);
-                $img.off('error.lazyRetry');
                 $img.data('loaded', true);
-                $img.data('isLoading', false);
-                if (imgEl) {
-                    imgEl.style.minWidth = '';
-                    imgEl.style.minHeight = '';
-                }
+                
                 window.logFinish($img.data('src'));
+
+                // Cache the loaded image if caching is enabled
+                if (self.cache && self.cache.enabled && renderOK && imgEl.src && !imgEl.src.startsWith('data:')) {
+                    try {
+                        self.cache.setImage(originalSrc, imgEl.src);
+                    } catch (e) {
+                        if (window.debug_logging) console.error('LDT: Cache store error', e);
+                    }
+                }
+
                 $img.trigger('tnDone');
             });
 
@@ -1035,6 +1259,8 @@
                         }
                     }
                 } else {
+                    // All retries exhausted - mark as failed
+                    $img.removeClass('tn-loading tn-stalled');
                     $img.addClass('tn-failed');
                     $img.off('error.lazyRetry');
                     $img.data('isLoading', false);
@@ -1042,24 +1268,21 @@
                 }
             }
 
-            $img.on('error.lazyRetry', function () {
+            $img.one('error.lazyRetry', function () {
                 const el = imgEl;
                 const renderOK = (el && el.complete && el.naturalWidth > 0);
                 if (renderOK) {
-                    scheduleImageTimer($img);
-                    $img.removeClass('tn-failed tn-stalled tn-blocked');
+                    // Image actually loaded successfully despite error event
+                    self.clearImageState($img);
                     $img.data('retryCount', 0);
-                    $img.off('error.lazyRetry');
                     $img.data('loaded', true);
-                    $img.data('isLoading', false);
                     window.logFinish($img.data('src'));
+                    
                     $img.trigger('tnDone');
                     return;
                 }
 
                 // IMPORTANT: keep ownership; do not set isLoading=false here
-                scheduleImageTimer($img);
-
                 const currentCount = $img.data('retryCount') || 0;
 
                 // --- Step 1: Probe the failing URL to detect a true 404 ---
@@ -1193,7 +1416,22 @@
             });
 
             // --- First request after handlers are attached ---
-            $img.prop('src', originalSrc);
+            // Check cache first before downloading
+            if (self.cache && self.cache.enabled) {
+                self.cache.getImage(originalSrc).then(cachedEntry => {
+                    if (cachedEntry && cachedEntry.dataUrl) {
+                        if (window.debug_logging) console.log('LDT: Loading from cache - ' + originalSrc);
+                        $img.prop('src', cachedEntry.dataUrl);
+                    } else {
+                        $img.prop('src', originalSrc);
+                    }
+                }).catch(() => {
+                    // On cache error, just load normally
+                    $img.prop('src', originalSrc);
+                });
+            } else {
+                $img.prop('src', originalSrc);
+            }
 
             // Arm per-attempt stall timer for the first attempt
             startStallTimer($img);
@@ -1613,7 +1851,9 @@
                 sequential_load_delay_ms: 300,
                 auto_refresh_failed_after_ms: 2500,
                 stall_timeout_ms: 4000,
-                debug_logging: true
+                debug_logging: true,
+                enable_image_caching: true,
+                max_cached_images: 100
             };
 
             // Unified persistence layer (handles both GM and localStorage)
@@ -1643,6 +1883,8 @@
             let ldt_auto_refresh_failed = persistence.readNum('ldt_auto_refresh_failed_after_ms', DEFAULTS.auto_refresh_failed_after_ms);
             let ldt_stall_timeout = persistence.readNum('ldt_stall_timeout_ms', DEFAULTS.stall_timeout_ms);
             let ldt_debug = persistence.readBool('ldt_debug_logging', DEFAULTS.debug_logging);
+            let ldt_enable_image_caching = persistence.readBool('ldt_enable_image_caching', DEFAULTS.enable_image_caching);
+            let ldt_max_cached_images = persistence.readNum('ldt_max_cached_images', DEFAULTS.max_cached_images);
 
             // Determine where to place the link: reuse existing menu/list so it inherits styling
             function addSettingsLink() {
@@ -1675,41 +1917,50 @@ modalBg.innerHTML = `
     <div class="ldt-section">
         <h2>Image Display Options</h2>
         <div class="ldt-grid">
-            <div class="ldt-row" data-tip="Maximum height and width for thumbnails (px)"><label class="ldt-label">Image Size (Max) <input id="ldt-size-input" class="ldt-number" type="number" min="1" value="${ldt_max_thumb}"></label></div>
-            <div class="ldt-row" data-tip="Download smaller image sizes. (Experimental - May actually reduce performance"><label class="ldt-label">Image Quality<select id="ldt-image-size-select" class="ldt-select"><option value="Thumbnail">Thumbnail</option><option value="Medium">Medium</option><option value="Full">Full</option></select></label></div>
-            <div class="ldt-row" data-tip="Keep animated images \"Full Size\" to preserve animation"><label><input id="ldt-preserve-animated" type="checkbox"> Preserve Animated (GIF/WebP)</label></div>
-            <div class="ldt-row" data-tip="Disable site hover images (reduce redundancy)"><label><input id="ldt-disable-hover" type="checkbox"> Disable Site Hover Images</label></div>
-            <div class="ldt-row" data-tip="Place thumbnails inside the category column"><label><input id="ldt-replace-cats" type="checkbox"> Replace Categories</label></div>
-            <div class="ldt-row" data-tip="Hide category names entirely"><label><input id="ldt-remove-cats" type="checkbox"> Remove Categories</label></div>
+            <div class="ldt-row"><label title="Maximum height and width for thumbnails (px)"><span class="ldt-label-text">Image Size (Max)</span> <input id="ldt-size-input" class="ldt-number" type="number" min="1" value="${ldt_max_thumb}"></label></div>
+            <div class="ldt-row"><label title="Download smaller image sizes. Experimental - may reduce performance"><span class="ldt-label-text">Image Quality</span> <select id="ldt-image-size-select" class="ldt-select"><option value="Thumbnail">Thumbnail</option><option value="Medium">Medium</option><option value="Full">Full</option></select></label></div>
+            <div class="ldt-row"><label title="Keep animated images full size to preserve animation"><input id="ldt-preserve-animated" type="checkbox"> Preserve Animated (GIF/WebP)</label></div>
+            <div class="ldt-row"><label title="Disable site hover images to reduce redundancy"><input id="ldt-disable-hover" type="checkbox"> Disable Site Hover</label></div>
+            <div class="ldt-row"><label title="Place thumbnails inside the category column"><input id="ldt-replace-cats" type="checkbox"> Replace Categories</label></div>
+            <div class="ldt-row"><label title="Hide category names entirely"><input id="ldt-remove-cats" type="checkbox"> Remove Categories</label></div>
         </div>
     </div>
 
     <div class="ldt-section">
         <h2>Retry / Timeout Options</h2>
         <div class="ldt-grid">
-            <div class="ldt-row" data-tip="Maximum number of retries for fetching images before giving up"><label>Max Retry Attempts <input id="ldt-max-retries" class="ldt-number" type="number" min="0" value="${ldt_max_retries}"></label></div>
-            <div class="ldt-row" data-tip="Delay between image load retries (ms)"><label>Retry Delay (ms) <input id="ldt-retry-delay" class="ldt-number" type="number" min="0" value="${ldt_retry_delay}"></label></div>
-            <div class="ldt-row" data-tip="Choose loading strategy: Off (lazy-in-viewport), Sequential (one at a time), Sequential+ (concurrent workers)"><label>Loading Mode <select id="ldt-sequential-mode" class="ldt-select"><option value="off">Off (Lazy)</option><option value="sequential">Sequential (1 worker)</option><option value="sequential_plus">Sequential+ (concurrent)</option></select></label></div>
-            <div class="ldt-row" data-tip="Delay between sequential image loads (ms)"><label>Sequential Delay (ms) <input id="ldt-seq-delay" class="ldt-number" type="number" min="0" value="${ldt_sequential_delay}"></label></div>
-            <div class="ldt-row" data-tip="Auto-retry failed thumbnails after this many ms"><label>Auto-refresh Failed (ms) <input id="ldt-auto-refresh-failed" class="ldt-number" type="number" min="0" value="${ldt_auto_refresh_failed}"></label></div>
-            <div class="ldt-row" data-tip="Consider an image failed or stalled after this many ms"><label>Image Timeout (ms) <input id="ldt-stall-timeout" class="ldt-number" type="number" min="0" value="${ldt_stall_timeout}"></label></div>
+            <div class="ldt-row"><label title="Maximum number of retries for fetching images"><span class="ldt-label-text">Max Retry Attempts</span> <input id="ldt-max-retries" class="ldt-number" type="number" min="0" value="${ldt_max_retries}"></label></div>
+            <div class="ldt-row"><label title="Delay between image load retries (milliseconds)"><span class="ldt-label-text">Retry Delay (ms)</span> <input id="ldt-retry-delay" class="ldt-number" type="number" min="0" value="${ldt_retry_delay}"></label></div>
+            <div class="ldt-row"><label title="Off=lazy, Sequential=1 worker, Sequential+=concurrent"><span class="ldt-label-text">Loading Mode</span> <select id="ldt-sequential-mode" class="ldt-select"><option value="off">Off (Lazy)</option><option value="sequential">Sequential (1 worker)</option><option value="sequential_plus">Sequential+ (concurrent)</option></select></label></div>
+            <div class="ldt-row"><label title="Delay between sequential image loads (milliseconds)"><span class="ldt-label-text">Sequential Delay (ms)</span> <input id="ldt-seq-delay" class="ldt-number" type="number" min="0" value="${ldt_sequential_delay}"></label></div>
+            <div class="ldt-row"><label title="Auto-retry failed thumbnails after this delay"><span class="ldt-label-text">Auto-Refresh Failed (ms)</span> <input id="ldt-auto-refresh-failed" class="ldt-number" type="number" min="0" value="${ldt_auto_refresh_failed}"></label></div>
+            <div class="ldt-row"><label title="Mark image stalled if not loaded by this time"><span class="ldt-label-text">Image Timeout (ms)</span> <input id="ldt-stall-timeout" class="ldt-number" type="number" min="0" value="${ldt_stall_timeout}"></label></div>
+        </div>
+    </div>
+
+    <div class="ldt-section">
+        <h2>Image Caching Options</h2>
+        <div class="ldt-grid">
+            <div class="ldt-row"><label title="Cache images in IndexedDB for faster reloads"><input id="ldt-enable-image-caching" type="checkbox"> Enable Image Caching</label></div>
+            <div class="ldt-row"><label title="Maximum number of images to store in cache"><span class="ldt-label-text">Max Cached Images</span> <input id="ldt-max-cached-images" class="ldt-number" type="number" min="1" value="100"></label></div>
+            <div class="ldt-row"><input id="ldt-clear-image-cache" type="button" value="Clear Image Cache"></div>
         </div>
     </div>
 
     <div class="ldt-section">
         <h2>Misc Options</h2>
         <div class="ldt-grid">
-            <div class="ldt-row" data-tip="Enable verbose debug logging in the console (ctrl+shift+i)"><label><input id="ldt-debug-logging" type="checkbox"> Console Debug</label></div>
-            <div class="ldt-row"><label>Reserved Option</label></div>
+            <div class="ldt-row"><label title="Enable verbose logging in console (Ctrl+Shift+I)"><input id="ldt-debug-logging" type="checkbox"> Console Debug</label></div>
+            <div class="ldt-row"><label>Reserved for future use</label></div>
         </div>
         <div class="ldt-note">
-            Tip: Use the 'Refresh TN' button to manually retry thumbnails at any time.
+            💡 Tip: Use the 'Refresh TN' button to manually retry all thumbnails at any time.
         </div>
     </div>
 
     <div class="s-conf-buttons-ldt">
         <input id="s-conf-save-general-ldt" class="s-conf-save-ldt" type="button" value="Save Settings">
-        <input id="s-conf-close-ldt" type="button" value="Close">
+        <input id="s-conf-close-ldt" class="s-conf-close-ldt" type="button" value="Close">
     </div>
 </div>
 `;
@@ -1719,34 +1970,8 @@ modalBg.innerHTML = `
     const openConfigModal   = () => modalBg.style.display = 'block';
     const closeConfigModal = () => modalBg.style.display = 'none';
 
-    // Reusable tooltip element
-    const tooltip = document.createElement('div');
-    tooltip.style = `
-    position:fixed;padding:4px 6px;background:#000;color:#fff;
-    font-size:12px;z-index:999999;display:none;
-    `;
-    document.body.appendChild(tooltip);
-
-    // Tooltip logic via event delegation (single listener pair on modal)
-    let tooltipTimer = null;
-    modalBg.addEventListener('mouseenter', (e) => {
-        const row = e.target.closest('.ldt-row[data-tip]');
-        if (!row) return;
-        tooltipTimer = setTimeout(() => {
-            const r = row.getBoundingClientRect();
-            tooltip.textContent = row.dataset.tip;
-
-            tooltip.style.top  = (r.top - 25) + 'px';
-            tooltip.style.left = (r.left + 10) + 'px';
-            tooltip.style.display = 'block';
-        }, 1000);
-    }, true);
-    modalBg.addEventListener('mouseleave', (e) => {
-        const row = e.target.closest('.ldt-row[data-tip]');
-        if (!row) return;
-        clearTimeout(tooltipTimer);
-        tooltip.style.display = 'none';
-    }, true);
+    // Handle info icon tooltips using native title attributes
+    // (no custom tooltip needed - browser handles title attribute tooltips natively)
 
 
 
@@ -1768,6 +1993,9 @@ modalBg.innerHTML = `
             const autoRefreshInput = modalBg.querySelector('#ldt-auto-refresh-failed');
             const stallTimeoutInput = modalBg.querySelector('#ldt-stall-timeout');
             const debugCheckbox = modalBg.querySelector('#ldt-debug-logging');
+            const enableImageCachingCheckbox = modalBg.querySelector('#ldt-enable-image-caching');
+            const maxCachedImagesInput = modalBg.querySelector('#ldt-max-cached-images');
+            const clearCacheBtn = modalBg.querySelector('#ldt-clear-image-cache');
 
             if (closeBtn) closeBtn.addEventListener('click', closeConfigModal);
 
@@ -1786,6 +2014,8 @@ modalBg.innerHTML = `
             if (autoRefreshInput) autoRefreshInput.value = Number.isFinite(ldt_auto_refresh_failed) ? ldt_auto_refresh_failed : DEFAULTS.auto_refresh_failed_after_ms;
             if (stallTimeoutInput) stallTimeoutInput.value = Number.isFinite(ldt_stall_timeout) ? ldt_stall_timeout : DEFAULTS.stall_timeout_ms;
             if (debugCheckbox) debugCheckbox.checked = !!ldt_debug;
+            if (enableImageCachingCheckbox) enableImageCachingCheckbox.checked = !!ldt_enable_image_caching;
+            if (maxCachedImagesInput) maxCachedImagesInput.value = Number.isFinite(ldt_max_cached_images) ? ldt_max_cached_images : DEFAULTS.max_cached_images;
 
             if (saveBtn) saveBtn.addEventListener('click', () => {
                 try {
@@ -1805,6 +2035,8 @@ modalBg.innerHTML = `
                     ldt_auto_refresh_failed = Number(autoRefreshInput?.value) || DEFAULTS.auto_refresh_failed_after_ms;
                     ldt_stall_timeout = Number(stallTimeoutInput?.value) || DEFAULTS.stall_timeout_ms;
                     ldt_debug = !!debugCheckbox?.checked;
+                    ldt_enable_image_caching = !!enableImageCachingCheckbox?.checked;
+                    ldt_max_cached_images = Number(maxCachedImagesInput?.value) || DEFAULTS.max_cached_images;
 
                     // Persist all values at once using unified persistence layer
                     persistence.saveAll({
@@ -1820,7 +2052,9 @@ modalBg.innerHTML = `
                         'ldt_sequential_load_delay_ms': ldt_sequential_delay,
                         'ldt_auto_refresh_failed_after_ms': ldt_auto_refresh_failed,
                         'ldt_stall_timeout_ms': ldt_stall_timeout,
-                        'ldt_debug_logging': ldt_debug
+                        'ldt_debug_logging': ldt_debug,
+                        'ldt_enable_image_caching': ldt_enable_image_caching,
+                        'ldt_max_cached_images': ldt_max_cached_images
                     });
 
                     // Attempt to apply to running instance if available
@@ -1890,6 +2124,25 @@ modalBg.innerHTML = `
                 }
 
                 closeConfigModal();
+            });
+
+            if (clearCacheBtn) clearCacheBtn.addEventListener('click', () => {
+                if (confirm('Clear all cached images? This cannot be undone.')) {
+                    try {
+                        const dbReq = indexedDB.deleteDatabase('LDT_ImageCache');
+                        dbReq.onsuccess = () => {
+                            alert('Image cache cleared successfully.');
+                            console.log('LDT: Image cache cleared.');
+                        };
+                        dbReq.onerror = () => {
+                            alert('Error clearing cache.');
+                            console.error('LDT: Error clearing cache', dbReq.error);
+                        };
+                    } catch (e) {
+                        alert('Error clearing cache: ' + e.message);
+                        console.error('LDT: Cache clear error', e);
+                    }
+                }
             });
 
         } catch (e) {

@@ -2,7 +2,7 @@
 // @name        Luminance HoverBabe+
 // @namespace   empornium Scripts
 // @description Hover over performer tag and get their Babepedia Bio.
-// @version     1.50.3
+// @version     1.50.2
 // @author      vandenium
 // @include     /^https://www\.empornium\.(me|sx|is)\/torrents.php/
 // @include     /^https://www\.empornium\.(me|sx|is)\/top10.php/
@@ -17,6 +17,7 @@
 // @grant       GM_setValue
 // @grant       GM_getValue
 // @grant       GM_deleteValue
+// @grant       GM_addStyle
 // @grant       GM_info
 // @downloadURL https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20HoverBabe+.user.js
 // @updateURL   https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20HoverBabe+.user.js
@@ -609,7 +610,7 @@ const getLowerTagText = (el) => {
         delayMs: 3000,
         maxRetries: 3
     };
-    
+
     // Prevent multiple prefetch initializations
     let prefetchInitialized = false;
 
@@ -620,12 +621,12 @@ const getLowerTagText = (el) => {
 
         prefetchQueueInProgress = true;
         const item = prefetchQueue.shift();
-        
+
         setStatus(`Prefetching bio for ${item.name} (${item.index + 1} of ${item.total})...`);
-        
+
         prefetchSingleBio(item.name, item.index, item.total, () => {
             prefetchQueueInProgress = false;
-            
+
             if (prefetchQueue.length > 0) {
                 // Wait for the configured delay before processing next item
                 setTimeout(() => {
@@ -2159,7 +2160,7 @@ const getLowerTagText = (el) => {
             },
             onload: (responseObject) => {
                 const status = responseObject.status;
-                
+
                 if (status === 200) {
                     const pageDom = stringToHTML(responseObject.response);
                     if (pageDom) {
@@ -2184,7 +2185,7 @@ const getLowerTagText = (el) => {
                     // 429 is handled by cfAwareRequest, callback will be called after retry
                     return;
                 }
-                
+
                 callback();
             },
             onerror: (error) => {
@@ -2557,7 +2558,7 @@ const getLowerTagText = (el) => {
         );
 
         // All tags (names) to prefetch
-        // IMPORTANT: Normalize tag to lowercase FIRST before converting to name, 
+        // IMPORTANT: Normalize tag to lowercase FIRST before converting to name,
         // to match how lookup() normalizes tags. This ensures cache keys are consistent.
         const newActorsAndCachedActorTagNames = knownHits
         .concat(newHits)
@@ -2571,10 +2572,10 @@ const getLowerTagText = (el) => {
         const filteredPagesToPrefetch = newActorsAndCachedActorTagNames.filter(
             (page) => !pagesInCache.includes(page),
         );
-        
-        HB_logRequest('Prefetch Cache Filter', null, 
+
+        HB_logRequest('Prefetch Cache Filter', null,
             `Total: ${newActorsAndCachedActorTagNames.length}, ` +
-            `Cached: ${pagesInCache.length}, ` + 
+            `Cached: ${pagesInCache.length}, ` +
             `To Fetch: ${filteredPagesToPrefetch.length}`);
 
         // Limit to user-configured max to avoid too many requests
@@ -2590,23 +2591,23 @@ const getLowerTagText = (el) => {
             if (!Number.isNaN(v) && v >= 100) return v;
             return 3000; // default
         })();
-        
+
         // Update prefetch settings
         prefetchSettings.delayMs = timeInterval;
-        
+
         const tagsToPrefetchLength = limitedPagesToPrefetch.length;
 
         // Only prefetch bios if total number of tags to prefetch is <= max AND prefetch is enabled.
         if (shouldPrefetch && tagsToPrefetchLength <= maxNumberOfActorTagsBeforeLazyLoading) {
             // Clear any existing queue and add new items
             clearPrefetchQueue();
-            
+
             // Add all items to the queue
             for (let n = 0; n < tagsToPrefetchLength; n += 1) {
                 const name = limitedPagesToPrefetch[n];
                 addToPrefetchQueue(name, n, tagsToPrefetchLength);
             }
-            
+
             // Start processing the queue
             processPrefetchQueue();
         } else if (shouldPrefetch) {
@@ -3451,7 +3452,7 @@ const getLowerTagText = (el) => {
             if (!confirm("Clear all cached performer bio pages? This will not affect the performer database.")) return;
 
             const clearedCount = clearAllBioCache();
-            
+
             // Show status if area is available
             if (statusArea) {
                 statusArea.setStatus(`✅ Cleared ${clearedCount} cached bio pages.`);
@@ -3519,7 +3520,7 @@ const getLowerTagText = (el) => {
 
         const a = document.createElement("a");
         a.href = "#";
-        a.textContent = "⛭ LHB"; 
+        a.textContent = "⛭ LHB";
         a.title = 'Luminance HoverBabe - Settings';
         a.addEventListener("click", () => {
             showSettings();
