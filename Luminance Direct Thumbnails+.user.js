@@ -389,16 +389,55 @@
         .remove-category .cats_col  > div,
         .remove-category .cats_cols > div { display: none; }
         /* Loading states */
-        .tn-blocked { outline: 2px dashed #999; opacity: 0.9; }
-        .tn-stalled  { outline: 2px dashed #3954A3; opacity: 0.7; }
+        .tn-blocked { opacity: 0.5; filter: grayscale(1); }
+        .tn-stalled { opacity: 0.5; }
         
-        /* Loading indicator - subtle opacity and animation */
-        .tn-loading {
-            animation: tn-pulse-loading 1.5s ease-in-out infinite;
+        /* Image wrapper for spinner overlay */
+        .tn-img-wrap {
+            position: relative;
+            display: inline-block;
+            vertical-align: top;
+            background: #1a1a1a;
         }
-        @keyframes tn-pulse-loading {
-            0%, 100% { opacity: 0.7; }
-            50% { opacity: 0.5; }
+        .tn-img-wrap img {
+            display: block;
+        }
+        /* Hide img element while loading (class-based, not :has()) */
+        .tn-img-wrap.tn-loading img {
+            visibility: hidden;
+        }
+        /* DEBUG: Bright red border on ALL images to help identify mystery element */
+        img:not([src]), img[src=""] {
+            outline: 5px solid red !important;
+            background: yellow !important;
+        }
+        
+        /* Loading spinner overlay */
+        .tn-spinner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #222 !important; /* Solid opaque background to hide anything beneath */
+            z-index: 9999;
+            pointer-events: none;
+        }
+        .tn-spinner::after {
+            content: '';
+            width: 28px;
+            height: 28px;
+            border: 3px solid rgba(255,255,255,0.35);
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: tn-spin 0.7s linear infinite;
+            box-shadow: 0 0 12px rgba(0,0,0,0.3);
+        }
+        @keyframes tn-spin {
+            to { transform: rotate(360deg); }
         }
 
         /* Modal / Config UI styles - Aligned with LTH */
@@ -695,17 +734,18 @@
         };
 
         this.attach_image = function ($row, $img) {
+            var $wrap = $img.data('$wrap') || $img;
             if (replace_categories) {
                 var $category = get_$category($row);
-                $category.append($img);
+                $category.append($wrap);
             }
             else {
                 var $title = get_$title($row);
-                $img.css({
+                $wrap.css({
                     'float': 'left',
                     'margin-right': '7px'
                 });
-                $title.prepend($img);
+                $title.prepend($wrap);
             }
         };
     }
@@ -895,16 +935,23 @@
 
 
         this.create_img = function (src, small) {
+            var $wrap = jQuery('<span class="tn-img-wrap"></span>');
             var $img = jQuery('<img>');
             var min_size = small ? '50px' : max_image_size + 'px';
             $img.data('src', src);
             $img.data('retryCount', 0);
             $img.css({
-                'min-width': min_size,
-                'min-height': min_size,
                 'max-width': max_image_size + 'px',
                 'max-height': max_image_size + 'px',
             });
+            // Set wrapper size explicitly so spinner is properly sized before image loads
+            $wrap.css({
+                'min-width': min_size,
+                'min-height': min_size
+            });
+            $wrap.append($img);
+            // Store reference to wrapper on the image
+            $img.data('$wrap', $wrap);
             return $img;
         };
 
@@ -923,11 +970,18 @@
                 }
             });
             
+            // Remove spinner and loading class from wrapper
+            const $wrap = $img.data('$wrap');
+            if ($wrap) {
+                $wrap.removeClass('tn-loading');
+                $wrap.find('.tn-spinner').remove();
+                $wrap.css({ 'min-width': '', 'min-height': '' });
+            }
+            
             // Force remove classes using DOM directly
             if (imgEl) {
-                imgEl.classList.remove('tn-failed', 'tn-stalled', 'tn-blocked', 'tn-loading');
+                imgEl.classList.remove('tn-failed', 'tn-stalled', 'tn-blocked');
                 imgEl.style.opacity = '';
-                imgEl.style.outline = '';
                 imgEl.style.minWidth = '';
                 imgEl.style.minHeight = '';
             }
@@ -1000,7 +1054,12 @@
             // --- Attach handlers ---
             window.logBegin(originalSrc);
             $img.data('isLoading', true);
-            $img.addClass('tn-loading');
+            // Add spinner overlay to wrapper when loading starts
+            var $wrap = $img.data('$wrap');
+            if ($wrap && !$wrap.find('.tn-spinner').length) {
+                $wrap.addClass('tn-loading');
+                $wrap.append('<div class="tn-spinner"></div>');
+            }
 
             // Remove any old handlers to ensure clean state
             $img.off('load.lazyRetry error.lazyRetry');
@@ -1021,7 +1080,9 @@
             // --- Helper: Schedule a retry with optional delay ---
             function scheduleRetry(count, delaySrc, delayMs) {
                 if (count >= self.max_retry_attempts) {
-                    $img.removeClass('tn-loading tn-stalled').addClass('tn-failed').off('error.lazyRetry').data('isLoading', false).trigger('tnDone');
+                    $img.removeClass('tn-stalled').addClass('tn-failed').off('error.lazyRetry').data('isLoading', false);
+                    self.clearImageState($img);
+                    $img.trigger('tnDone');
                     return;
                 }
                 const nextCount = count + 1;
