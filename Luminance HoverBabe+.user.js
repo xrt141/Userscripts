@@ -2,8 +2,8 @@
 // @name        Luminance HoverBabe+
 // @namespace   empornium Scripts
 // @description Hover over performer tag and get their Babepedia Bio.
-// @version     1.50.2
-// @author      vandenium
+// @version     1.50.3
+// @author      vandenium xrt141 (forked and extended by xrt141)
 // @include     /^https://www\.empornium\.(me|sx|is)\/torrents.php/
 // @include     /^https://www\.empornium\.(me|sx|is)\/top10.php/
 // @include     /^https://www\.empornium\.(me|sx|is)\/requests.php/
@@ -2747,12 +2747,9 @@ const getLowerTagText = (el) => {
       max-height: 60px;
     }
 
-    div#hoverbabe-status-inner a:link {
-      color: #66b3ff;
-    }
-
-    div#hoverbabe-status-inner #title {
-    }
+    div#hoverbabe-status-inner a:link {color: #66b3ff;}
+    div#hoverbabe-status-inner a:visited {color: #c6b5d8;}
+    div#hoverbabe-status-inner #title {}
 
     #total-actors-area:hover, #total-actors:hover {
       background-color: #222;
