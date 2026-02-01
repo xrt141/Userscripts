@@ -135,6 +135,9 @@ function runScript() {
         roomierTags: false,
         tagLayoutStyle: "normal",
         useWideLayout: false,
+        //Details Page Layout
+        moveCoverToMiddle: true,
+        useThreeColumnTags: true,
         //Site Specific
         hfBetterBubblegum: false,
 
@@ -913,6 +916,21 @@ function runScript() {
                     </label>
                   </div>
 
+                  <!-- 📝📝 - Details Page Layout Settings - 📝📝 -->
+                  <h2 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">Details Page Layout:</h2>
+                  <div class="details-layout-options" style="display:flex; flex-direction:column; gap:8px;">
+
+                    <!-- ✅ Move Cover Image to Middle -->
+                    <label title="Move the cover image/sidebar into the middle column on torrent details pages">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="moveCoverToMiddle"/> Move Cover Image to Middle
+                    </label>
+
+                    <!-- ✅ Use 3-Column Tag Layout -->
+                    <label title="Split tags into 3 columns on torrent details pages">
+                      <input class="s-conf-gen-checkbox" type="checkbox" name="useThreeColumnTags"/> Use 3-Column Tag Layout
+                    </label>
+                  </div>
+
                   <!-- 📝📝 - Site Specific Settings - 📝📝 -->
                   <h2 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">Site Specific Options:</h2>
                   <div class="site-options">
@@ -1064,7 +1082,8 @@ function runScript() {
     var stylesheet = `
       <style type="text/css">
         #torrent_tags>li{border-bottom:1px solid #999; padding-bottom:2px;}
-
+        .tag_header  {margin-bottom: 8px;}
+        
     /* Keep settings from pushing the user profile menu to the left */
         #major_stats_left { display: inline-block; position}
         #userinfo_username li ul {right:0; left:auto;}
@@ -1102,9 +1121,9 @@ function runScript() {
          #s-conf-tabs li, #s-conf-tabs h2{ border: 1px solid #444; border-bottom: 0; border-radius: 4px 4px 0 0; line-height: normal; width: 130px; margin:0; list-style:none;float:left;}
 
       /* == General Options Page == */
-        .torrent-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 20px 20px 20px 20px; }
-        .torrent-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 20px 20px 20px; }
-        .torrent-options label { display: flex; align-items: center; white-space: nowrap; }
+        .torrent-options-select, .details-layout-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 20px 20px 20px 20px; }
+        .torrent-options, .details-layout-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 20px 20px 20px; }
+        .torrent-options label , .details-layout-options label { display: flex; align-items: center; white-space: nowrap; }
         .site-options-select {display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 20px 20px 20px 20px; }
         .site-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 20px 20px 20px; }
         .site-options label { display: flex; align-items: center; white-space: nowrap; }
@@ -1211,7 +1230,8 @@ function runScript() {
     stylesheet += `
        /* == Hidden Tags7d Stuff -- */
          ul.s-Tag7d-tags span.s-tag.s-Tag7d{display:inline-block !important; float:none; background:#AAA; border-bottom:1px solid #444; padding:0px 4px; border-radius:16px;font-weight:normal;}
-/* Not Needed ??
+
+    /* Not Needed ??
         .s-tag.s-Tag7d .s-button{display:none}
         .s-tag.s-Tag7d .s-button.s-remove-Tags7d{display:block}
         .s-tag.s-Tag7d {display:inline-block !important;background:#999999;color:#000;border:inherit;border-radius:inherit;padding:inherit;vertical-align:middle;}
@@ -1220,7 +1240,7 @@ function runScript() {
         .s-Tag7d-tags{display:none;}
         .s-Tag7d-toggle{font-weight:bold; cursor:pointer;}
         .s-Tag7d-desc{clear:both; padding:8px 0 8px 15px;}
-*/
+    */
       /* == Tags Page: Tags == */
         body.emp-tags-page td:nth-child(2) .s-tag { display:inline-flex !important; flex-wrap:nowrap !important; align-items:center; }
         body.emp-tags-page td:nth-child(2) .s-tag a { order:2; flex:1 1 auto; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
@@ -3674,6 +3694,17 @@ function addJQuery(callback) {
 
 
     function rearrangeLayout() {
+        // Check if this feature is enabled in settings
+        try {
+            const storedSettings = JSON.parse(GM_getValue('spyderSettings', '{}'));
+            if (storedSettings.moveCoverToMiddle === false) {
+                console.log('rearrangeLayout skipped: moveCoverToMiddle is disabled');
+                return;
+            }
+        } catch (e) {
+            console.warn('rearrangeLayout: Could not read settings', e);
+        }
+
         const middleColumn = document.querySelector('#details_top > div.middle_column');
         const sidebar = document.querySelector('#details_top > div.sidebar');
         const container = document.querySelector('#details_top');
@@ -3738,6 +3769,17 @@ function addJQuery(callback) {
 
 
     function splitTagsIntoColumns() {
+        // Check if 3-column layout is enabled in settings
+        try {
+            const storedSettings = JSON.parse(GM_getValue('spyderSettings', '{}'));
+            if (storedSettings.useThreeColumnTags === false) {
+                console.log('splitTagsIntoColumns skipped: useThreeColumnTags is disabled');
+                return;
+            }
+        } catch (e) {
+            console.warn('splitTagsIntoColumns: Could not read settings', e);
+        }
+
         const tagList = document.querySelector('#torrent_tags_list');
         if (!tagList) return;
 
@@ -4024,14 +4066,46 @@ function addJQuery(callback) {
             toggleBtn.textContent = buttonsVisible ? 'Hide Tag Buttons' : 'Show Tag Buttons';
         });
 
+        // === Check if 3-column tag layout is enabled ===
+        let use3ColTags = true; // default
+        try {
+            const storedSettings = JSON.parse(GM_getValue('spyderSettings', '{}'));
+            use3ColTags = storedSettings.useThreeColumnTags !== false;
+        } catch (e) {
+            console.warn('addButtonToggle: Could not read settings', e);
+        }
+
         // === Normal placement: details page ===
         if (tagHeader) {
-            tagHeader.prepend(toggleBtn);
-            tagHeader.prepend(refreshBtn);
-            tagHeader.style.display = 'flex';
-            tagHeader.style.alignItems = 'center';
-            tagHeader.style.gap = '8px';
-            tagHeader.style.padding = '6px 10px';
+            if (use3ColTags) {
+                // 3-column mode: prepend inside tag_header
+                tagHeader.prepend(toggleBtn);
+                tagHeader.prepend(refreshBtn);
+                tagHeader.style.display = 'flex';
+                tagHeader.style.alignItems = 'center';
+                tagHeader.style.gap = '8px';
+                tagHeader.style.padding = '6px 10px';
+            } else {
+                // NOT 3-column mode: create a separate row for buttons below tag_header
+                const buttonRow = document.createElement('div');
+                buttonRow.id = 'tagButtonRow';
+                buttonRow.style.cssText = `
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 6px 10px;
+                    margin-top: 4px;
+                `;
+                buttonRow.appendChild(refreshBtn);
+                buttonRow.appendChild(toggleBtn);
+                
+                // Insert after tag_header
+                if (tagHeader.nextSibling) {
+                    tagHeader.parentNode.insertBefore(buttonRow, tagHeader.nextSibling);
+                } else {
+                    tagHeader.parentNode.appendChild(buttonRow);
+                }
+            }
             return;
         }
 
@@ -4077,9 +4151,54 @@ function addJQuery(callback) {
     }
     window.resizeAllTagText=resizeAllTagText;
 
+    // Apply full-width tag layout when cover isn't moved but 3-column tags are enabled
+    function applyTagContainerFullWidth() {
+        try {
+            const storedSettings = JSON.parse(GM_getValue('spyderSettings', '{}'));
+            const moveCover = storedSettings.moveCoverToMiddle !== false; // default true
+            const use3ColTags = storedSettings.useThreeColumnTags !== false; // default true
+
+            // If we're NOT moving the cover but ARE using 3-column tags,
+            // we need to expand the tag container to full width
+            if (!moveCover && use3ColTags) {
+                const tagContainer = document.querySelector('#tag_container');
+                const detailsTop = document.querySelector('#details_top');
+                
+                if (tagContainer && detailsTop) {
+                    // Move tag_container outside of middle_column to be full-width
+                    // and place it after details_top
+                    const parent = detailsTop.parentElement;
+                    if (parent && !tagContainer.classList.contains('s-fullwidth-tags')) {
+                        tagContainer.classList.add('s-fullwidth-tags');
+                        
+                        // Insert after details_top
+                        if (detailsTop.nextSibling) {
+                            parent.insertBefore(tagContainer, detailsTop.nextSibling);
+                        } else {
+                            parent.appendChild(tagContainer);
+                        }
+                        
+                        // Apply full-width styles
+                        tagContainer.style.width = '100%';
+                        tagContainer.style.maxWidth = '100%';
+                        tagContainer.style.boxSizing = 'border-box';
+                        tagContainer.style.clear = 'both';
+                        tagContainer.style.marginTop = '15px';
+                        
+                        console.log('Tag container moved to full width (cover not moved, 3-col tags enabled)');
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('applyTagContainerFullWidth: Could not read settings', e);
+        }
+    }
+    window.applyTagContainerFullWidth = applyTagContainerFullWidth;
+
     function initializeEnhancements() {
 
         runFunction(rearrangeLayout, 'rqpc3ze9eoklvvac', []);
+        runFunction(applyTagContainerFullWidth, 'tagfullwidth01', []);
 
         // Step 1: split after the DOM settles
         setTimeout(() => {
