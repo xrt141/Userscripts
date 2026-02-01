@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Luminance Tag Highlighter+
 // @namespace    http://tampermonkey.net/
-// @version      2.6.4
+// @version      2.6.5
 // @description  Branched from Emp++ Tag Highlighter v0.7.9b
 // @author       xrt141, allebady
 // @grant        GM_getValue
@@ -1083,7 +1083,7 @@ function runScript() {
       <style type="text/css">
         #torrent_tags>li{border-bottom:1px solid #999; padding-bottom:2px;}
         .tag_header  {margin-bottom: 8px;}
-        
+
     /* Keep settings from pushing the user profile menu to the left */
         #major_stats_left { display: inline-block; position}
         #userinfo_username li ul {right:0; left:auto;}
