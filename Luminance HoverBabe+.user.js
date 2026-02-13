@@ -2,12 +2,12 @@
 // @name        Luminance HoverBabe+
 // @namespace   empornium Scripts
 // @description Hover over performer tag and get their Babepedia Bio.
-// @version     1.50.3
+// @version     1.50.6
 // @author      vandenium xrt141 (forked and extended by xrt141)
-// @include     /^https://www\.empornium\.(me|sx|is)\/torrents.php/
-// @include     /^https://www\.empornium\.(me|sx|is)\/top10.php/
-// @include     /^https://www\.empornium\.(me|sx|is)\/requests.php/
-// @include     /^https://www\.happyfappy\.org\/torrents.php/
+// @include     /https?://www\.empornium\.(is|sx)/*
+// @include     /https?://www\.happyfappy\.org/*
+// @include     /https?://femdomcult\.org/*
+// @include     /https?://kufirc\.com/*
 // @connect     babepedia.com
 // @connect     www.babepedia.com
 // @grant       GM_cookie
@@ -28,37 +28,28 @@
    Luminance HoverBabe+ - Forked from Hoverbabe (vandenium)
    ======================================================================================== */
 
-let settings;
-let hovered;
-const oneMonth = 30 * 24 * 60 * 60 * 1000;
-let iconSpinnerIntervalHandle;
+let settings, hovered, iconSpinnerIntervalHandle;
+const ONE_MONTH = 2592000000, ONE_HOUR = 3600000, ONE_WEEK = 604800000;
 
-const TARGET_BP_URL = "https://www.babepedia.com"; // "https://www.mysite.com"
-const TARGET_BP_HOST = TARGET_BP_URL.replace(/^https?:\/\//, ""); // "www.mysite.com"
-const TARGET_BP_BASE = TARGET_BP_HOST.replace(/^www\./, ""); // "mysite.com"
+// URLs and hosts
+const TARGET_BP_URL = "https://www.babepedia.com";
+const TARGET_BP_HOST = "www.babepedia.com";
+const TARGET_CUP_URL = "https://www.boobepedia.com";
+const TARGET_IAFD_URL = "https://www.iafd.com";
+const TARGET_IAFD_HOST = "www.iafd.com";
 
-const TARGET_CUP_URL = "https://www.boobepedia.com"; // "https://www.mysite.com"
-
-const TARGET_IAFD_URL = "https://www.iafd.com"; // "https://www.mysite.com"
-const TARGET_IAFD_HOST = TARGET_IAFD_URL.replace(/^https?:\/\//, ""); // "www.mysite.com"
-
-
-const PARTITION_KEY  = { topLevelSite: TARGET_BP_URL };
-const CF_DEBUG_TAG   = "[HB-CF]";
+// Storage and debug keys
+const PARTITION_KEY = { topLevelSite: TARGET_BP_URL };
+const CF_DEBUG_TAG = "[HB-CF]";
 const CF_NEXT_CHECK_KEY = "cf_next_check";
-const CF_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour cooldown between checks
-
-// --- Update Popup Constants ---
 const UPDATE_POPUP_SUPPRESS_KEY = "hb_update_popup_suppress_until";
 const UPDATE_LOG_TAG = "[HB-UPDATE]";
+const SUPPRESS_KEY = "hb_popup_suppress_until";
+const LOG_TAG = "[HB-POPUP]";
 
 const getTagCache = (type) => {
-    const key = type === "hits" ? "hb-tag-hits" : "excludedTagNames";
-    const val = localStorage.getItem(key);
-    if (val) {
-        return new Set(JSON.parse(val));
-    }
-    return new Set();
+    const val = localStorage.getItem(type === "hits" ? "hb-tag-hits" : "excludedTagNames");
+    return val ? new Set(JSON.parse(val)) : new Set();
 };
 
 // Tag Caches
@@ -69,16 +60,10 @@ const tagHits = getTagCache("hits");
 // --- Cloudflare cookie bridge (partition-aware) ---
 
 
-// Determine if debug logging enabled in settings (reads stored settings directly)
+// Determine if debug logging enabled in settings
 const HB_isDebug = () => {
-    try {
-        const raw = typeof GM_getValue === 'function' ? GM_getValue('hb-settings') : null;
-        if (!raw) return false;
-        const opts = JSON.parse(raw);
-        return !!opts.optionDebug;
-    } catch (e) {
-        return false;
-    }
+    try { return !!JSON.parse(GM_getValue('hb-settings') || '{}').optionDebug; }
+    catch { return false; }
 };
 
 const cfDebug = (...args) => {
@@ -87,93 +72,53 @@ const cfDebug = (...args) => {
 
 // General grouped request logger (collapsed by default)
 const HB_detectRequestType = (url) => {
-    try {
-        if (!url) return 'Request';
-        const u = url.toLowerCase();
-        if (u.includes(TARGET_BP_URL.replace(/^https?:\/\//, ''))) {
-            if (/\/index\/[a-z]$/.test(u) || /\/index\//.test(u)) return 'Updating Database';
-            if (/\/babe\//.test(u)) {
-                // Extract actor name from URL for better logging
-                const match = u.match(/\/babe\/([^/?#]+)/);
-                if (match && match[1]) {
-                    const actorName = decodeURIComponent(match[1]).replace(/_/g, ' ');
-                    return `Fetching Actor Bio: ${actorName}`;
-                }
-                return 'Fetching Actor Bio';
-            }
-            if (u.endsWith('/')) return 'Verifying Babepedia Reachability';
-            return 'Babepedia Request';
-        }
-        if (u.includes(TARGET_IAFD_HOST.replace(/^https?:\/\//, '')) || u.includes('iafd.com')) return 'IAFD lookup';
-        return 'External Request';
-    } catch (e) {
-        return 'Request';
+    if (!url) return 'Request';
+    const u = url.toLowerCase();
+    if (u.includes('babepedia.com')) {
+        if (u.includes('/index/')) return 'Updating Database';
+        const babeMatch = u.match(/\/babe\/([^/?#]+)/);
+        if (babeMatch) return `Fetching Actor Bio: ${decodeURIComponent(babeMatch[1]).replace(/_/g, ' ')}`;
+        if (u.endsWith('/')) return 'Verifying Babepedia Reachability';
+        return 'Babepedia Request';
     }
+    return u.includes('iafd.com') ? 'IAFD lookup' : 'External Request';
 };
 
 const HB_logRequest = (title, urls, result) => {
     if (!HB_isDebug()) return;
-    try {
-        console.groupCollapsed(`[HB] - ${title}`);
-        console.log('> Timestamp:', new Date().toISOString());
-        if (typeof urls === 'string') console.log('> ', urls);
-        else if (Array.isArray(urls)) urls.forEach((u) => console.log('> ', u));
-        if (result !== undefined) console.log('> Result:', result);
-        console.groupEnd();
-    } catch (e) {
-        // ignore logging errors
-    }
+    console.groupCollapsed(`[HB] - ${title}`);
+    console.log('> Timestamp:', new Date().toISOString());
+    if (urls) [].concat(urls).forEach(u => console.log('> ', u));
+    if (result !== undefined) console.log('> Result:', result);
+    console.groupEnd();
 };
 
 
-const SUPPRESS_KEY    = "hb_popup_suppress_until";
-const LOG_TAG         = "[HB-POPUP]";
+// SUPPRESS_KEY and LOG_TAG defined at top
 
 
-// XRT141 - New - Helper - Normalize Tags to Lowercase
-const getLowerTagText = (el) => {
-    const raw = (el.innerText || "").trim();
-    const withoutIcon = raw.replace(/^[📸📷]\s*/u, "");
-    return withoutIcon.toLowerCase();
-};
+// Helper - Normalize Tags to Lowercase
+const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]\s*/u, "").toLowerCase();
 
-    function shouldSuppressPopup() {
-        const until = parseInt(localStorage.getItem(SUPPRESS_KEY), 10);
-        return !Number.isNaN(until) && Date.now() < until;
-    }
+    const shouldSuppressPopup = () => {
+        const until = +localStorage.getItem(SUPPRESS_KEY);
+        return until > 0 && Date.now() < until;
+    };
 
-    function setPopupSuppressionHours(hours) {
-        if (!hours || Number.isNaN(+hours) || +hours <= 0) {
-            localStorage.removeItem(SUPPRESS_KEY);
-            return;
-        }
-        const until = Date.now() + (+hours) * 60 * 60 * 1000;
-        localStorage.setItem(SUPPRESS_KEY, until.toString());
-    }
+    const setPopupSuppressionHours = (hours) => {
+        hours > 0 ? localStorage.setItem(SUPPRESS_KEY, (Date.now() + hours * ONE_HOUR).toString())
+                  : localStorage.removeItem(SUPPRESS_KEY);
+    };
 
 
     function testTargetSite200(onStatusUpdate) {
         const opts = {
             method: "GET",
             url: `${TARGET_BP_URL}/`,
-            anonymous: false, // MUST send cookies
-            headers: {
-                "Accept": "text/html,application/xhtml+xml",
-                "User-Agent": navigator.userAgent,
-                Referer: TARGET_BP_URL,
-                Host: TARGET_BP_HOST,
-            },
-            onload: (resp) => {
-                if (resp.status === 200) {
-                    onStatusUpdate("✅ Test passed: site returned 200. You can close this message.");
-                } else {
-                    onStatusUpdate(`❌ Test failed: status ${resp.status}. Try generating the cookie again, or suppress this message for a while.`);
-                }
-            },
-            onerror: (err) => {
-                onStatusUpdate("❌ Test failed: network error. Try again later or suppress this message.");
-                console.warn(LOG_TAG, "Network error during test:", err);
-            },
+            anonymous: false,
+            headers: { "Accept": "text/html,application/xhtml+xml", "User-Agent": navigator.userAgent, Referer: TARGET_BP_URL, Host: TARGET_BP_HOST },
+            onload: (r) => onStatusUpdate(r.status === 200 ? "✅ Test passed: site returned 200. You can close this message." : `❌ Test failed: status ${r.status}. Try generating the cookie again, or suppress this message for a while.`),
+            onerror: () => onStatusUpdate("❌ Test failed: network error. Try again later or suppress this message.")
         };
         setCookiePartitionIfSupported(opts);
         HB_logRequest(HB_detectRequestType(opts.url), opts.url);
@@ -593,10 +538,7 @@ const getLowerTagText = (el) => {
     // Backoff handling for 429 responses: timestamp until which requests should wait
     let HB_backoffUntil = 0;
 
-    const HB_getBackoffDelay = () => {
-        const now = Date.now();
-        return HB_backoffUntil > now ? HB_backoffUntil - now : 0;
-    };
+    const HB_getBackoffDelay = () => Math.max(0, HB_backoffUntil - Date.now());
 
     const HB_setBackoff = (ms = 10000, url) => {
         HB_backoffUntil = Date.now() + ms;
@@ -615,40 +557,23 @@ const getLowerTagText = (el) => {
     let prefetchInitialized = false;
 
     const processPrefetchQueue = () => {
-        if (prefetchQueueInProgress || prefetchQueue.length === 0) {
-            return;
-        }
-
+        if (prefetchQueueInProgress || !prefetchQueue.length) return;
         prefetchQueueInProgress = true;
         const item = prefetchQueue.shift();
-
         setStatus(`Prefetching bio for ${item.name} (${item.index + 1} of ${item.total})...`);
-
         prefetchSingleBio(item.name, item.index, item.total, () => {
             prefetchQueueInProgress = false;
-
-            if (prefetchQueue.length > 0) {
-                // Wait for the configured delay before processing next item
-                setTimeout(() => {
-                    processPrefetchQueue();
-                }, prefetchSettings.delayMs);
+            if (prefetchQueue.length) {
+                setTimeout(processPrefetchQueue, prefetchSettings.delayMs);
             } else {
-                // Queue is empty, show final status and log completion
-                const totalProcessed = item.total;
-                HB_logRequest('Prefetch Complete', null, `Processed ${totalProcessed} actors`);
+                HB_logRequest('Prefetch Complete', null, `Processed ${item.total} actors`);
                 showFinalPrefetchStatus();
             }
         });
     };
 
-    const addToPrefetchQueue = (name, index, total) => {
-        prefetchQueue.push({ name, index, total });
-    };
-
-    const clearPrefetchQueue = () => {
-        prefetchQueue = [];
-        prefetchQueueInProgress = false;
-    };
+    const addToPrefetchQueue = (name, index, total) => prefetchQueue.push({ name, index, total });
+    const clearPrefetchQueue = () => { prefetchQueue = []; prefetchQueueInProgress = false; };
 
     /** Wrapper to call GM_xhr with partition + normalized site URL */
     function cfAwareRequest(opts) {
@@ -707,20 +632,9 @@ const getLowerTagText = (el) => {
     }
 
 
-    const sortCacheEntries = (arr) =>
-    arr.sort((a, b) => {
-        if (a.timeDiff > b.timeDiff) {
-            return 1;
-        }
+    const sortCacheEntries = (arr) => arr.sort((a, b) => a.timeDiff - b.timeDiff);
 
-        if (a.timeDiff < b.timeDiff) {
-            return -1;
-        }
-
-        return 0;
-    });
-
-    const getNameFromUri = (uri) => decodeURI(uri).split("/").at(-1).split(".")[0];
+    const getNameFromUri = (uri) => decodeURI(uri).split("/").pop().split(".")[0];
 
     // Image caching - utilize both session and local storage.
     // Tags - always cache to localStorage
@@ -839,41 +753,22 @@ const getLowerTagText = (el) => {
     };
 
     const saveTagCache = (type, set) => {
-        const key = type === "hits" ? "hb-tag-hits" : "excludedTagNames";
-        if (set) {
-            // Tags always cache to localStorage
-            cacheEntryInBrowserStorage(key, JSON.stringify([...set]));
-        }
+        if (set) cacheEntryInBrowserStorage(type === "hits" ? "hb-tag-hits" : "excludedTagNames", JSON.stringify([...set]));
     };
 
     const setStatus = (msg) => {
-        // Update the status area in lower-right if present
-        if (statusArea) {
-            statusArea.setStatus(msg);
-        }
-
-        // ALSO update the update popup if it's open
-        if (window.hbUpdateModal?.progressEl) {
-            window.hbUpdateModal.progressEl.textContent = msg;
-        }
+        statusArea?.setStatus(msg);
+        if (window.hbUpdateModal?.progressEl) window.hbUpdateModal.progressEl.textContent = msg;
     };
 
     const getData = () => {
-        const data = GM_getValue("hoverbabe-data");
-        if (data) {
-            // convert actorNames.names back to Set.
-            const o = JSON.parse(data);
+        const raw = GM_getValue("hoverbabe-data");
+        if (raw) {
+            const o = JSON.parse(raw);
             o.actorNames.names = new Set(JSON.parse(o.actorNames.names));
             return o;
         }
-
-        return {
-            actorNames: {
-                names: new Set(),
-                time: undefined,
-            },
-            pages: {},
-        };
+        return { actorNames: { names: new Set(), time: undefined }, pages: {} };
     };
     const saveData = (dataObj) => {
         // Convert actorNames.names to array first
@@ -883,19 +778,10 @@ const getLowerTagText = (el) => {
     };
     const clearAllData = () => GM_deleteValue("hoverbabe-data");
 
-    // XRT141 - Case Normalization (Lowercase)
-    const getAllAliases = (settings) => {
-        const { optionAliases } = settings || {};
-        if (optionAliases) {
-            return Object.values(optionAliases).flat().map((v) => v.trim().toLowerCase());
-        }
-        return [];
-    };
-    // XRT141 - End
+    // Case Normalization (Lowercase)
+    const getAllAliases = (s) => s?.optionAliases ? Object.values(s.optionAliases).flat().map(v => v.trim().toLowerCase()) : [];
 
-    const runDelayedFunc = (f, n) => {
-        window.setTimeout(f, n);
-    };
+    const runDelayedFunc = (f, n) => setTimeout(f, n);
 
     const getStorageStats = (type) => {
         let x;
@@ -910,25 +796,12 @@ const getLowerTagText = (el) => {
         return parseFloat((total / 1024).toFixed(2));
     };
 
-    const stringToHTML = (str) => {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(str, "text/html");
-        return doc.body;
-    };
+    const domParser = new DOMParser();
+    const stringToHTML = (str) => domParser.parseFromString(str, "text/html").body;
 
-    /**
- * Excluded tags stored in localStorage.
- * Clean if >= 20% of localStorage. This likely wouldn't be hit before the
- * monthly actor reset. This runs when the actor reset runs.
- */
+    /** Clean excluded tags stored in localStorage if >= 20% full */
     const cleanTagCaches = (force = false) => {
-        const storageSize = 10000;
-        const max = 0.2 * storageSize;
-        const localStorageStats = getStorageStats("localStorage");
-        // console.log(
-        //   `Current localStorage size: ${localStorageStats}KB, max ${max}KB`
-        // );
-        if (force || localStorageStats >= max) {
+        if (force || getStorageStats("localStorage") >= 2000) {
             setStatus("Cleaning excluded tag cache.");
             localStorage.removeItem("excludedTagNames");
             localStorage.removeItem("hb-tag-hits");
@@ -999,112 +872,51 @@ const getLowerTagText = (el) => {
         if (data.actorNames) {
             const lastDownloadedTime = data.actorNames.time;
             return (
-                (lastDownloadedTime + oneMonth - now.getTime()) /
-                (60 * 60 * 24 * 1000)
+                (lastDownloadedTime + ONE_MONTH - now.getTime()) /
+                86400000
             ).toFixed(0);
         }
         return 0;
     };
 
     const getAllActors = () => {
-        const now = new Date();
-        const nowTime = now.getTime();
+        const nowTime = Date.now();
 
-        if (data?.actorNames && data.actorNames.names.size > 0) {
-            const actorsLastCacheTime = data.actorNames.time;
-            if (nowTime - actorsLastCacheTime <= oneMonth) {
-                return Promise.resolve("cache current");
-            }
+        if (data?.actorNames?.names?.size > 0 && nowTime - data.actorNames.time <= ONE_MONTH) {
+            return Promise.resolve("cache current");
         }
 
-        // Clean the excluded tags cache. This is so newly available actors can
-        // get off of the excluded list.
+        // Clean the excluded tags cache
         cleanTagCaches(true);
 
-        const letters = [
-            "a",
-            "b",
-            "c",
-            "d",
-            "e",
-            "f",
-            "g",
-            "h",
-            "i",
-            "j",
-            "k",
-            "l",
-            "m",
-            "n",
-            "o",
-            "p",
-            "q",
-            "r",
-            "s",
-            "t",
-            "u",
-            "v",
-            "w",
-            "x",
-            "y",
-            "z",
-        ];
+        const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
+        const promises = letters.map((letter, i) => xmlHttpPromiseBP({
+            url: `${TARGET_BP_URL}/index/${letter}`,
+            delay: i * 2000,
+            letter
+        }));
 
-        const promises = [];
-        letters.forEach((letter, i) => {
-            promises.push(
-                xmlHttpPromiseBP({
-                    url: `${TARGET_BP_URL}/index/${letter}`,
-                    referer: "${TARGET_BP_URL}",
-                    host: "${TARGET_BP_HOST}",
-                    delay: i * 2000,
-                    letter,
-                }),
-            );
-        });
-
-        // Cache all actors after all responses come back.
         let allActorNames = new Set();
-        return Promise.all(promises).then((responseObjects) => {
-            responseObjects.forEach((responseObject) => {
-                const names = getAllActorsNamesFromIndexPage(responseObject);
-                allActorNames = new Set([...allActorNames, ...names]);
-                data.actorNames = {
-                    names: allActorNames,
-                    time: now.getTime(),
-                };
-                saveData(data);
-            });
-            // Set total
-            if (statusArea) {
-                statusArea.setTotalActors();
+        return Promise.all(promises).then((responses) => {
+            for (const resp of responses) {
+                for (const name of getAllActorsNamesFromIndexPage(resp)) {
+                    allActorNames.add(name);
+                }
             }
-            return responseObjects;
+            data.actorNames = { names: allActorNames, time: nowTime };
+            saveData(data);
+            statusArea?.setTotalActors();
+            return responses;
         });
     };
 
     const getAllActorNamesFromCache = () => data.actorNames.names;
 
-    const capitalizeFirst = (string) =>
-    `${string.charAt(0).toUpperCase()}${string.slice(1)}`;
+    const capitalizeFirst = (s) => s[0].toUpperCase() + s.slice(1);
 
     const tagToName = (tag) => {
-        if (tag.includes("📸")) {
-            // Remove icon if it exists
-            tag = tag.substring(2);
-        }
-        const names = tag.split(".");
-        if (names.length === 3) {
-            return [
-                capitalizeFirst(names[0]),
-                capitalizeFirst(names[1]),
-                capitalizeFirst(names[2]),
-            ].join(" ");
-        }
-        if (names.length === 2) {
-            return [capitalizeFirst(names[0]), capitalizeFirst(names[1])].join(" ");
-        }
-        return capitalizeFirst(names[0]);
+        if (tag.includes("📸")) tag = tag.substring(2);
+        return tag.split(".").map(capitalizeFirst).join(" ");
     };
 
     const createBioContainer = (
@@ -1377,6 +1189,11 @@ const getLowerTagText = (el) => {
       font-weight: bold;
       margin-bottom: 3px;
     }
+
+    /* Style specific labels by default. Edit these colors as needed. */
+    div#hoverbabe-container .label-age { color: #baff6b; font-weight: 600; }
+    div#hoverbabe-container .label-boobs { color: #d16be6; font-weight: 600; }
+
   #similar-performers {
     display: block;
   }
@@ -1499,266 +1316,151 @@ const getLowerTagText = (el) => {
         return div;
     };
 
-    /**
- * Try to get image from session/local storage.
- * @param {String} imgSrc
- */
-    const getImageFromCache = (imgSrc) => {
-        const cachedImageData = sessionStorage.getItem(imgSrc);
-        if (cachedImageData) {
-            return cachedImageData;
-        }
-        return localStorage.getItem(imgSrc);
-    };
+    /** Try to get image from session/local storage */
+    const getImageFromCache = (imgSrc) => sessionStorage.getItem(imgSrc) || localStorage.getItem(imgSrc);
 
     const getBioImage = (name, imgSrc, cb) => {
-        const cachedImageData = getImageFromCache(imgSrc);
-
-        if (cachedImageData) {
-            const cachedImageObject = JSON.parse(cachedImageData);
-            const cachedImage = cachedImageObject.image;
-
-            // console.log(`Getting cached image for ${name}: ${imgSrc}`);
-            statusArea.setStatus(`Getting cached image for ${name}`);
-
+        const cached = getImageFromCache(imgSrc);
+        if (cached) {
+            statusArea?.setStatus(`Getting cached image for ${name}`);
             const img = document.createElement("img");
-            img.src = cachedImage;
+            img.src = JSON.parse(cached).image;
             return cb(img);
         }
-
-        // No image available
-        if (imgSrc.includes("javascript")) {
-            return cb(null);
-        }
-
+        if (imgSrc.includes("javascript")) return cb(null);
 
         cfAwareRequest({
             method: "GET",
             url: `${TARGET_BP_URL}${imgSrc}`,
-            headers: {
-                Referer: TARGET_BP_URL,
-                Host: TARGET_BP_HOST,
-                "User-Agent": "Mozilla/5.0 ...",
-            },
+            headers: { Referer: TARGET_BP_URL, Host: TARGET_BP_HOST, "User-Agent": "Mozilla/5.0 ..." },
             responseType: "blob",
             onload: (data) => {
                 const img = document.createElement("img");
-                data.response.text().then(() => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(data.response);
-                    reader.onloadend = () => {
-                        const base64data = reader.result;
-                        img.src = base64data;
-                        const now = new Date();
-                        cacheEntryInBrowserStorage(
-                            imgSrc,
-                            JSON.stringify({ time: now.getTime(), image: base64data })
-                        );
-                        cb(img);
-                    };
-                });
-            },
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    img.src = reader.result;
+                    cacheEntryInBrowserStorage(imgSrc, JSON.stringify({ time: Date.now(), image: reader.result }));
+                    cb(img);
+                };
+                reader.readAsDataURL(data.response);
+            }
         });
-
     };
 
     const insertAfter = (newNode, existingNode) =>
     existingNode.parentNode.insertBefore(newNode, existingNode.nextSibling);
 
-    const findEl = (dom, parentSelector, text) => {
-        const res = Array.from(dom.querySelector(parentSelector).children).filter(
-            (node) => node.innerText.includes(text),
-        );
-        if (res) {
-            return res[0];
-        }
-    };
+    const findEl = (dom, sel, text) => [...dom.querySelector(sel).children].find(n => n.innerText.includes(text));
 
     const createBioEntry = (name, value) => {
         const div = document.createElement("div");
         div.className = "info-item";
-        const sp1 = document.createElement("span");
-        sp1.className = "label";
-        const sp2 = document.createElement("span");
-        sp2.className = "value";
-
-        sp1.innerText = `${name}: `;
-        sp2.innerText = value;
-        div.append(sp1);
-        div.append(sp2);
+        const labelText = name.split(':')[0].trim().toLowerCase();
+        const extraClass = (labelText === 'age' ? ' label-age' : (labelText === 'boobs' ? ' label-boobs' : ''));
+        div.innerHTML = `<span class="label${extraClass}">${name}: </span><span class="value">${value}</span>`;
         return div;
-    };
+    };   
 
     const addDebutInfo = (bioDom) => {
         const target = findEl(bioDom, ".info-grid", "Age:");
-        if (target) {
-            const birthYearEl = bioDom.querySelector("a[href*=born]");
-            let birthYear;
-            if (birthYearEl) {
-                birthYear = birthYearEl.innerText;
-            }
-            const debutYearEl = Array.from(
-                bioDom.querySelectorAll(".info-item"),
-            ).filter((el) => el.innerText.includes("active"));
-            if (debutYearEl && debutYearEl.length === 1 && birthYear) {
-                const debutYear = Array.from(bioDom.querySelectorAll(".info-item"))
-                .filter((el) => el.innerText.includes("active"))
-                .map((el) => el.innerText.split(":")[1].split("-")[0].trim())[0];
-                const debutAge = debutYear * 1 - birthYear * 1;
-
-                // add to bioDom
-                const debutAgeEl = createBioEntry("Debut Age", debutAge);
-                const debutYearEl = createBioEntry("Debut Year", debutYear);
-
-                insertAfter(debutAgeEl, target);
-                insertAfter(debutYearEl, debutAgeEl);
-            }
+        if (!target) return;
+        const birthYearEl = bioDom.querySelector("a[href*=born]");
+        if (!birthYearEl) return;
+        const birthYear = +birthYearEl.innerText;
+        const activeEl = [...bioDom.querySelectorAll(".info-item")].find(el => el.innerText.includes("active"));
+        if (!activeEl) return;
+        const debutYear = +activeEl.innerText.split(":")[1].split("-")[0].trim();
+        if (debutYear && birthYear) {
+            insertAfter(createBioEntry("Debut Age", debutYear - birthYear), target);
+            insertAfter(createBioEntry("Debut Year", debutYear), target.nextSibling);
         }
     };
 
     const cleanUpDom = (bioDom) => {
         addDebutInfo(bioDom);
 
-        // Remove links in bio section.
-        const allBioLinks = Array.from(
-            bioDom.querySelectorAll("#personal-info-block a"),
-        );
-
-        allBioLinks.forEach((link) => {
-            const textNode = document.createTextNode(link.textContent);
-            link.parentNode.replaceChild(textNode, link);
+        // Remove links in bio section
+        bioDom.querySelectorAll("#personal-info-block a").forEach(link => {
+            link.replaceWith(document.createTextNode(link.textContent));
         });
 
-        // Remove any inline styles from values
-        const els = bioDom.querySelectorAll("div.info-item .value");
+        // Remove inline styles from values
+        bioDom.querySelectorAll("div.info-item .value *").forEach(el => el.removeAttribute("style"));
 
-        els.forEach((el) => {
-            const { children } = el;
-            if (children.length > 0) {
-                Array.from(children).forEach((child) => {
-                    child.removeAttribute("style");
-                });
-            }
+        const labelEls = [...bioDom.querySelectorAll("div.info-item .label")];
+        const findLabel = (text) => labelEls.find(el => el.innerText.toLowerCase().includes(text));
+
+        // Add special classes for labels so they can be colored.
+        labelEls.forEach(el => {
+            const text = el.innerText.split(':')[0].trim().toLowerCase();
+            if (text === 'age') el.classList.add('label-age');
+            if (text === 'boobs') el.classList.add('label-boobs');
         });
 
-        const labelEls = Array.from(bioDom.querySelectorAll("div.info-item .label"));
-
-        // birthdate formatting
-        const bornLabelList = labelEls.filter((el) =>
-                                              el.innerText.toLowerCase().includes("born"),
-                                             );
-        if (bornLabelList.length > 0) {
-            const birthDateEl = bornLabelList[0].parentElement.children[1];
-            const birthDateList = birthDateEl.textContent.split(" ");
-            const birthDateText = `${birthDateList[3]} ${birthDateList[1]}, ${birthDateList[4]}`;
-            birthDateEl.textContent = birthDateText;
+        // Birthdate formatting
+        const bornLabel = findLabel("born");
+        if (bornLabel) {
+            const el = bornLabel.parentElement.children[1];
+            const p = el.textContent.split(" ");
+            el.textContent = `${p[3]} ${p[1]}, ${p[4]}`;
         }
 
         // Age formatting
-        const ageLabelList = labelEls.filter((el) =>
-                                             el.innerText.toLowerCase().includes("age"),
-                                            );
-        if (ageLabelList.length > 0) {
-            const ageEl = ageLabelList[0].nextElementSibling;
-            ageEl.textContent = ` ${ageEl.textContent.split("years")[0].trim()}`;
+        const ageLabel = findLabel("age");
+        if (ageLabel?.nextElementSibling) {
+            ageLabel.nextElementSibling.textContent = ` ${ageLabel.nextElementSibling.textContent.split("years")[0].trim()}`;
         }
 
-        // Debut age, year
-        const debutAgeList = labelEls.filter((el) =>
-                                             el.innerText.toLowerCase().includes("debut age"),
-                                            );
-        const debutYearList = labelEls.filter((el) =>
-                                              el.innerText.toLowerCase().includes("debut year"),
-                                             );
-
-        if (debutAgeList.length > 0) {
-            const parts = debutAgeList[0].innerText.split(":");
-            const label = `${parts[0]}:`;
-            const age = parts[1];
-            debutAgeList[0].innerText = label;
-            insertAfter(document.createTextNode(age), debutAgeList[0]);
-        }
-
-        if (debutYearList.length > 0) {
-            const parts = debutYearList[0].innerText.split(":");
-            const label = `${parts[0]}:`;
-            const age = parts[1];
-            debutYearList[0].innerText = label;
-            insertAfter(document.createTextNode(age), debutYearList[0]);
-        }
+        // Debut age, year formatting
+        [findLabel("debut age"), findLabel("debut year")].filter(Boolean).forEach(el => {
+            const [label, val] = el.innerText.split(":");
+            el.innerText = `${label}:`;
+            insertAfter(document.createTextNode(val), el);
+        });
 
         // Aliases
-        const akaEl = bioDom.parentElement.querySelector("#aka");
+        const akaEl = bioDom.parentElement?.querySelector("#aka");
         if (akaEl) {
-            const text = akaEl.textContent
-            .split(":")[1]
-            .split(/\s+-\s+/)
-            .join(", ")
-            .trim();
-            const aliasEl = createBioEntry("Aliases", text);
-            const target = bioDom.querySelectorAll(".info-item")[0];
-            target.parentNode.insertBefore(aliasEl, target);
+            const text = akaEl.textContent.split(":")[1].split(/\s+-\s+/).join(", ").trim();
+            const target = bioDom.querySelector(".info-item");
+            target?.parentNode.insertBefore(createBioEntry("Aliases", text), target);
         }
 
         // Profession
-        const professionEl = labelEls.find((el) =>
-                                           el.innerText.toLowerCase().includes("profession"),
-                                          );
-
+        const professionEl = findLabel("profession");
         if (professionEl) {
-            const professionElCloned = professionEl.cloneNode(true);
-            const professionParent = professionEl.parentNode;
-            const professionValues = Array.from(professionParent.children).slice(1);
-            const professionText = professionValues.map((v) => v.innerText).join(", ");
-            professionParent.innerHTML = "";
-            const professionSpan = document.createElement("span");
-            professionSpan.innerText = ` ${professionText}`;
-            professionParent.append(professionElCloned);
-            professionParent.append(professionSpan);
+            const parent = professionEl.parentNode;
+            const text = [...parent.children].slice(1).map(v => v.innerText).join(", ");
+            parent.innerHTML = `<span class="label">Profession: </span><span> ${text}</span>`;
         }
 
         return bioDom;
     };
 
     const cleanPagesCache = () => {
-        const oneWeek = 604800000;
-        const now = new Date();
-
+        const now = Date.now();
         if (data.pages) {
-            Object.keys(data.pages).forEach((name) => {
-                if (now.getTime() - data.pages[name].time > oneWeek) {
+            for (const name in data.pages) {
+                if (now - data.pages[name].time > ONE_WEEK) {
                     setStatus(`Deleting cached page for ${name}`);
                     delete data.pages[name];
                 }
-            });
+            }
         }
     };
 
     const clearAllBioCache = () => {
-        if (data.pages) {
-            const cacheCount = Object.keys(data.pages).length;
-            data.pages = {};
-            saveData(data);
-            return cacheCount;
-        }
-        return 0;
+        const count = data.pages ? Object.keys(data.pages).length : 0;
+        if (count) { data.pages = {}; saveData(data); }
+        return count;
     };
 
     const createOpenNewPageLink = (url, props, text) => {
         const a = document.createElement("a");
-
-        Object.keys(props).forEach((key) => {
-            a.setAttribute(key, props[key]);
-        });
-
+        Object.assign(a, props);
         a.innerHTML = text;
-
         a.style.cursor = "pointer";
-
-        a.addEventListener("click", (e) => {
-            e.preventDefault();
-            window.open(url, "_blank");
-        });
+        a.onclick = (e) => { e.preventDefault(); window.open(url, "_blank"); };
         return a;
     };
 
@@ -1771,19 +1473,7 @@ const getLowerTagText = (el) => {
         `IAFD`,
     );
 
-    function isCCuporGreater(performerData) {
-        if (!performerData) return false;
-        const braSize = performerData["Bra/cup size"];
-        if (!braSize) {
-            return false;
-        }
-        for (const char of braSize) {
-            if (char >= "C" && char <= "Z") {
-                return true;
-            }
-        }
-        return false;
-    }
+    const isCCuporGreater = (d) => d?.["Bra/cup size"]?.split('').some(c => c >= 'C' && c <= 'Z') || false;
 
     const displayBio = (name, pageDom, precacheOnly) => {
         const settings = getSettings();
@@ -2089,42 +1779,22 @@ const getLowerTagText = (el) => {
                 const link = createIAFDLink(url, actorTag);
 
                 // cache iafd url
-                if (data.iafd) {
-                    data.iafd[actorTag] = url;
-                } else {
-                    data.iafd = {
-                        [actorTag]: url,
-                    };
-                }
-
+                data.iafd = { ...data.iafd, [actorTag]: url };
                 saveData(data);
                 return link;
             }
-            if (data.iafd) {
-                data.iafd[actorTag] = null;
-            } else {
-                data.iafd = {
-                    [actorTag]: null,
-                };
-            }
+            data.iafd = { ...data.iafd, [actorTag]: null };
             saveData(data);
             return null;
         });
     };
 
-    // XRT141 - Case Normalization (Lowercase)
+    // Case Normalization (Lowercase)
     const getBPNameForAlias = (aliasName, settings) => {
         const aliasLowerTag = nameToTag(aliasName).toLowerCase();
-        const { optionAliases } = settings || {};
-        if (!optionAliases) return;
-
-        // Find which BP tag owns this alias
-        const bpTag = Object.keys(optionAliases).find((bp) =>
-                                                      optionAliases[bp].includes(aliasLowerTag)
-                                                     );
-        return bpTag; // already lowercase bp tag like "jane.doe"
+        const aliases = settings?.optionAliases;
+        return aliases && Object.keys(aliases).find(bp => aliases[bp].includes(aliasLowerTag));
     };
-    // XRT141 - End
 
     const prefetchSingleBio = (name, index, total, callback) => {
         // First, check any user-defined aliases for actor and convert to that.
@@ -2307,41 +1977,19 @@ const getLowerTagText = (el) => {
     const isBioOpen = () => !!document.querySelector("#hoverbabe-container");
 
     const closeBio = (handle) => {
-        // cancel event
         clearTimeout(handle);
-
-        const container = document.querySelector("#hoverbabe-container");
-        if (container) {
-            container.remove();
-        }
+        document.querySelector("#hoverbabe-container")?.remove();
     };
 
-    const getTagNameFromTagEl = (el) => {
-        if (el.href) {
-            return el.innerText.split("").slice(2).join("");
-        }
-        return el.parentNode.href.split("=")[1];
-    };
+    const getTagNameFromTagEl = (el) => el.href ? el.innerText.slice(2) : el.parentNode.href.split("=")[1];
 
     const startIconSpinner = (icon) => {
-        window.clearInterval(iconSpinnerIntervalHandle);
-        return window.setInterval(() => {
-            if (icon.innerText === "📷") {
-                icon.innerText = "📸";
-            } else {
-                icon.innerText = "📷";
-            }
-        }, 350);
+        clearInterval(iconSpinnerIntervalHandle);
+        return setInterval(() => { icon.innerText = icon.innerText === "📷" ? "📸" : "📷"; }, 350);
     };
 
     const lookup = (hoverEvent) => {
-        // XRT141 - Removed - Case Normalization (Lowercase)
-        // const tag = getTagNameFromTagEl(hoverEvent.target);
-
-        // XRT141 - Case Normalization (Lowercase)
-        const tagRaw = getTagNameFromTagEl(hoverEvent.target);
-        const tag = tagRaw.toLowerCase();
-        // XRT141 - End
+        const tag = getTagNameFromTagEl(hoverEvent.target).toLowerCase();
 
         const name = tagToName(tag);
 
@@ -2393,28 +2041,16 @@ const getLowerTagText = (el) => {
         hovered = false;
     };
 
-    // XRT141 - Fixed to include aliases
     const highlightTorrentTag = (name) => {
-        const tagsInPage = Array.from(
-            document.querySelectorAll("#torrent_tags a[href*=torrents]")
-        );
         const span = document.createElement("span");
         span.innerText = "📸";
         span.style.marginLeft = "2px";
-
         const targetLower = nameToTag(name).toLowerCase();
-        const aliases = getAllAliases(settings); // already lowercase
 
-        tagsInPage.forEach((tagEl) => {
+        document.querySelectorAll("#torrent_tags a[href*=torrents]").forEach(tagEl => {
             const tagLower = getLowerTagText(tagEl);
-
-            // Match if this tag equals the canonical BP tag OR any alias of that BP tag
-            // We need the alias list for this BP tag specifically:
             const aliasOwner = getBPNameForAlias(tagToName(tagLower), settings);
-            const tagIsAliasOfTarget =
-                  aliasOwner && aliasOwner.toLowerCase() === targetLower;
-
-            if (tagLower === targetLower || tagIsAliasOfTarget) {
+            if (tagLower === targetLower || (aliasOwner && aliasOwner.toLowerCase() === targetLower)) {
                 tagEl.parentNode.prepend(span.cloneNode(true));
                 highlightTag(tagEl.parentNode);
             }
@@ -2422,47 +2058,28 @@ const getLowerTagText = (el) => {
     };
 
 
-    // XRT141 - Case Normalization (Lowercase)
     const highlightAliases = (tagEls, settings) => {
-        const allAliases = getAllAliases(settings); // lowercase
-        const aliasesToHighlight = tagEls.filter(
-            (tagEl) => allAliases.includes(getLowerTagText(tagEl))
-        );
-        aliasesToHighlight.forEach(highlightTag);
+        const allAliases = getAllAliases(settings);
+        tagEls.filter(el => allAliases.includes(getLowerTagText(el))).forEach(highlightTag);
     };
-    // XRT141 - End
 
 
-    // XRT141 - Case Normalization (Lowercase)
-    // Filter incoming tags to prevent need to search the large list of actors. Relies on hit/miss caches.
-    // All comparisons and cached keys are lowercase.
+    // Filter tags using hit/miss caches (all lowercase)
     const processTags = (tags, hits, misses, actorList) => {
-        // Map tags -> {el, textLower}
-        const tagObjs = tags.map((el) => ({ el, textLower: getLowerTagText(el) }));
-
-        const newTags = tagObjs.filter(
-            (t) => !hits.has(t.textLower) && !misses.has(t.textLower)
-        );
-        const knownHits = tagObjs.filter((t) => hits.has(t.textLower));
-
-        // Get all aliases to check against
-        const allAliases = getAllAliases(settings); // lowercase
-
-        // "actorList" contains lowercase names already; compare lowercase.
-        // Also check if the tag is a user-defined alias
-        const newHits = newTags.filter((t) => actorList.has(t.textLower) || allAliases.includes(t.textLower));
-        const newMisses = newTags.filter((t) => !actorList.has(t.textLower) && !allAliases.includes(t.textLower));
-
-        const tagsToHighlight = [...knownHits, ...newHits].map((t) => t.el);
-
+        const tagObjs = tags.map(el => ({ el, textLower: getLowerTagText(el) }));
+        const newTags = tagObjs.filter(t => !hits.has(t.textLower) && !misses.has(t.textLower));
+        const knownHits = tagObjs.filter(t => hits.has(t.textLower));
+        const allAliases = getAllAliases(settings);
+        const isActor = t => actorList.has(t.textLower) || allAliases.includes(t.textLower);
+        const newHits = newTags.filter(isActor);
+        const newMisses = newTags.filter(t => !isActor(t));
         return {
-            knownHits: knownHits.map((t) => t.el),
-            newHits: newHits.map((t) => t.el),
-            newMisses: newMisses.map((t) => t.el),
-            tagsToHighlight,
+            knownHits: knownHits.map(t => t.el),
+            newHits: newHits.map(t => t.el),
+            newMisses: newMisses.map(t => t.el),
+            tagsToHighlight: [...knownHits, ...newHits].map(t => t.el)
         };
     };
-    // XRT141 - End
 
 
     // Prefetch bios on the title page.
@@ -2628,10 +2245,7 @@ const getLowerTagText = (el) => {
         }
     };
 
-    const getTotalActors = () =>
-    data.actorNames?.names && data.actorNames.names.size > 0
-    ? data.actorNames.names.size
-    : 0;
+    const getTotalActors = () => data.actorNames?.names?.size || 0;
 
     const getAlertsArea = () => document.querySelector("#alerts");
 
@@ -2984,11 +2598,10 @@ const getLowerTagText = (el) => {
         }
     };
 
-    const isSearchResultsPage = () =>
-    (window.location.pathname.includes("torrents.php") &&
-     !window.location.href.includes("?id")) ||
-          window.location.pathname.includes("top10") ||
-          window.location.pathname.includes("requests");
+    const isSearchResultsPage = () => {
+        const p = location.pathname;
+        return (p.includes("torrents.php") && !location.href.includes("?id")) || p.includes("top10") || p.includes("requests");
+    };
 
     const setCurrentVersion = () => {
         const curVersion = GM_getValue("hb-version");
@@ -2998,49 +2611,14 @@ const getLowerTagText = (el) => {
         }
     };
 
-    function versionCompare(v1, v2, options) {
-        const lexicographical = options?.lexicographical;
-        const zeroExtend = options?.zeroExtend;
-        let v1parts = v1.split(".");
-        let v2parts = v2.split(".");
-
-        function isValidPart(x) {
-            return (lexicographical ? /^\d+[A-Za-z]*$/ : /^\d+$/).test(x);
+    const versionCompare = (v1, v2) => {
+        const p1 = v1.split('.').map(Number), p2 = v2.split('.').map(Number);
+        for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+            const a = p1[i] || 0, b = p2[i] || 0;
+            if (a !== b) return a > b ? 1 : -1;
         }
-
-        if (!v1parts.every(isValidPart) || !v2parts.every(isValidPart)) {
-            return NaN;
-        }
-
-        if (zeroExtend) {
-            while (v1parts.length < v2parts.length) v1parts.push("0");
-            while (v2parts.length < v1parts.length) v2parts.push("0");
-        }
-
-        if (!lexicographical) {
-            v1parts = v1parts.map(Number);
-            v2parts = v2parts.map(Number);
-        }
-
-        for (let i = 0; i < v1parts.length; ++i) {
-            if (v2parts.length === i) {
-                return 1;
-            }
-
-            if (v1parts[i] === v2parts[i]) {
-            } else if (v1parts[i] > v2parts[i]) {
-                return 1;
-            } else {
-                return -1;
-            }
-        }
-
-        if (v1parts.length !== v2parts.length) {
-            return -1;
-        }
-
         return 0;
-    }
+    };
 
     const updateCheck = (autoUpdate) => {
         const curVersion = GM_getValue("hb-version");
@@ -3053,19 +2631,15 @@ const getLowerTagText = (el) => {
 
     // --- Update Popup Detection Functions ---
 
-    function shouldSuppressUpdatePopup() {
-        const until = parseInt(localStorage.getItem(UPDATE_POPUP_SUPPRESS_KEY), 10);
-        return !Number.isNaN(until) && Date.now() < until;
-    }
+    const shouldSuppressUpdatePopup = () => {
+        const until = +localStorage.getItem(UPDATE_POPUP_SUPPRESS_KEY);
+        return until > 0 && Date.now() < until;
+    };
 
-    function setUpdatePopupSuppressionDays(days) {
-        if (!days || Number.isNaN(+days) || +days <= 0) {
-            localStorage.removeItem(UPDATE_POPUP_SUPPRESS_KEY);
-            return;
-        }
-        const until = Date.now() + (+days) * 24 * 60 * 60 * 1000;
-        localStorage.setItem(UPDATE_POPUP_SUPPRESS_KEY, until.toString());
-    }
+    const setUpdatePopupSuppressionDays = (days) => {
+        days > 0 ? localStorage.setItem(UPDATE_POPUP_SUPPRESS_KEY, (Date.now() + days * 86400000).toString())
+                 : localStorage.removeItem(UPDATE_POPUP_SUPPRESS_KEY);
+    };
 
     function getUpdateReason() {
         // Check for version change first
@@ -3076,11 +2650,10 @@ const getLowerTagText = (el) => {
         }
 
         // Check for monthly timeout
-        const now = new Date();
-        const nowTime = now.getTime();
+        const nowTime = Date.now();
         if (data?.actorNames && data.actorNames.names.size > 0) {
             const actorsLastCacheTime = data.actorNames.time;
-            if (nowTime - actorsLastCacheTime > oneMonth) {
+            if (nowTime - actorsLastCacheTime > ONE_MONTH) {
                 return "monthly";
             }
         } else {
@@ -3135,8 +2708,7 @@ const getLowerTagText = (el) => {
         GM_setValue("hb-settings", JSON.stringify(settings));
     };
 
-    const hideSettings = () =>
-    document.querySelector("#threadman-options-outer-container").remove();
+    const hideSettings = () => document.querySelector("#threadman-options-outer-container").remove();
 
     // Convert aliases back to string for alias textarea in settings
     const convertObjectToString = (aliasesObject) => {
@@ -3151,6 +2723,98 @@ const getLowerTagText = (el) => {
             return str;
         }
         return "";
+    };
+
+    // Aliases popup
+    const showAliasesPopup = (currentAliases) => {
+        const aliasesTemplate = `
+  <style>
+    #hb-aliases-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9998;
+    }
+    #hb-aliases-modal {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 600px; max-width: 90vw; background: #111; color: #ddd; border: 1px solid #444;
+      border-radius: 8px; padding: 16px; z-index: 9999; font-family: Verdana, Arial, sans-serif;
+    }
+    #hb-aliases-modal h3 { margin: 0 0 8px 0; font-size: 16px; }
+    #hb-aliases-modal p { margin: 8px 0; font-size: 12px; line-height: 1.4; }
+    #hb-aliases-modal code { background: #222; padding: 2px 4px; border-radius: 3px; }
+    #hb-aliases-close { position: absolute; top: 8px; right: 12px; cursor: pointer; font-size: 20px; color: #ddd; }
+    #hb-aliases-close:hover { color: #fff; }
+    #hb-aliases-textarea {
+      width: 100%; min-height: 200px; max-height: 400px; padding: 8px; margin: 12px 0;
+      border: 1px solid #555; border-radius: 4px; background: #000; color: #ddd;
+      font-family: monospace; font-size: 12px; box-sizing: border-box;
+    }
+    #hb-aliases-buttons { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+    #hb-aliases-save, #hb-aliases-cancel {
+      background: #2a7; color: #fff; border: none; border-radius: 4px; padding: 8px 16px;
+      cursor: pointer; font-size: 13px;
+    }
+    #hb-aliases-cancel { background: #555; }
+    #hb-aliases-save:hover, #hb-aliases-cancel:hover { opacity: 0.9; }
+  </style>
+
+  <div id="hb-aliases-overlay">
+    <div id="hb-aliases-modal">
+      <div id="hb-aliases-close">✖️</div>
+      <h3>User-defined Aliases</h3>
+      <p><strong>Format:</strong> <code>[babepedia tag]:[alias 1],[alias 2], etc</code> (no spaces, 1 actor per line)</p>
+      <p><strong>Example:</strong> <code>polina.maxim:polina.max,polina.maxima</code></p>
+      <p>Leave blank if no custom aliases needed.</p>
+      <textarea id="hb-aliases-textarea" placeholder="actor.name:alias1,alias2&#10;another.actor:othername">${convertObjectToString(currentAliases)}</textarea>
+      <div id="hb-aliases-buttons">
+        <button id="hb-aliases-cancel">Cancel</button>
+        <button id="hb-aliases-save">Save & Close</button>
+      </div>
+    </div>
+  </div>
+        `;
+
+        const overlay = document.createElement("div");
+        overlay.innerHTML = aliasesTemplate;
+        document.body.appendChild(overlay);
+
+        const modal = document.querySelector("#hb-aliases-modal");
+        const textarea = document.querySelector("#hb-aliases-textarea");
+        const closeBtn = document.querySelector("#hb-aliases-close");
+        const cancelBtn = document.querySelector("#hb-aliases-cancel");
+        const saveBtn = document.querySelector("#hb-aliases-save");
+
+        const closePopup = () => document.querySelector("#hb-aliases-overlay").remove();
+
+        closeBtn.addEventListener("click", closePopup);
+        cancelBtn.addEventListener("click", closePopup);
+
+        saveBtn.addEventListener("click", () => {
+            const rawText = textarea.value.trim();
+            const parsedAliases = {};
+
+            if (rawText) {
+                try {
+                    const entries = rawText.split("\n");
+                    entries.forEach(line => {
+                        const parts = line.split(":");
+                        const lhs = (parts[0] || "").trim().toLowerCase();
+                        const rhs = (parts[1] || "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
+                        if (lhs) parsedAliases[lhs] = rhs;
+                    });
+                } catch {
+                    alert("Error parsing aliases. Check your format.");
+                    return;
+                }
+            }
+
+            // Get current settings and update only aliases
+            const currentSettings = getSettings();
+            currentSettings.optionAliases = parsedAliases;
+            saveSettings(currentSettings);
+
+            closePopup();
+            // Notify any open settings modal so it can update its in-memory options
+            document.dispatchEvent(new CustomEvent('hb-aliases-updated', { detail: parsedAliases }));
+        });
     };
 
     // Settings
@@ -3190,6 +2854,21 @@ const getLowerTagText = (el) => {
       display: inline-block;
     }
 
+    .options-inner h4{
+      font-size: 9pt;
+      margin: 5px 0px;
+      font-weight: bold;
+      color: #ccc;
+    }
+
+    .options-inner label{
+      font-size: 9pt;
+      color: #ccc;
+    }
+
+    .options-inner input{
+      margin-left: 5px;
+    }
     #threadman-save-settings {
       margin-top: 10px;
     }
@@ -3217,8 +2896,37 @@ const getLowerTagText = (el) => {
       vertical-align: bottom;
     }
 
-    #option-aliases {
-      width: 100%;
+    #option-aliases-btn {
+      background: #2a7;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    #option-aliases-btn:hover {
+      opacity: 0.9;
+    }
+
+    #threadman-save-settings, #threadman-refresh-actors, #threadman-clear-cache {
+      background: rgb(104, 110, 108);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 13px;
+      margin-right: 8px;
+      margin-top: 8px;
+      height: 20px;
+      line-height: 18px;
+    }
+
+    #threadman-save-settings:hover, #threadman-refresh-actors:hover, #threadman-clear-cache:hover {
+      opacity: 0.9;
     }
 
   </style>
@@ -3232,17 +2940,17 @@ const getLowerTagText = (el) => {
         <input type="checkbox" id="option-click-to-open" name="option-click-to-open" ${
         options.optionClickToOpen ? "checked" : ""
         }>
-        <label for="option-click-to-open"> Click to open bio box (instead of hover)</label>
+        <label for="option-click-to-open"> Click for bio (default: hover)</label>
         <br>
         <input type="checkbox" id="option-show-status-area" name="option-show-status-area" ${
         options.optionShowStatusArea ? "checked" : ""
         }>
-        <label for="option-show-status-area"> Show status area</label>
+        <label for="option-show-status-area"> Show status area (Lower right)</label>
         <br>
         <input type="checkbox" id="option-sort-actors" name="option-sort-actors" ${
         options.optionSortActors ? "checked" : ""
         }>
-        <label for="option-sort-actors"> Performer tags at beginning of tag list (Search results pages, not on torrent page)</label>
+        <label for="option-sort-actors"> Sort performer tags first (Where possible)</label>
         <br>
         <input type="checkbox" id="option-enable-tag-highlighting" name="option-enable-tag-highlighting" ${
         options.optionEnableTagHighlighting ? "checked" : ""
@@ -3261,13 +2969,13 @@ const getLowerTagText = (el) => {
         } title="If enabled, HoverBabe will attempt to prefetch performer bio pages & images on the torrent details page">
         <label for="option-prefetch-on-details"> Prefetch Actor Bios on Details Page</label>
         <br>
-        <label title="Maximum number of actor bios to prefetch. If more actors are present, lazy loading will be used.">
-          Max Actors to Prefetch
+        <label title="Maximum number of actor bios to prefetch. If more actors are present, lazy loading will be used." style="margin-left: 5px;">
+            Max Actors to Prefetch
           <input type="number" id="option-prefetch-max-actors" min="1" value="${options.optionPrefetchMaxActors}" style="width:80px; margin-left:6px;">
         </label>
         <br>
-        <label title="Delay between successive prefetch requests in milliseconds. Increase to reduce request rate to the target site.">
-          Delay between prefetch requests
+        <label title="Delay between successive prefetch requests in milliseconds. Increase to reduce request rate to the target site." style="margin-left: 5px;">
+            Delay between prefetch requests
           <input type="number" id="option-prefetch-delay-ms" min="100" value="${options.optionPrefetchDelayMs}" style="width:100px; margin-left:6px;"> ms
         </label>
         <br><br>
@@ -3277,7 +2985,7 @@ const getLowerTagText = (el) => {
         options.optionDebug ? "checked" : ""
         } title="When enabled, HoverBabe will log grouped external request activity to the console.">
         <label for="option-debug-logging"> Enable debug request logging</label>
-        <br>
+        <br><br>
 
         <h4>Bio Popup Display Options</h4>
         <input type="checkbox" id="option-show-about-section" name="option-show-about-section" ${
@@ -3295,22 +3003,15 @@ const getLowerTagText = (el) => {
         }>
         <label for="option-show-similar-performers"> Show similar performers</label>
         <br><br>
-        <h4 id='option-aliases-label' for="option-aliases">User-defined Aliases</h4>
-        <p>Format: <code>[babepedia tag]:[alias tag 1],[alias tag 2], etc. (no spaces, 1 actor per line)</code></p>
-        <p>Example: <code>polina.maxim:polina.max,polina.maxima,verena.maxima,venera.maxima</code></p>
-        <textarea placeholder="List of aliases (see above for format)" id="option-aliases" rows=10>${convertObjectToString(
-            options.optionAliases,
-        )}</textarea>
+        <h4>User-defined Aliases</h4>
+        <button id='option-aliases-btn' type='button'>Edit Aliases</button>
       </div>
     </div>
-
+<br><br>
 <div>
-  <button id='threadman-save-settings'>Save Settings</button>
-  <p>(Chrome only: Refresh page after saving settings)</p>
-  <button id='threadman-refresh-actors'>Refresh Performer Database Now</button>
-  <p>This manually updates the Babepedia performer list.</p>
-  <button id='threadman-clear-cache'>Clear Bio Cache</button>
-  <p>This clears cached performer bio pages (keeps performer database).</p>
+  <button id='threadman-save-settings' title='Save your settings changes and reload the page'>Save Settings</button>
+  <button id='threadman-refresh-actors' title='Manually trigger a full refresh of the performer database. This will take several minutes.'>Refresh Performer DB</button>
+  <button id='threadman-clear-cache' title='Clear all cached performer bio pages'>Clear Bio Cache</button>
 </div>
 
 
@@ -3326,6 +3027,18 @@ const getLowerTagText = (el) => {
         };
 
         const dom = createTemplateDOM(settingsTemplate);
+
+        // Edit aliases button
+        dom.querySelector("#option-aliases-btn")?.addEventListener("click", () => {
+            // Make sure the in-memory settings object is updated if aliases are changed in the popup
+            const _hb_aliases_handler = (e) => {
+                options.optionAliases = e.detail;
+                document.removeEventListener('hb-aliases-updated', _hb_aliases_handler);
+            };
+            document.addEventListener('hb-aliases-updated', _hb_aliases_handler);
+
+            showAliasesPopup(options.optionAliases);
+        });
 
         // Save settings
         dom
@@ -3349,7 +3062,6 @@ const getLowerTagText = (el) => {
             const optionShowSimilarPerformers = document.querySelector(
                 "#option-show-similar-performers",
             );
-            const optionAliases = document.querySelector("#option-aliases");
 
             // New prefetch inputs
             const optionPrefetchOnDetails = document.querySelector("#option-prefetch-on-details");
@@ -3363,52 +3075,19 @@ const getLowerTagText = (el) => {
                 optionHighlight: optionHighlight.value,
                 optionShowStatusArea: optionShowStatusArea.checked,
                 optionEnableTagHighlighting: optionEnableTagHighlighting.checked,
-                // performer image and biodata always enabled
                 optionShowAboutSection: optionShowAboutSection.checked,
                 optionShowExternalLinks: optionShowExternalLinks.checked,
                 optionShowSimilarPerformers: optionShowSimilarPerformers.checked,
-                /* optionAliases */
-                // New prefetch settings saved
                 optionPrefetchOnDetails: optionPrefetchOnDetails ? optionPrefetchOnDetails.checked : true,
                 optionPrefetchMaxActors: optionPrefetchMaxActors ? Math.max(1, parseInt(optionPrefetchMaxActors.value, 10) || 10) : 10,
                 optionPrefetchDelayMs: optionPrefetchDelayMs ? Math.max(100, parseInt(optionPrefetchDelayMs.value, 10) || 3000) : 3000,
                 optionDebug: optionDebugLogging ? optionDebugLogging.checked : false,
+                optionAliases: options.optionAliases
             };
 
-            // Alias conversion/handling:
-            // actor1: alias1, alias2, alias3\n
-            // actor2: alias1, alias2\n
-            const rawOptionAliases = optionAliases.value.trim();
-            if (rawOptionAliases && rawOptionAliases !== "") {
-                try {
-
-                    // XRT141 - Case Normalization (Lowercase)
-                    const entries = rawOptionAliases.trim().split("\n");
-                    const parsedAliases = entries.reduce((acc, v) => {
-                        const parts = v.split(":");
-                        // Normalize LHS (bp tag) and RHS aliases to lowercase, trimmed.
-                        const lhs = (parts[0] || "").trim().toLowerCase();
-                        const rhs = (parts[1] || "").split(",").map((val) => val.trim().toLowerCase());
-                        if (lhs) acc[lhs] = rhs.filter(Boolean);
-                        return acc;
-                    }, {});
-                    // XRT141 - END
-
-                    saveSettings({
-                        ...localSettings,
-                        ...{ optionAliases: parsedAliases },
-                    });
-                    hideSettings();
-                    window.location.reload(true);
-                } catch {
-                    window.alert("Error: Double-check your aliases.");
-                }
-            } else {
-                saveSettings(localSettings);
-
-                hideSettings();
-                window.location.reload(true);
-            }
+            saveSettings(localSettings);
+            hideSettings();
+            window.location.reload(true);
         });
 
         // Manual refresh performer database
@@ -3474,14 +3153,9 @@ const getLowerTagText = (el) => {
         body.appendChild(dom);
     };
 
-    function removeAllChildNodes(parent) {
-        while (parent.firstChild) {
-            parent.removeChild(parent.firstChild);
-        }
-    }
+    const removeAllChildNodes = (parent) => { parent.innerHTML = ''; };
 
-    const tagHighlighterInstalled = () =>
-    !!document.querySelector("li[title*=Highlighter]");
+    const tagHighlighterInstalled = () => !!document.querySelector("li[title*=Highlighter]");
 
     const sortTagsActorFirst = () => {
         const torrents = document.querySelectorAll(
@@ -3527,17 +3201,12 @@ const getLowerTagText = (el) => {
         container.prepend(ul);
     };
 
-    const debounce = (callback, wait) => {
-        let timeoutId = null;
-        return (...args) => {
-            window.clearTimeout(timeoutId);
-            timeoutId = window.setTimeout(() => {
-                callback.apply(null, args);
-            }, wait);
-        };
+    const debounce = (fn, wait) => {
+        let t;
+        return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
     };
 
-    const isTorrentPage = () => document.location.href.includes("torrents.php?id=");
+    const isTorrentPage = () => location.href.includes("torrents.php?id=");
 
 
     async function shouldSkipDueToCloudflare() {
@@ -3563,7 +3232,7 @@ const getLowerTagText = (el) => {
         }
 
         // No block; schedule next check in 1 hour
-        localStorage.setItem(CF_NEXT_CHECK_KEY, (now + CF_CHECK_INTERVAL).toString());
+        localStorage.setItem(CF_NEXT_CHECK_KEY, (now + ONE_HOUR).toString());
         return false;
     }
 
@@ -3606,10 +3275,12 @@ const getLowerTagText = (el) => {
                         tag.addEventListener("mouseover", handleMouseOver);
                     } else {
                         const hbIndicator = tag.firstChild;
-                        hbIndicator.addEventListener("click", (e) => {
-                            e.preventDefault();
-                            handleMouseOver(e);
-                        });
+                        if (hbIndicator) {
+                            hbIndicator.addEventListener("click", (e) => {
+                                e.preventDefault();
+                                handleMouseOver(e);
+                            });
+                        }
                     }
                 });
 
