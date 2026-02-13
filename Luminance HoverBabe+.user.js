@@ -2,7 +2,7 @@
 // @name        Luminance HoverBabe+
 // @namespace   empornium Scripts
 // @description Hover over performer tag and get their Babepedia Bio.
-// @version     1.50.6
+// @version     1.50.7
 // @author      vandenium xrt141 (forked and extended by xrt141)
 // @include     /https?://www\.empornium\.(is|sx)/*
 // @include     /https?://www\.happyfappy\.org/*
@@ -1190,9 +1190,8 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
       margin-bottom: 3px;
     }
 
-    /* Style specific labels by default. Edit these colors as needed. */
-    div#hoverbabe-container .label-age { color: #baff6b; font-weight: 600; }
-    div#hoverbabe-container .label-boobs { color: #d16be6; font-weight: 600; }
+    /* Label colors are configured by user (optionLabelColors) and applied at runtime. */
+    /* Removed hard-coded label colors so user settings control the styling. */
 
   #similar-performers {
     display: block;
@@ -1355,8 +1354,9 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
     const createBioEntry = (name, value) => {
         const div = document.createElement("div");
         div.className = "info-item";
-        const labelText = name.split(':')[0].trim().toLowerCase();
-        const extraClass = (labelText === 'age' ? ' label-age' : (labelText === 'boobs' ? ' label-boobs' : ''));
+        const labelTextRaw = name.split(':')[0].trim();
+        const slug = labelTextRaw.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        const extraClass = slug ? ` label-${slug}` : '';
         div.innerHTML = `<span class="label${extraClass}">${name}: </span><span class="value">${value}</span>`;
         return div;
     };   
@@ -1390,11 +1390,11 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         const labelEls = [...bioDom.querySelectorAll("div.info-item .label")];
         const findLabel = (text) => labelEls.find(el => el.innerText.toLowerCase().includes(text));
 
-        // Add special classes for labels so they can be colored.
+        // Add semantic `label-<slug>` classes for every parsed label so user colors apply.
         labelEls.forEach(el => {
-            const text = el.innerText.split(':')[0].trim().toLowerCase();
-            if (text === 'age') el.classList.add('label-age');
-            if (text === 'boobs') el.classList.add('label-boobs');
+            const labelText = el.innerText.split(':')[0].trim();
+            const slug = labelText.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            if (slug) el.classList.add(`label-${slug}`);
         });
 
         // Birthdate formatting
@@ -1650,6 +1650,10 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                         }
 
                         target.appendChild(bioContainer);
+
+                        // Apply user-configured label colors (if any)
+                        try { applyConfiguredLabelColors(bioContainer); } catch (e) { /* ignore */ }
+
                         bioContainer.style.left = "40%";
                         bioContainer.style.top = "40%";
                         bioContainer.style.transform = "translate(-40%, -40%)";
@@ -2695,6 +2699,8 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             optionAliases: {
                 "chloe.couture": ["chloe.cherry"],
             },
+            // Custom label colors (user-defined, e.g. { "height": "#ff0000" })
+            optionLabelColors: {},
             // New prefetch settings (defaults)
             optionPrefetchOnDetails: true,
             optionPrefetchMaxActors: 10,
@@ -2709,6 +2715,29 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
     };
 
     const hideSettings = () => document.querySelector("#threadman-options-outer-container").remove();
+
+    /** Apply user-configured label colors inside a given bio container element. */
+    const applyConfiguredLabelColors = (containerEl) => {
+        try {
+            const mappings = getSettings()?.optionLabelColors || {};
+            if (!containerEl || !mappings || Object.keys(mappings).length === 0) return;
+            for (const [label, color] of Object.entries(mappings)) {
+                if (!label || !color) continue;
+                const cls = `label-${label.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}`;
+                containerEl.querySelectorAll(`.${cls}`).forEach(el => {
+                    el.style.color = color;
+                    el.style.fontWeight = '600';
+                });
+            }
+        } catch (e) {
+            console.warn('[HB] applyConfiguredLabelColors error', e);
+        }
+    };
+
+    // Update any open bio containers when label colors change
+    document.addEventListener('hb-labelcolors-updated', () => {
+        document.querySelectorAll('#hoverbabe-container').forEach(c => applyConfiguredLabelColors(c));
+    });
 
     // Convert aliases back to string for alias textarea in settings
     const convertObjectToString = (aliasesObject) => {
@@ -2788,22 +2817,12 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         cancelBtn.addEventListener("click", closePopup);
 
         saveBtn.addEventListener("click", () => {
-            const rawText = textarea.value.trim();
+            const lines = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
             const parsedAliases = {};
-
-            if (rawText) {
-                try {
-                    const entries = rawText.split("\n");
-                    entries.forEach(line => {
-                        const parts = line.split(":");
-                        const lhs = (parts[0] || "").trim().toLowerCase();
-                        const rhs = (parts[1] || "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
-                        if (lhs) parsedAliases[lhs] = rhs;
-                    });
-                } catch {
-                    alert("Error parsing aliases. Check your format.");
-                    return;
-                }
+            for (const line of lines) {
+                const [lhs, rhs] = line.split(':');
+                if (!lhs || !rhs) { alert('Error parsing aliases. Check your format.'); return; }
+                parsedAliases[lhs.trim()] = rhs.split(',').map(s=>s.trim()).filter(Boolean);
             }
 
             // Get current settings and update only aliases
@@ -2811,9 +2830,123 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             currentSettings.optionAliases = parsedAliases;
             saveSettings(currentSettings);
 
-            closePopup();
-            // Notify any open settings modal so it can update its in-memory options
             document.dispatchEvent(new CustomEvent('hb-aliases-updated', { detail: parsedAliases }));
+            closePopup();
+        });
+    };
+
+    // Label Colors popup (multi-row, persistent)
+    const showLabelColorsPopup = (currentLabelColors = {}) => {
+        const template = `
+  <style>
+    #hb-labelcolors-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9998; }
+    #hb-labelcolors-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 560px; max-width: 96vw; background: #111; color: #ddd; border: 1px solid #444; border-radius: 8px; padding: 16px; z-index: 9999; font-family: Verdana, Arial, sans-serif; }
+    #hb-labelcolors-modal h3 { margin: 0 0 8px 0; font-size: 16px; }
+    #hb-labelcolors-rows { display:flex; flex-direction:column; gap:8px; margin:12px 0; max-height: 50vh; overflow:auto; }
+    .hb-labelcolors-row { display:flex; gap:8px; align-items:center; }
+    .hb-labelcolors-row input[type="text"] { flex: 0 0 180px; padding:6px; border-radius:4px; border:1px solid #555; background:#000; color:#ddd; }
+    .hb-labelcolors-row input[type="color"] { width:56px; height:28px; padding:0; border-radius:4px; border:1px solid #555; }
+    .hb-labelcolors-row button.remove-row { background:#660000; color:#fff; border:none; border-radius:4px; padding:4px 8px; cursor:pointer; }
+    #hb-labelcolors-controls { display:flex; gap:8px; align-items:center; justify-content:space-between; margin-top:6px; }
+    #hb-labelcolors-add { background:#2a7; color:#fff; border:none; border-radius:4px; padding:6px 10px; cursor:pointer; }
+
+    #hb-labelcolors-buttons { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+    #hb-labelcolors-save, #hb-labelcolors-close { background:#2a7; color:#fff; border:none; border-radius:4px; padding:8px 12px; cursor:pointer; }
+    #hb-labelcolors-close { background:#555; }
+  </style>
+
+  <div id="hb-labelcolors-overlay">
+    <div id="hb-labelcolors-modal">
+      <div id="hb-labelcolors-close-x" style="float:right;cursor:pointer">✖️</div>
+      <h3>Custom Label Colors</h3>
+      <p>Define label names and their colors. Use "Add" to create more rows. Names are case-insensitive and saved in settings.</p>
+
+      <div id="hb-labelcolors-rows"></div>
+
+      <div id="hb-labelcolors-controls">
+        <div></div>
+        <button id="hb-labelcolors-add">Add Row</button>
+      </div>
+
+      <div id="hb-labelcolors-buttons">
+        <button id="hb-labelcolors-close">Close</button>
+        <button id="hb-labelcolors-save">Save</button>
+      </div>
+    </div>
+  </div>
+        `;
+
+        const overlay = document.createElement('div');
+        overlay.innerHTML = template;
+        document.body.appendChild(overlay);
+
+        const rowsContainer = document.querySelector('#hb-labelcolors-rows');
+        const closeX = document.querySelector('#hb-labelcolors-close-x');
+        const closeBtn = document.querySelector('#hb-labelcolors-close');
+        const saveBtn = document.querySelector('#hb-labelcolors-save');
+        const addBtn = document.querySelector('#hb-labelcolors-add');
+
+        const removePopup = () => document.querySelector('#hb-labelcolors-overlay')?.remove();
+        closeX.addEventListener('click', removePopup);
+        closeBtn.addEventListener('click', removePopup);
+
+        // helper to create a row element
+        const createRowEl = (labelName = '', color = '#8be9fd') => {
+            const row = document.createElement('div');
+            row.className = 'hb-labelcolors-row';
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'hb-label-name-input';
+            input.placeholder = 'Label name (e.g. Height)';
+            input.value = labelName;
+
+            const colorInput = document.createElement('input');
+            colorInput.type = 'color';
+            colorInput.className = 'hb-label-color-input';
+            colorInput.value = color || '#ffffff';
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'remove-row';
+            removeBtn.title = 'Remove row';
+            removeBtn.innerText = 'Remove';
+            removeBtn.addEventListener('click', () => row.remove());
+
+            row.appendChild(input);
+            row.appendChild(colorInput);
+            row.appendChild(removeBtn);
+            return row;
+        };
+
+        // populate existing values
+        const keys = Object.keys(currentLabelColors || {});
+        if (keys.length) {
+            keys.forEach(k => rowsContainer.appendChild(createRowEl(k, currentLabelColors[k])));
+        } else {
+            rowsContainer.appendChild(createRowEl());
+        }
+
+        addBtn.addEventListener('click', () => rowsContainer.appendChild(createRowEl()));
+
+        // Save handler — gather all rows and persist
+        saveBtn.addEventListener('click', () => {
+            const rows = Array.from(rowsContainer.querySelectorAll('.hb-labelcolors-row'));
+            const payload = {};
+            rows.forEach(r => {
+                const name = (r.querySelector('.hb-label-name-input').value || '').trim().toLowerCase();
+                const color = (r.querySelector('.hb-label-color-input').value || '').trim();
+                if (name && color) payload[name] = color;
+            });
+
+            // persist
+            const settings = getSettings();
+            settings.optionLabelColors = payload;
+            saveSettings(settings);
+
+            // notify and close
+            document.dispatchEvent(new CustomEvent('hb-labelcolors-updated', { detail: settings.optionLabelColors }));
+            removePopup();
         });
     };
 
@@ -2896,7 +3029,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
       vertical-align: bottom;
     }
 
-    #option-aliases-btn {
+    #option-aliases-btn, #option-labelcolors-btn {
       background: #2a7;
       color: #fff;
       border: none;
@@ -2907,7 +3040,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
       margin-top: 8px;
     }
 
-    #option-aliases-btn:hover {
+    #option-aliases-btn:hover, #option-labelcolors-btn:hover {
       opacity: 0.9;
     }
 
@@ -3005,6 +3138,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         <br><br>
         <h4>User-defined Aliases</h4>
         <button id='option-aliases-btn' type='button'>Edit Aliases</button>
+        <button id='option-labelcolors-btn' type='button' style='margin-left:8px;'>Label Colors</button>
       </div>
     </div>
 <br><br>
@@ -3038,6 +3172,17 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             document.addEventListener('hb-aliases-updated', _hb_aliases_handler);
 
             showAliasesPopup(options.optionAliases);
+        });
+
+        // Label Colors button (opens popup)
+        dom.querySelector("#option-labelcolors-btn")?.addEventListener("click", () => {
+            const _hb_labelcolors_handler = (e) => {
+                options.optionLabelColors = e.detail;
+                document.removeEventListener('hb-labelcolors-updated', _hb_labelcolors_handler);
+            };
+            document.addEventListener('hb-labelcolors-updated', _hb_labelcolors_handler);
+
+            showLabelColorsPopup(options.optionLabelColors);
         });
 
         // Save settings
@@ -3082,7 +3227,8 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                 optionPrefetchMaxActors: optionPrefetchMaxActors ? Math.max(1, parseInt(optionPrefetchMaxActors.value, 10) || 10) : 10,
                 optionPrefetchDelayMs: optionPrefetchDelayMs ? Math.max(100, parseInt(optionPrefetchDelayMs.value, 10) || 3000) : 3000,
                 optionDebug: optionDebugLogging ? optionDebugLogging.checked : false,
-                optionAliases: options.optionAliases
+                optionAliases: options.optionAliases,
+                optionLabelColors: options.optionLabelColors || {}
             };
 
             saveSettings(localSettings);
