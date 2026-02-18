@@ -2,7 +2,7 @@
 // @name        Luminance HoverBabe+
 // @namespace   empornium Scripts
 // @description Hover over performer tag and get their Babepedia Bio.
-// @version     1.50.7
+// @version     1.50.8
 // @author      vandenium xrt141 (forked and extended by xrt141)
 // @include     /https?://www\.empornium\.(is|sx)/*
 // @include     /https?://www\.happyfappy\.org/*
@@ -568,6 +568,9 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             } else {
                 HB_logRequest('Prefetch Complete', null, `Processed ${item.total} actors`);
                 showFinalPrefetchStatus();
+                // Reset the prefetch flag immediately after queue completes
+                prefetchInitialized = false;
+                console.log('[LHB] prefetchInitialized flag reset (queue complete)');
             }
         });
     };
@@ -2092,9 +2095,18 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
     const prefetchBioPagesAndImages = () => {
         // Prevent multiple simultaneous prefetch operations
         if (prefetchInitialized) {
+            console.log('[LHB] prefetchBioPagesAndImages already running, returning early');
             return;
         }
         prefetchInitialized = true;
+        console.log('[LHB] prefetchBioPagesAndImages started');
+        
+        // We'll reset the flag right after we've done our work,
+        // OR when the queue processing completes
+        const resetFlag = () => {
+            prefetchInitialized = false;
+            console.log('[LHB] prefetchInitialized flag reset');
+        };
         // Respect user setting to disable prefetching on the details page
         const settings = getSettings();
         const shouldPrefetch = settings?.optionPrefetchOnDetails !== false;
@@ -2133,6 +2145,8 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             allActors,
         );
 
+        console.log('[LHB] Tag processing: knownHits=' + knownHits.length + ', newHits=' + newHits.length + ', newMisses=' + newMisses.length + ', toHighlight=' + tagsToHighlight.length);
+
         // When adding indicators, mutation observer will hit this function again but these will be 0.
         // This will overwrite the status indicator with 0 hits on the torrent page. We can return here.
         if (
@@ -2140,8 +2154,11 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             newHits.length === 0 &&
             newMisses.length === 0 &&
             tagsToHighlight.length === 0
-        )
+        ) {
+            console.log('[LHB] No tags to process, returning early');
+            resetFlag();
             return;
+        }
 
         // Add new hits, misses to cache
         newHits.forEach((tag) => {
@@ -2246,6 +2263,12 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
         if (newMisses.length > 0) {
             saveTagCache("misses", tagMisses);
+        }
+        
+        // Reset flag immediately after main work is done
+        // The queue processing will reset it again when it completes
+        if (!prefetchQueue.length) {
+            resetFlag();
         }
     };
 
