@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Temporary Hamsterimage Fix
 // @description Temporary fix for Hamsterimage issues.
-// @version     0.0.1
+// @version     0.0.2
 // @author      xrt141
 // @include     /https?://www\.happyfappy\.net/*
 // @grant       GM_cookie
@@ -13,8 +13,8 @@
 // @grant       GM_deleteValue
 // @grant       GM_addStyle
 // @grant       GM_info
-// @downloadURL 
-// @updateURL   
+// @downloadURL https://github.com/xrt141/Userscripts/raw/refs/heads/main/HF-Images.user.js
+// @updateURL   https://github.com/xrt141/Userscripts/raw/refs/heads/main/HF-Images.user.js
 // ==/UserScript==
 // Changelog:
 
