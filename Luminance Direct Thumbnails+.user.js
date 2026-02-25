@@ -1,12 +1,13 @@
 // ==UserScript==
     // @name        Luminance Direct Thumbnails+
-    // @version     2.6.4
+    // @version     2.7.0
     // @include     /https?://www\.empornium\.(is|sx)/*
-    // @include     /https?://www\.happyfappy\.org/*
+    // @include     /https?://www\.happyfappy\.net/*
     // @include     /https?://femdomcult\.org/*
     // @include     /https?://www\.cheggit\.me/torrents\.php.*/
     // @exclude     /https?://www\.cheggit\.me/torrents\.php\?id.*/
     // @include     /https?://www\.cheggit\.me/user\.php.*/
+    // @include     /https?://kufirc.com/
     // @license     MIT
     // @require     http://code.jquery.com/jquery-2.1.1.js
     // @grant       GM_addStyle
@@ -33,6 +34,7 @@
         var max_image_size = 250;
         var replace_categories = true;
         var remove_categories = false;
+        var custom_category_overlay = true; // NEW: Custom styled category overlay
         var image_size = "Medium"; // allowed: "Thumbnail" | "Medium" | "Full
         var preserve_animated_images = true; // Will not change urls to MD or TH if they are GIF or WEBP
         var disable_site_hover_images = true; // removes the sites own images on hover. (Reduces image host calls and reduces throttling)
@@ -71,7 +73,7 @@
         (function loadPersistedLDTSettings() {
             const hasGM = typeof GM_getValue === 'function' && typeof GM_setValue === 'function';
             window.ldt_persistence_source = hasGM ? 'GM' : 'localStorage';
-            if (debug_logging) console.log('LDT: persistence source = ' + window.ldt_persistence_source);
+            if (window.ldtDebugLog) window.ldtDebugLog('settings', 'persistence source = ' + window.ldt_persistence_source);
 
             const getRaw = (key, def) => {
                 try {
@@ -93,6 +95,7 @@
                 const p_disable_site_hover = boolVal('ldt_disable_site_hover', disable_site_hover_images);
                 const p_replace_categories = boolVal('ldt_replace_categories', replace_categories);
                 const p_remove_categories = boolVal('ldt_remove_categories', remove_categories);
+                const p_custom_category_overlay = boolVal('ldt_custom_category_overlay', custom_category_overlay);
                 // Retry/timing
                 const p_max_retry_attempts = Number(getRaw('ldt_max_retry_attempts', max_retry_attempts)) || max_retry_attempts;
                 const p_retry_delay_ms = Number(getRaw('ldt_retry_delay_ms', retry_delay_ms)) || retry_delay_ms;
@@ -116,6 +119,7 @@
                 disable_site_hover_images = p_disable_site_hover;
                 replace_categories = p_replace_categories;
                 remove_categories = p_remove_categories;
+                custom_category_overlay = p_custom_category_overlay;
                 max_retry_attempts = p_max_retry_attempts;
                 retry_delay_ms = p_retry_delay_ms;
                 sequential_load_delay_ms = p_sequential_load_delay_ms;
@@ -149,26 +153,26 @@
                 }
 
                 // Debug output block listing the effective settings; controlled by debug flag
-                if (debug_logging) {
+                if (window.ldtDebugLog) {
                     try {
-                        console.groupCollapsed('LDT Effective Settings');
-                        console.log('max_image_size:', max_image_size);
-                        console.log('image_size:', image_size);
-                        console.log('preserve_animated_images:', preserve_animated_images);
-                        console.log('disable_site_hover_images:', disable_site_hover_images);
-                        console.log('replace_categories:', replace_categories);
-                        console.log('remove_categories:', remove_categories);
-                        console.log('max_retry_attempts:', max_retry_attempts);
-                        console.log('retry_delay_ms:', retry_delay_ms);
-                        console.log('sequential_mode:', p_sequential_mode);
-                        console.log('concurrent_active_loads:', concurrent_active_loads);
-                        console.log('sequential_load_delay_ms:', sequential_load_delay_ms);
-                        console.log('auto_refresh_failed_after_ms:', auto_refresh_failed_after_ms);
-                        console.log('stall_timeout_ms:', stall_timeout_ms);
-                        console.log('debug_logging:', debug_logging);
-                        console.log('enable_image_caching:', enable_image_caching);
-                        console.log('max_cached_images:', max_cached_images);
-                        console.groupEnd();
+                        const dbgLog = window.ldtDebugLog;
+                        dbgLog('settings', '--- Effective Settings Start ---');
+                        dbgLog('settings', 'max_image_size: ' + max_image_size);
+                        dbgLog('settings', 'image_size: ' + image_size);
+                        dbgLog('settings', 'preserve_animated_images: ' + preserve_animated_images);
+                        dbgLog('settings', 'disable_site_hover_images: ' + disable_site_hover_images);
+                        dbgLog('settings', 'replace_categories: ' + replace_categories);
+                        dbgLog('settings', 'remove_categories: ' + remove_categories);
+                        dbgLog('settings', 'max_retry_attempts: ' + max_retry_attempts);
+                        dbgLog('settings', 'retry_delay_ms: ' + retry_delay_ms);
+                        dbgLog('settings', 'sequential_mode: ' + p_sequential_mode);
+                        dbgLog('settings', 'concurrent_active_loads: ' + concurrent_active_loads);
+                        dbgLog('settings', 'sequential_load_delay_ms: ' + sequential_load_delay_ms);
+                        dbgLog('settings', 'auto_refresh_failed_after_ms: ' + auto_refresh_failed_after_ms);
+                        dbgLog('settings', 'stall_timeout_ms: ' + stall_timeout_ms);
+                        dbgLog('settings', 'enable_image_caching: ' + enable_image_caching);
+                        dbgLog('settings', 'max_cached_images: ' + max_cached_images);
+                        dbgLog('settings', '--- Effective Settings End ---');
                     } catch (e) { /* ignore */ }
                 }
             } catch (e) { /* ignore persistence read failures */ }
@@ -233,8 +237,48 @@
         })();
 
 
+        // --- DEBUG SETTINGS SYSTEM ---
+        const getDebugSettings = () => {
+            const hasGM = typeof GM_getValue === 'function';
+            const key = 'ldt-debug-settings';
+            const defaults = {
+                debugSettings: true,
+                debugLoading: true,
+                debugCaching: true,
+                debugNetwork: true,
+                debugErrors: true
+            };
+            try {
+                const stored = hasGM ? GM_getValue(key) : localStorage.getItem(key);
+                return stored ? JSON.parse(String(stored)) : defaults;
+            } catch (e) { return defaults; }
+        };
+        const saveDebugSettings = (settings) => {
+            const hasGM = typeof GM_getValue === 'function';
+            const key = 'ldt-debug-settings';
+            try {
+                const val = JSON.stringify(settings);
+                if (hasGM) GM_setValue(key, val);
+                else localStorage.setItem(key, val);
+            } catch (e) {}
+        };
+
         // --- DEBUG LOGGER (inside the IIFE) ---
-        const dbg = (line) => { if (debug_logging) console.log(line); };
+        const ldtDebugLog = (category, message) => {
+            const settings = getDebugSettings();
+            const categoryMap = {
+                'settings': 'debugSettings',
+                'loading': 'debugLoading',
+                'caching': 'debugCaching',
+                'network': 'debugNetwork',
+                'error': 'debugErrors'
+            };
+            const key = categoryMap[category] || 'debugSettings';
+            if (settings[key]) {
+                console.log('[LDT] ' + message);
+            }
+        };
+        const dbg = (line) => { ldtDebugLog('loading', line); };
         const isSingleWorkerSeq = () => {
             const inst = window.lazyThumbsInstance;
             return inst && inst.sequential_load && (typeof inst.concurrent_limit !== 'number' || inst.concurrent_limit <= 1);
@@ -255,7 +299,9 @@
 
 
         // Expose to the rest of the script (LazyThumbnails is declared outside the IIFE)
-        window.debug_logging = debug_logging; // so global code can read the flag if needed
+        window.getDebugSettings = getDebugSettings;
+        window.saveDebugSettings = saveDebugSettings;
+        window.ldtDebugLog = ldtDebugLog;
         window.logBegin = logBegin;
         window.logFinish = logFinish;
         window.logWait = logWait;
@@ -271,6 +317,7 @@
              preserve_animated_images,
              replace_categories,
              remove_categories,
+             custom_category_overlay,
              max_image_size,
              max_retry_attempts,
              retry_delay_ms,
@@ -320,8 +367,8 @@
             if (!instance) return;
 
             // Debug log for manual refresh invocation
-            if (window.debug_logging) {
-                console.log('LDT: Manual refresh requested by user (Refresh TN button)');
+            if (window.ldtDebugLog) {
+                window.ldtDebugLog('settings', 'Manual refresh requested by user (Refresh TN button)');
             }
 
             instance.images.forEach($img => {
@@ -381,17 +428,40 @@
         .small-category { vertical-align: top !important; }
         .overlay-category td > div[title],
         .overlay-category .cats_col  > div,
-        .overlay-category .cats_cols > div { position: absolute; overflow: hidden; }
+        .overlay-category .cats_cols > div { position: absolute; overflow: hidden; z-index: 10000; }
         .overlay-category-small td > div[title],
         .overlay-category-small .cats_col  > div,
-        .overlay-category-small .cats_cols > div { width: 11px; }
+        .overlay-category-small .cats_cols > div { width: 11px; z-index: 10000; }
         .remove-category td > div[title],
         .remove-category .cats_col  > div,
         .remove-category .cats_cols > div { display: none; }
+        /* Custom category overlay styling */
+        .custom-category-overlay td > div[title],
+        .custom-category-overlay .cats_col  > div,
+        .custom-category-overlay .cats_cols > div {
+            position: absolute;
+            overflow: hidden;
+            z-index: 10000;
+            background: rgba(0, 0, 0, 0.8) !important;
+            color: #fff !important;
+            font-size: 12px !important;
+            font-weight: normal !important;
+            padding: 2px 4px !important;
+            border-radius: 0 !important;
+            border: none !important;
+            text-shadow: none !important;
+            letter-spacing: normal !important;
+            border-radius: 4px !important;
+        }
+        .custom-category-overlay-small td > div[title],
+        .custom-category-overlay-small .cats_col  > div,
+        .custom-category-overlay-small .cats_cols > div {
+            width: auto !important;
+        }
         /* Loading states */
         .tn-blocked { opacity: 0.5; filter: grayscale(1); }
         .tn-stalled { opacity: 0.5; }
-        
+
         /* Image wrapper for spinner overlay */
         .tn-img-wrap {
             position: relative;
@@ -411,7 +481,7 @@
             outline: 5px solid red !important;
             background: yellow !important;
         }
-        
+
         /* Loading spinner overlay */
         .tn-spinner {
             position: absolute;
@@ -591,13 +661,13 @@
                 try {
                     const request = indexedDB.open(self.dbName, 1);
                     request.onerror = () => {
-                        console.error('LDT: IndexedDB open failed', request.error);
+                        if (window.ldtDebugLog) window.ldtDebugLog('error', 'IndexedDB open failed: ' + request.error);
                         self.enabled = false;
                         reject(request.error);
                     };
                     request.onsuccess = () => {
                         self.db = request.result;
-                        if (window.debug_logging) console.log('LDT: IndexedDB initialized');
+                        if (window.ldtDebugLog) window.ldtDebugLog('caching', 'IndexedDB initialized');
                         resolve();
                     };
                     request.onupgradeneeded = (e) => {
@@ -608,7 +678,7 @@
                         }
                     };
                 } catch (e) {
-                    console.error('LDT: IndexedDB init error', e);
+                    if (window.ldtDebugLog) window.ldtDebugLog('error', 'IndexedDB init error: ' + e.message);
                     self.enabled = false;
                     reject(e);
                 }
@@ -625,14 +695,14 @@
                     const store = tx.objectStore(self.storeName);
                     const request = store.get(url);
                     request.onsuccess = () => {
-                        if (window.debug_logging && request.result) {
-                            console.log('LDT: Cache hit for ' + url);
+                        if (request.result && window.ldtDebugLog) {
+                            window.ldtDebugLog('caching', 'Cache hit for ' + url);
                         }
                         resolve(request.result || null);
                     };
                     request.onerror = () => resolve(null);
                 } catch (e) {
-                    console.error('LDT: Cache get error', e);
+                    if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache get error: ' + e.message);
                     resolve(null);
                 }
             });
@@ -648,16 +718,16 @@
                     const data = { url: url, dataUrl: dataUrl, timestamp: Date.now() };
                     const request = store.put(data);
                     request.onsuccess = () => {
-                        if (window.debug_logging) console.log('LDT: Cached image ' + url);
+                        if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Cached image ' + url);
                         self.enforceMaxSize();
                         resolve();
                     };
                     request.onerror = () => {
-                        console.error('LDT: Cache set error', request.error);
+                        if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache set error: ' + request.error);
                         resolve();
                     };
                 } catch (e) {
-                    console.error('LDT: Cache set error', e);
+                    if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache set error: ' + e.message);
                     resolve();
                 }
             });
@@ -688,7 +758,7 @@
                     }
                 };
             } catch (e) {
-                console.error('LDT: Cache cleanup error', e);
+                if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache cleanup error: ' + e.message);
             }
         };
 
@@ -701,7 +771,7 @@
                     const store = tx.objectStore(self.storeName);
                     store.clear().onsuccess = () => resolve();
                 } catch (e) {
-                    console.error('LDT: Cache clear error', e);
+                    if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache clear error: ' + e.message);
                     resolve();
                 }
             });
@@ -750,7 +820,7 @@
         };
     }
 
-    function LazyThumbnails(progress, backend, image_size, preserve_animated_images, replace_categories, remove_categories,
+    function LazyThumbnails(progress, backend, image_size, preserve_animated_images, replace_categories, remove_categories, custom_category_overlay,
                             max_image_size, max_retry_attempts, retry_delay_ms, blacklisted_domains, blocked_placeholder_scale,
                             sequential_load, sequential_load_delay_ms, concurrent_active_loads, host_rewrites, auto_refresh_failed_after_ms, stall_timeout_ms,
                             blob_fetch_hosts, blob_fetch_on_error, blob_fetch_on_stall, enable_image_caching, max_cached_images) {
@@ -959,7 +1029,7 @@
         // Centralized function to completely reset image visual state
         this.clearImageState = function($img) {
             const imgEl = $img[0];
-            
+
             // Cancel ALL pending timers for this image
             const timers = ['imgTimerId', 'retryTimeoutId', 'attemptTimerId'];
             timers.forEach(timerKey => {
@@ -969,7 +1039,7 @@
                     $img.removeData(timerKey);
                 }
             });
-            
+
             // Remove spinner and loading class from wrapper
             const $wrap = $img.data('$wrap');
             if ($wrap) {
@@ -977,7 +1047,7 @@
                 $wrap.find('.tn-spinner').remove();
                 $wrap.css({ 'min-width': '', 'min-height': '' });
             }
-            
+
             // Force remove classes using DOM directly
             if (imgEl) {
                 imgEl.classList.remove('tn-failed', 'tn-stalled', 'tn-blocked');
@@ -985,7 +1055,7 @@
                 imgEl.style.minWidth = '';
                 imgEl.style.minHeight = '';
             }
-            
+
             // Clear loading flags
             $img.data('isLoading', false);
         };
@@ -1189,7 +1259,7 @@
                                     // Retry once with the discovered image URL
                                     window.logRetry(currentCount + 1, foundImg);
                                     window.logBegin(foundImg);
-                                    console.log('----- Probe returned HTML; retrying with discovered image: ' + foundImg);
+                                    if (window.ldtDebugLog) window.ldtDebugLog('network', 'Probe returned HTML; retrying with discovered image: ' + foundImg);
 
                                     $img.data('isLoading', true);
                                     $img.data('retryCount', currentCount + 1);
@@ -1200,13 +1270,13 @@
 
                                 // No usable image discovered — DO NOT give up immediately.
                                 // Treat this case like a non-404 transient error and schedule a normal retry so we honor max_retry_attempts.
-                                console.log('----- Probe returned non-image content for URL. Scheduling retry: ' + originalSrc);
+                                if (window.ldtDebugLog) window.ldtDebugLog('network', 'Probe returned non-image content for URL. Scheduling retry: ' + originalSrc);
                                 scheduleNormalRetry();
                                 return;
                             }
                         } catch (e) {
                             // If probe processing fails, fall through to the existing logic below
-                            console.error('LDT probe parse error', e);
+                            if (window.ldtDebugLog) window.ldtDebugLog('error', 'LDT probe parse error: ' + e.message);
                         }
 
                         // --- Not a 404 and not non-image/HTML: normal retry ---
@@ -1222,7 +1292,7 @@
             if (self.cache && self.cache.enabled) {
                 self.cache.getImage(originalSrc).then(cachedEntry => {
                     if (cachedEntry && cachedEntry.dataUrl) {
-                        if (window.debug_logging) console.log('LDT: Loading from cache - ' + originalSrc);
+                        if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Loading from cache - ' + originalSrc);
                         $img.prop('src', cachedEntry.dataUrl);
                     } else {
                         $img.prop('src', originalSrc);
@@ -1405,13 +1475,13 @@
             self.progress_hide();
             const delay = self.auto_refresh_failed_after_ms || 0;
             if (self.image_index < self.images.length) return;
-            if (window.debug_logging) {
-                console.log('================================================');
-                console.log('⏹️ - LDT - Finished Image Processing (Initial Pass)');
-                console.log('================================================');
+            if (window.ldtDebugLog) {
+                window.ldtDebugLog('loading', '================================================');
+                window.ldtDebugLog('loading', '⏹️ - Finished Image Processing (Initial Pass)');
+                window.ldtDebugLog('loading', '================================================');
             }
             setTimeout(() => {
-                if (window.debug_logging) console.log('LDT: Auto-refresh triggered');
+                if (window.ldtDebugLog) window.ldtDebugLog('settings', 'Auto-refresh triggered');
                 try { self.refreshFailedThumbnails(); } catch (e) {}
             }, delay);
         };
@@ -1466,17 +1536,42 @@
             self.$torrent_table.addClass('remove-category');
         };
 
+        this.custom_category_overlay = function () {
+            if (window.location.hostname.indexOf('empornium.') !== -1 ||
+                window.location.hostname.indexOf('cheggit.') !== -1)
+                self.$torrent_table.addClass('custom-category-overlay-small');
+            self.$torrent_table.addClass('custom-category-overlay');
+
+            // Transform category text: replace dots with spaces and title case
+            const formatCategoryText = (text) => {
+                if (!text) return text;
+                return text.replace(/\./g, ' ').split(' ').map(word =>
+                    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                ).join(' ');
+            };
+
+            // Apply formatting to all category divs
+            self.$torrent_table.find('td > div[title], .cats_col > div, .cats_cols > div').each(function() {
+                const $el = jQuery(this);
+                const title = $el.attr('title');
+                if (title) {
+                    $el.text(formatCategoryText(title));
+                }
+            });
+        };
+
 
         this.init = function () {
             self.$torrent_table = jQuery('.torrent_table, #torrent_table, .request_table, #request_table');
-            if (window.debug_logging) {
+            if (window.ldtDebugLog) {
                 const mode = self.sequential_load ? (self.concurrent_limit > 1 ? `Sequential+ (workers=${self.concurrent_limit})` : 'Sequential') : 'Lazy';
-                console.log('================================================');
-                console.log(`▶️ - LDT - Starting Image Processing (${mode})`);
-                console.log('================================================');
+                window.ldtDebugLog('loading', '================================================');
+                window.ldtDebugLog('loading', `▶️ - Starting Image Processing (${mode})`);
+                window.ldtDebugLog('loading', '================================================');
             }
             if (replace_categories) self.replace_categories();
             if (remove_categories) self.remove_categories();
+            if (custom_category_overlay && !remove_categories) self.custom_category_overlay();
             self.attach_thumbnails();
             self.load_next_image();
             self.sequential_load ? self.detach_scroll_event() : self.attach_scroll_event();
@@ -1547,6 +1642,7 @@
             let ldt_image_size = persistence.readStr('ldt_image_size', DEFAULTS.image_size);
             let ldt_replace_categories = persistence.readBool('ldt_replace_categories', DEFAULTS.replace_categories);
             let ldt_remove_categories = persistence.readBool('ldt_remove_categories', DEFAULTS.remove_categories);
+            let ldt_custom_category_overlay = persistence.readBool('ldt_custom_category_overlay', DEFAULTS.custom_category_overlay);
             let ldt_preserve_animated = persistence.readBool('ldt_preserve_animated', DEFAULTS.preserve_animated_images);
             let ldt_disable_site_hover = persistence.readBool('ldt_disable_site_hover', DEFAULTS.disable_site_hover_images);
             let ldt_max_retries = persistence.readNum('ldt_max_retry_attempts', DEFAULTS.max_retry_attempts);
@@ -1597,6 +1693,7 @@ modalBg.innerHTML = `
             <div class="ldt-row"><label title="Disable site hover images to reduce redundancy"><input id="ldt-disable-hover" type="checkbox"> Disable Site Hover</label></div>
             <div class="ldt-row"><label title="Place thumbnails inside the category column"><input id="ldt-replace-cats" type="checkbox"> Replace Categories</label></div>
             <div class="ldt-row"><label title="Hide category names entirely"><input id="ldt-remove-cats" type="checkbox"> Remove Categories</label></div>
+            <div class="ldt-row"><label title="Apply custom styling to category overlay"><input id="ldt-custom-cat-overlay" type="checkbox"> Custom Category Overlay</label></div>
         </div>
     </div>
 
@@ -1624,7 +1721,7 @@ modalBg.innerHTML = `
     <div class="ldt-section">
         <h2>Misc Options</h2>
         <div class="ldt-grid">
-            <div class="ldt-row"><label title="Enable verbose logging in console (Ctrl+Shift+I)"><input id="ldt-debug-logging" type="checkbox"> Console Debug</label></div>
+            <div class="ldt-row"><input id="ldt-debug-console-btn" type="button" value="🐛 Debug Console"></div>
             <div class="ldt-row"><label>Reserved for future use</label></div>
         </div>
         <div class="ldt-note">
@@ -1641,8 +1738,61 @@ modalBg.innerHTML = `
 
     document.body.appendChild(modalBg);
 
-    const openConfigModal   = () => modalBg.style.display = 'block';
+    // Debug Console Popup Modal
+    const debugModal = document.createElement('div');
+    debugModal.id = 'ldt-debug-modal-bg';
+    debugModal.style.display = 'none';
+    debugModal.style.position = 'fixed';
+    debugModal.style.top = '0';
+    debugModal.style.bottom = '0';
+    debugModal.style.left = '0';
+    debugModal.style.right = '0';
+    debugModal.style.zIndex = '2000';
+    debugModal.style.backgroundColor = 'rgba(50,50,50,0.6)';
+    debugModal.innerHTML = `
+<div id="ldt-debug-wrapper" style="background:#eee; color:#444; position:relative; width:80%; min-width:500px; max-width:600px; min-height:200px; overflow:hidden; margin:50px auto; font-size:14px; padding:15px 20px; border-radius:12px; box-shadow:0 0 20px rgba(0,0,0,0.6); max-height:90vh; overflow-y:auto; z-index:9999;">
+    <h1 style="margin:0 0 12px 0; color:#333; font-size:18px;">Debug Console Settings</h1>
+    <div style="margin:12px 0;">
+        <h2 style="margin:10px 0 8px 0; color:#333; padding:0px 0px 0px 10px; font-size:14px; font-weight:bold;">Debug Categories</h2>
+        <div style="display:flex; flex-direction:column; gap:8px; padding:10px 0;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input id="ldt-debug-settings" type="checkbox" style="width:16px; height:16px;"> 
+                <span>Settings (initialization, persistence, config)</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input id="ldt-debug-loading" type="checkbox" style="width:16px; height:16px;"> 
+                <span>Loading (image lifecycle, begin/finish, wait, retry)</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input id="ldt-debug-caching" type="checkbox" style="width:16px; height:16px;"> 
+                <span>Caching (IndexedDB operations)</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input id="ldt-debug-network" type="checkbox" style="width:16px; height:16px;"> 
+                <span>Network (HTTP probes, fallbacks)</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input id="ldt-debug-errors" type="checkbox" style="width:16px; height:16px;"> 
+                <span>Errors (warnings and error messages)</span>
+            </label>
+        </div>
+    </div>
+    <div style="border-top:1px solid #999; padding-top:12px; display:flex; justify-content:center; gap:12px; margin-top:12px;">
+        <input id="ldt-debug-save" type="button" value="Save" style="background:#cfcfcf; padding:6px 16px; border:1px solid #777; border-radius:6px; cursor:pointer; font-size:12px;">
+        <input id="ldt-debug-close" type="button" value="Close" style="background:#cfcfcf; padding:6px 16px; border:1px solid #777; border-radius:6px; cursor:pointer; font-size:12px;">
+    </div>
+</div>
+`;
+    document.body.appendChild(debugModal);
+
+    const openConfigModal = () => modalBg.style.display = 'block';
     const closeConfigModal = () => modalBg.style.display = 'none';
+    const openDebugModal = () => debugModal.style.display = 'block';
+    const closeDebugModal = () => debugModal.style.display = 'none';
+
+    // Close modals when clicking outside
+    modalBg.addEventListener('click', (e) => { if (e.target === modalBg) closeConfigModal(); });
+    debugModal.addEventListener('click', (e) => { if (e.target === debugModal) closeDebugModal(); });
 
     // Handle info icon tooltips using native title attributes
     // (no custom tooltip needed - browser handles title attribute tooltips natively)
@@ -1659,6 +1809,7 @@ modalBg.innerHTML = `
             const disableHoverCheckbox = modalBg.querySelector('#ldt-disable-hover');
             const replaceCatsCheckbox = modalBg.querySelector('#ldt-replace-cats');
             const removeCatsCheckbox = modalBg.querySelector('#ldt-remove-cats');
+            const customCatOverlayCheckbox = modalBg.querySelector('#ldt-custom-cat-overlay');
             const maxRetriesInput = modalBg.querySelector('#ldt-max-retries');
             const retryDelayInput = modalBg.querySelector('#ldt-retry-delay');
             // NEW: select for mode
@@ -1670,6 +1821,16 @@ modalBg.innerHTML = `
             const enableImageCachingCheckbox = modalBg.querySelector('#ldt-enable-image-caching');
             const maxCachedImagesInput = modalBg.querySelector('#ldt-max-cached-images');
             const clearCacheBtn = modalBg.querySelector('#ldt-clear-image-cache');
+            const debugConsoleBtn = modalBg.querySelector('#ldt-debug-console-btn');
+
+            // Debug modal elements
+            const debugSettingsCheckbox = debugModal.querySelector('#ldt-debug-settings');
+            const debugLoadingCheckbox = debugModal.querySelector('#ldt-debug-loading');
+            const debugCachingCheckbox = debugModal.querySelector('#ldt-debug-caching');
+            const debugNetworkCheckbox = debugModal.querySelector('#ldt-debug-network');
+            const debugErrorsCheckbox = debugModal.querySelector('#ldt-debug-errors');
+            const debugSaveBtn = debugModal.querySelector('#ldt-debug-save');
+            const debugCloseBtn = debugModal.querySelector('#ldt-debug-close');
 
             if (closeBtn) closeBtn.addEventListener('click', closeConfigModal);
 
@@ -1680,6 +1841,7 @@ modalBg.innerHTML = `
             if (disableHoverCheckbox) disableHoverCheckbox.checked = !!ldt_disable_site_hover;
             if (replaceCatsCheckbox) replaceCatsCheckbox.checked = !!ldt_replace_categories;
             if (removeCatsCheckbox) removeCatsCheckbox.checked = !!ldt_remove_categories;
+            if (customCatOverlayCheckbox) customCatOverlayCheckbox.checked = !!ldt_custom_category_overlay;
             if (maxRetriesInput) maxRetriesInput.value = Number.isFinite(ldt_max_retries) ? ldt_max_retries : DEFAULTS.max_retry_attempts;
             if (retryDelayInput) retryDelayInput.value = Number.isFinite(ldt_retry_delay) ? ldt_retry_delay : DEFAULTS.retry_delay_ms;
             // initialize selected mode
@@ -1701,6 +1863,7 @@ modalBg.innerHTML = `
                     ldt_disable_site_hover = !!disableHoverCheckbox?.checked;
                     ldt_replace_categories = !!replaceCatsCheckbox?.checked;
                     ldt_remove_categories = !!removeCatsCheckbox?.checked;
+                    ldt_custom_category_overlay = !!customCatOverlayCheckbox?.checked;
                     ldt_max_retries = Number(maxRetriesInput?.value) || DEFAULTS.max_retry_attempts;
                     ldt_retry_delay = Number(retryDelayInput?.value) || DEFAULTS.retry_delay_ms;
                     // Read mode from select
@@ -1720,6 +1883,7 @@ modalBg.innerHTML = `
                         'ldt_disable_site_hover': ldt_disable_site_hover,
                         'ldt_replace_categories': ldt_replace_categories,
                         'ldt_remove_categories': ldt_remove_categories,
+                        'ldt_custom_category_overlay': ldt_custom_category_overlay,
                         'ldt_max_retry_attempts': ldt_max_retries,
                         'ldt_retry_delay_ms': ldt_retry_delay,
                         'ldt_sequential_mode': ldt_sequential_mode,
@@ -1751,9 +1915,11 @@ modalBg.innerHTML = `
                             // Update table classes
                             if (inst.$torrent_table && inst.$torrent_table.length) {
                                 inst.$torrent_table.toggleClass('overlay-category', ldt_replace_categories)
-                                    .toggleClass('remove-category', ldt_remove_categories);
+                                    .toggleClass('remove-category', ldt_remove_categories)
+                                    .toggleClass('custom-category-overlay', ldt_custom_category_overlay && !ldt_remove_categories);
                                 if (/empornium\.|cheggit\./.test(window.location.hostname)) {
-                                    inst.$torrent_table.toggleClass('overlay-category-small', ldt_replace_categories);
+                                    inst.$torrent_table.toggleClass('overlay-category-small', ldt_replace_categories)
+                                        .toggleClass('custom-category-overlay-small', ldt_custom_category_overlay && !ldt_remove_categories);
                                 }
                             }
                             window.debug_logging = ldt_debug;
@@ -1764,11 +1930,41 @@ modalBg.innerHTML = `
 
                     // Note: disabling site hover images requires reload to re-run the MutationObserver; we persist the choice
                 } catch (e) {
-                    console.error('LDT save failed', e);
+                    if (window.ldtDebugLog) window.ldtDebugLog('error', 'LDT save failed: ' + e.message);
                 }
 
                 closeConfigModal();
             });
+
+            // Debug console button handler
+            if (debugConsoleBtn) {
+                debugConsoleBtn.addEventListener('click', () => {
+                    // Load current debug settings
+                    const settings = getDebugSettings();
+                    if (debugSettingsCheckbox) debugSettingsCheckbox.checked = !!settings.debugSettings;
+                    if (debugLoadingCheckbox) debugLoadingCheckbox.checked = !!settings.debugLoading;
+                    if (debugCachingCheckbox) debugCachingCheckbox.checked = !!settings.debugCaching;
+                    if (debugNetworkCheckbox) debugNetworkCheckbox.checked = !!settings.debugNetwork;
+                    if (debugErrorsCheckbox) debugErrorsCheckbox.checked = !!settings.debugErrors;
+                    openDebugModal();
+                });
+            }
+
+            if (debugCloseBtn) debugCloseBtn.addEventListener('click', closeDebugModal);
+
+            if (debugSaveBtn) {
+                debugSaveBtn.addEventListener('click', () => {
+                    const settings = {
+                        debugSettings: !!debugSettingsCheckbox?.checked,
+                        debugLoading: !!debugLoadingCheckbox?.checked,
+                        debugCaching: !!debugCachingCheckbox?.checked,
+                        debugNetwork: !!debugNetworkCheckbox?.checked,
+                        debugErrors: !!debugErrorsCheckbox?.checked
+                    };
+                    saveDebugSettings(settings);
+                    closeDebugModal();
+                });
+            }
 
             if (clearCacheBtn) clearCacheBtn.addEventListener('click', () => {
                 if (confirm('Clear all cached images? This cannot be undone.')) {
@@ -1776,20 +1972,20 @@ modalBg.innerHTML = `
                         const dbReq = indexedDB.deleteDatabase('LDT_ImageCache');
                         dbReq.onsuccess = () => {
                             alert('Image cache cleared successfully.');
-                            console.log('LDT: Image cache cleared.');
+                            if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Image cache cleared.');
                         };
                         dbReq.onerror = () => {
                             alert('Error clearing cache.');
-                            console.error('LDT: Error clearing cache', dbReq.error);
+                            if (window.ldtDebugLog) window.ldtDebugLog('error', 'Error clearing cache: ' + dbReq.error);
                         };
                     } catch (e) {
                         alert('Error clearing cache: ' + e.message);
-                        console.error('LDT: Cache clear error', e);
+                        if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache clear error: ' + e.message);
                     }
                 }
             });
 
         } catch (e) {
-            console.error('LDT config UI insertion failed:', e);
+            if (window.ldtDebugLog) window.ldtDebugLog('error', 'LDT config UI insertion failed: ' + e.message);
         }
     })();

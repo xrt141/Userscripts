@@ -2,10 +2,10 @@
 // @name        Luminance HoverBabe+
 // @namespace   empornium Scripts
 // @description Hover over performer tag and get their Babepedia Bio.
-// @version     1.50.8
+// @version     1.51.0
 // @author      vandenium xrt141 (forked and extended by xrt141)
 // @include     /https?://www\.empornium\.(is|sx)/*
-// @include     /https?://www\.happyfappy\.org/*
+// @include     /https?://www\.happyfappy\.net/*
 // @include     /https?://femdomcult\.org/*
 // @include     /https?://kufirc\.com/*
 // @connect     babepedia.com
@@ -86,11 +86,55 @@ const HB_detectRequestType = (url) => {
 
 const HB_logRequest = (title, urls, result) => {
     if (!HB_isDebug()) return;
-    console.groupCollapsed(`[HB] - ${title}`);
-    console.log('> Timestamp:', new Date().toISOString());
-    if (urls) [].concat(urls).forEach(u => console.log('> ', u));
-    if (result !== undefined) console.log('> Result:', result);
-    console.groupEnd();
+    hbDebugLog('request', 'log', `%c[HB] - ${title}`, 'font-weight: bold');
+    hbDebugLog('request', 'log', '> Timestamp:', new Date().toISOString());
+    if (urls) [].concat(urls).forEach(u => hbDebugLog('request', 'log', '> ', u));
+    if (result !== undefined) hbDebugLog('request', 'log', '> Result:', result);
+};
+
+// Debug logging wrapper - respects user's debug category settings
+const hbDebugLog = (category, method, ...args) => {
+    // Note: We can't call getDebugSettings here as it may not be defined yet
+    // So we'll access storage directly using GM_getValue (same as getDebugSettings)
+    let debugSettings = null;
+    try {
+        const raw = GM_getValue("hb-debug-settings");
+        debugSettings = raw ? JSON.parse(raw) : null;
+    } catch (e) {
+        debugSettings = null;
+    }
+    
+    // Use defaults if no settings found
+    if (!debugSettings) {
+        debugSettings = {
+            debugPrefetch: true,
+            debugRequestLogging: true,
+            debugCloudflare: true,
+            debugUpdate: true,
+            debugPopup: true,
+            debugStorage: true,
+            debugErrors: true,
+        };
+    }
+    
+    const categoryMap = {
+        'prefetch': debugSettings.debugPrefetch,
+        'request': debugSettings.debugRequestLogging,
+        'cloudflare': debugSettings.debugCloudflare,
+        'update': debugSettings.debugUpdate,
+        'popup': debugSettings.debugPopup,
+        'storage': debugSettings.debugStorage,
+        'error': debugSettings.debugErrors,
+    };
+    
+    if (categoryMap[category]) {
+        const logMethod = console[method] || console.log;
+        // Prepend [LHB] prefix to all output for consistency
+        const modifiedArgs = args.length > 0 && typeof args[0] === 'string' 
+            ? [`[LHB] ${args[0]}`, ...args.slice(1)]
+            : ['[LHB]', ...args];
+        logMethod(...modifiedArgs);
+    }
 };
 
 
@@ -129,7 +173,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
     function showCaptchaPopup(initialStatusCode) {
         // Suppression check
         if (shouldSuppressPopup()) {
-            console.warn(LOG_TAG, "Popup suppressed by user setting.");
+            hbDebugLog('popup', 'warn', LOG_TAG, "Popup suppressed by user setting.");
             return;
         }
 
@@ -212,7 +256,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                     window.open(TARGET_BP_URL, "_blank");
                 }
             } catch (e) {
-                console.warn(LOG_TAG, "openInTab error:", e);
+                hbDebugLog('popup', 'warn', LOG_TAG, "openInTab error:", e);
                 window.open(TARGET_BP_URL, "_blank");
             }
         });
@@ -251,7 +295,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
     function showUpdatePopup(reason) {
         // Suppression check
         if (shouldSuppressUpdatePopup()) {
-            console.warn(UPDATE_LOG_TAG, "Update popup suppressed by user setting.");
+            hbDebugLog('update', 'warn', UPDATE_LOG_TAG, "Update popup suppressed by user setting.");
             return;
         }
 
@@ -365,7 +409,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
         // --- Behavior ---
         updateBtn.addEventListener("click", async () => {
-            console.log(UPDATE_LOG_TAG, "Update Now clicked");
+            hbDebugLog('update', 'log', UPDATE_LOG_TAG, "Update Now clicked");
             updateBtn.disabled = true;
             cancelBtn.disabled = true;
             progressEl.textContent = "Starting database update...";
@@ -382,7 +426,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                 // Update completed successfully
                 const total = getTotalActors();
                 progressEl.textContent = `✅ Update complete! Total performers: ${total}`;
-                console.log(UPDATE_LOG_TAG, `Update successful. Total: ${total}`);
+                hbDebugLog('update', 'log', UPDATE_LOG_TAG, `Update successful. Total: ${total}`);
 
                 // Update version to current
                 setCurrentVersion();
@@ -398,7 +442,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                 cancelBtn.textContent = "Close";
 
             } catch (error) {
-                console.error(UPDATE_LOG_TAG, "Update failed:", error);
+                hbDebugLog('update', 'error', UPDATE_LOG_TAG, "Update failed:", error);
                 progressEl.textContent = `❌ Update failed: ${error}. You can close and try again later.`;
                 cancelBtn.disabled = false;
                 cancelBtn.textContent = "Close";
@@ -406,13 +450,13 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         });
 
         cancelBtn.addEventListener("click", () => {
-            console.log(UPDATE_LOG_TAG, "Cancel/Close clicked");
+            hbDebugLog('update', 'log', UPDATE_LOG_TAG, "Cancel/Close clicked");
 
             // Save suppression preference if checked
             if (suppressCbx.checked) {
                 const days = parseInt(suppressDays.value, 10);
                 setUpdatePopupSuppressionDays(days);
-                console.log(UPDATE_LOG_TAG, `Suppressing popup for ${days} days`);
+                hbDebugLog('update', 'log', UPDATE_LOG_TAG, `Suppressing popup for ${days} days`);
             }
 
             // Close modal
@@ -428,7 +472,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         try {
             opts.cookiePartition = PARTITION_KEY;
         } catch (e) {
-            if (HB_isDebug()) console.warn("[HB] cookiePartition not supported or failed to set:", e);
+            hbDebugLog('cloudflare', 'warn', "[HB] cookiePartition not supported or failed to set:", e);
         }
     }
 
@@ -483,7 +527,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                         cfDebug("✅ ${TARGET_BP_URL} returned 200.");
                         resolve(true);
                     } else {
-                        console.warn(`[HB-CF] Non-200 from ${TARGET_BP_URL} (checkSiteReachable):`, resp.status, `${TARGET_BP_URL}/`);
+                        hbDebugLog('cloudflare', 'warn', `[HB-CF] Non-200 from ${TARGET_BP_URL} (checkSiteReachable):`, resp.status, `${TARGET_BP_URL}/`);
                         showCaptchaPopupIfNeeded(resp.status);
                         notifyNeedsAuth();
                         try { GM_openInTab(TARGET_BP_URL, { active: true }); } catch {}
@@ -515,13 +559,13 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             },
             onload: (resp) => {
                 if (resp.status === 200) {
-                    console.log(`[HB] - ✅${TARGET_BP_URL} is available - Status = ${resp.status} (200)`);
+                    hbDebugLog('cloudflare', 'log', `[HB] - ✅${TARGET_BP_URL} is available - Status = ${resp.status} (200)`);
                 } else {
-                    console.warn(`[HB] - ⚠️${TARGET_BP_URL} is not available - Status = ${resp.status} (${resp.status})`);
+                    hbDebugLog('cloudflare', 'warn', `[HB] - ⚠️${TARGET_BP_URL} is not available - Status = ${resp.status} (${resp.status})`);
                 }
             },
             onerror: () => {
-                console.warn(`[HB] - ⚠️${TARGET_BP_URL} is not available - Status = Network Error (Network)`);
+                hbDebugLog('cloudflare', 'warn', `[HB] - ⚠️${TARGET_BP_URL} is not available - Status = Network Error (Network)`);
             },
         };
         setCookiePartitionIfSupported(xhrOptions);
@@ -570,7 +614,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                 showFinalPrefetchStatus();
                 // Reset the prefetch flag immediately after queue completes
                 prefetchInitialized = false;
-                console.log('[LHB] prefetchInitialized flag reset (queue complete)');
+                hbDebugLog('prefetch', 'log', '[LHB] prefetchInitialized flag reset (queue complete)');
             }
         });
     };
@@ -611,7 +655,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                 }
 
                 if (resp.status !== 200 && resp.status !== 403) {
-                    console.warn(`${CF_DEBUG_TAG} Non-200 from ${TARGET_BP_HOST} (cfAwareRequest):`, resp.status, merged.url);
+                    hbDebugLog('cloudflare', 'warn', `${CF_DEBUG_TAG} Non-200 from ${TARGET_BP_HOST} (cfAwareRequest):`, resp.status, merged.url);
                     showCaptchaPopup(resp.status);
                 }
                 userOnload && userOnload(resp);
@@ -676,7 +720,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             // LocalStorage is full → purge until it fits
             const success = removeOldestImageFromLocalStorage(key, val);
             if (!success) {
-                console.warn(
+                hbDebugLog('storage', 'warn',
                     `cacheEntryInBrowserStorage: Could not store key=${key}, storage is full.`,
                 );
             }
@@ -717,7 +761,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
         if (entries.length === 0) {
             // Nothing safe to remove
-            console.warn(
+            hbDebugLog('storage', 'warn',
                 "removeOldestImageFromLocalStorage: no image entries to evict",
             );
             return false;
@@ -729,14 +773,14 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             try {
                 localStorage.removeItem(oldest.key);
             } catch (err) {
-                console.warn("Failed removing key during eviction:", oldest.key, err);
+                hbDebugLog('storage', 'warn', "Failed removing key during eviction:", oldest.key, err);
                 // continue trying other keys
             }
 
             // After each eviction try to store the required item
             try {
                 localStorage.setItem(requiredKey, requiredVal);
-                console.log(`Evicted ${oldest.key} and stored ${requiredKey}`);
+                hbDebugLog('storage', 'log', `Evicted ${oldest.key} and stored ${requiredKey}`);
                 return true;
             } catch (err) {
                 // still full - continue loop and evict next
@@ -748,7 +792,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             localStorage.setItem(requiredKey, requiredVal);
             return true;
         } catch (err) {
-            console.warn(
+            hbDebugLog('storage', 'warn',
                 `removeOldestImageFromLocalStorage: could not free enough space for ${requiredKey}`,
             );
             return false;
@@ -894,7 +938,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
         const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
         const promises = letters.map((letter, i) => xmlHttpPromiseBP({
-            url: `${TARGET_BP_URL}/index/${letter}`,
+            url: `${TARGET_BP_URL}/index/${letter}?perpage=all`,
             delay: i * 2000,
             letter
         }));
@@ -1866,7 +1910,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                 callback();
             },
             onerror: (error) => {
-                console.error(`HoverBabe: Error prefetching ${name}:`, error);
+                hbDebugLog('error', 'error', `HoverBabe: Error prefetching ${name}:`, error);
                 callback();
             }
         });
@@ -2095,17 +2139,17 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
     const prefetchBioPagesAndImages = () => {
         // Prevent multiple simultaneous prefetch operations
         if (prefetchInitialized) {
-            console.log('[LHB] prefetchBioPagesAndImages already running, returning early');
+            hbDebugLog('prefetch', 'log', '[LHB] prefetchBioPagesAndImages already running, returning early');
             return;
         }
         prefetchInitialized = true;
-        console.log('[LHB] prefetchBioPagesAndImages started');
+        hbDebugLog('prefetch', 'log', '[LHB] prefetchBioPagesAndImages started');
         
         // We'll reset the flag right after we've done our work,
         // OR when the queue processing completes
         const resetFlag = () => {
             prefetchInitialized = false;
-            console.log('[LHB] prefetchInitialized flag reset');
+            hbDebugLog('prefetch', 'log', '[LHB] prefetchInitialized flag reset');
         };
         // Respect user setting to disable prefetching on the details page
         const settings = getSettings();
@@ -2119,7 +2163,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             }
         } catch (e) {
             // If getSettings fails for any reason, fall through to original behavior
-            console.warn('HoverBabe: error reading prefetch setting', e);
+            hbDebugLog('error', 'warn', 'HoverBabe: error reading prefetch setting', e);
         }
 
         // Respect user-configured max prefetch limit
@@ -2145,7 +2189,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             allActors,
         );
 
-        console.log('[LHB] Tag processing: knownHits=' + knownHits.length + ', newHits=' + newHits.length + ', newMisses=' + newMisses.length + ', toHighlight=' + tagsToHighlight.length);
+        hbDebugLog('prefetch', 'log', '[LHB] Tag processing: knownHits=' + knownHits.length + ', newHits=' + newHits.length + ', newMisses=' + newMisses.length + ', toHighlight=' + tagsToHighlight.length);
 
         // When adding indicators, mutation observer will hit this function again but these will be 0.
         // This will overwrite the status indicator with 0 hits on the torrent page. We can return here.
@@ -2155,7 +2199,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             newMisses.length === 0 &&
             tagsToHighlight.length === 0
         ) {
-            console.log('[LHB] No tags to process, returning early');
+            hbDebugLog('prefetch', 'log', '[LHB] No tags to process, returning early');
             resetFlag();
             return;
         }
@@ -2694,7 +2738,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
     function shouldShowUpdatePopup() {
         // Check if suppressed
         if (shouldSuppressUpdatePopup()) {
-            console.log(UPDATE_LOG_TAG, "Update popup suppressed by user setting.");
+            hbDebugLog('update', 'log', UPDATE_LOG_TAG, "Update popup suppressed by user setting.");
             return false;
         }
 
@@ -2737,6 +2781,28 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         GM_setValue("hb-settings", JSON.stringify(settings));
     };
 
+    const getDebugSettings = () => {
+        const key = "hb-debug-settings";
+        const rawOptions = GM_getValue(key);
+        if (rawOptions) {
+            return JSON.parse(GM_getValue(key));
+        }
+        // Default: all debug categories enabled
+        return {
+            debugPrefetch: true,
+            debugRequestLogging: true,
+            debugCloudflare: true,
+            debugUpdate: true,
+            debugPopup: true,
+            debugStorage: true,
+            debugErrors: true,
+        };
+    };
+
+    const saveDebugSettings = (settings) => {
+        GM_setValue("hb-debug-settings", JSON.stringify(settings));
+    };
+
     const hideSettings = () => document.querySelector("#threadman-options-outer-container").remove();
 
     /** Apply user-configured label colors inside a given bio container element. */
@@ -2753,7 +2819,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                 });
             }
         } catch (e) {
-            console.warn('[HB] applyConfiguredLabelColors error', e);
+            hbDebugLog('error', 'warn', '[HB] applyConfiguredLabelColors error', e);
         }
     };
 
@@ -2973,6 +3039,101 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         });
     };
 
+    // Debug Settings Popup
+    const showDebugSettingsPopup = (currentDebugSettings = {}) => {
+        const defaults = getDebugSettings();
+        const settings = { ...defaults, ...currentDebugSettings };
+
+        const template = `
+  <style>
+    #hb-debug-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9998; }
+    #hb-debug-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 500px; max-width: 90vw; background: #111; color: #ddd; border: 1px solid #444; border-radius: 8px; padding: 16px; z-index: 9999; font-family: Verdana, Arial, sans-serif; }
+    #hb-debug-modal h3 { margin: 0 0 12px 0; font-size: 16px; color: #f9a825; }
+    #hb-debug-modal p { margin: 8px 0; font-size: 12px; line-height: 1.4; }
+    #hb-debug-close { position: absolute; top: 8px; right: 12px; cursor: pointer; font-size: 20px; color: #ddd; }
+    #hb-debug-close:hover { color: #fff; }
+    #hb-debug-items { margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+    .hb-debug-item { display: flex; align-items: center; gap: 8px; padding: 6px; background: rgba(255,255,255,0.03); border-radius: 4px; }
+    .hb-debug-item input[type="checkbox"] { cursor: pointer; }
+    .hb-debug-item label { cursor: pointer; flex: 1; margin: 0; }
+    #hb-debug-buttons { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+    #hb-debug-save, #hb-debug-cancel { background: #2a7; color: #fff; border: none; border-radius: 4px; padding: 8px 16px; cursor: pointer; font-size: 13px; }
+    #hb-debug-cancel { background: #555; }
+    #hb-debug-save:hover, #hb-debug-cancel:hover { opacity: 0.9; }
+  </style>
+
+  <div id="hb-debug-overlay">
+    <div id="hb-debug-modal">
+      <div id="hb-debug-close">✖️</div>
+      <h3>🔧 Debug Console Settings</h3>
+      <p>Enable or disable console output categories:</p>
+      <div id="hb-debug-items">
+        <div class="hb-debug-item">
+          <input type="checkbox" id="debug-prefetch" ${settings.debugPrefetch ? 'checked' : ''}>
+          <label for="debug-prefetch">Prefetch & Tag Processing</label>
+        </div>
+        <div class="hb-debug-item">
+          <input type="checkbox" id="debug-request-logging" ${settings.debugRequestLogging ? 'checked' : ''}>
+          <label for="debug-request-logging">External Requests & Responses</label>
+        </div>
+        <div class="hb-debug-item">
+          <input type="checkbox" id="debug-cloudflare" ${settings.debugCloudflare ? 'checked' : ''}>
+          <label for="debug-cloudflare">Cloudflare Cookie/Connectivity</label>
+        </div>
+        <div class="hb-debug-item">
+          <input type="checkbox" id="debug-update" ${settings.debugUpdate ? 'checked' : ''}>
+          <label for="debug-update">Performer Database Updates</label>
+        </div>
+        <div class="hb-debug-item">
+          <input type="checkbox" id="debug-popup" ${settings.debugPopup ? 'checked' : ''}>
+          <label for="debug-popup">CAPTCHA/Auth Popups</label>
+        </div>
+        <div class="hb-debug-item">
+          <input type="checkbox" id="debug-storage" ${settings.debugStorage ? 'checked' : ''}>
+          <label for="debug-storage">Cache Storage Operations</label>
+        </div>
+        <div class="hb-debug-item">
+          <input type="checkbox" id="debug-errors" ${settings.debugErrors ? 'checked' : ''}>
+          <label for="debug-errors">General Errors & Warnings</label>
+        </div>
+      </div>
+      <div id="hb-debug-buttons">
+        <button id="hb-debug-cancel">Cancel</button>
+        <button id="hb-debug-save">Save</button>
+      </div>
+    </div>
+  </div>
+        `;
+
+        const overlay = document.createElement('div');
+        overlay.innerHTML = template;
+        document.body.appendChild(overlay);
+
+        const modal = document.querySelector('#hb-debug-modal');
+        const closeBtn = document.querySelector('#hb-debug-close');
+        const cancelBtn = document.querySelector('#hb-debug-cancel');
+        const saveBtn = document.querySelector('#hb-debug-save');
+
+        const removePopup = () => document.querySelector('#hb-debug-overlay')?.remove();
+        closeBtn.addEventListener('click', removePopup);
+        cancelBtn.addEventListener('click', removePopup);
+
+        saveBtn.addEventListener('click', () => {
+            const debugSettings = {
+                debugPrefetch: document.querySelector('#debug-prefetch').checked,
+                debugRequestLogging: document.querySelector('#debug-request-logging').checked,
+                debugCloudflare: document.querySelector('#debug-cloudflare').checked,
+                debugUpdate: document.querySelector('#debug-update').checked,
+                debugPopup: document.querySelector('#debug-popup').checked,
+                debugStorage: document.querySelector('#debug-storage').checked,
+                debugErrors: document.querySelector('#debug-errors').checked,
+            };
+            
+            saveDebugSettings(debugSettings);
+            removePopup();
+        });
+    };
+
     // Settings
     const showSettings = () => {
         // Get settings
@@ -3052,7 +3213,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
       vertical-align: bottom;
     }
 
-    #option-aliases-btn, #option-labelcolors-btn {
+    #option-aliases-btn, #option-labelcolors-btn, #option-debug-btn {
       background: #2a7;
       color: #fff;
       border: none;
@@ -3063,7 +3224,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
       margin-top: 8px;
     }
 
-    #option-aliases-btn:hover, #option-labelcolors-btn:hover {
+    #option-aliases-btn:hover, #option-labelcolors-btn:hover, #option-debug-btn:hover {
       opacity: 0.9;
     }
 
@@ -3162,6 +3323,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         <h4>User-defined Aliases</h4>
         <button id='option-aliases-btn' type='button'>Edit Aliases</button>
         <button id='option-labelcolors-btn' type='button' style='margin-left:8px;'>Label Colors</button>
+        <button id='option-debug-btn' type='button' style='margin-left:8px;'>Debug Console</button>
       </div>
     </div>
 <br><br>
@@ -3206,6 +3368,12 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             document.addEventListener('hb-labelcolors-updated', _hb_labelcolors_handler);
 
             showLabelColorsPopup(options.optionLabelColors);
+        });
+
+        // Debug Settings button (opens popup)
+        dom.querySelector("#option-debug-btn")?.addEventListener("click", () => {
+            const debugSettings = getDebugSettings();
+            showDebugSettingsPopup(debugSettings);
         });
 
         // Save settings
@@ -3287,7 +3455,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                 statusArea.setTotalActors(total);
                 statusArea.updateDaysToRefreshActors();
             } catch (err) {
-                console.error("Manual refresh failed:", err);
+                hbDebugLog('error', 'error', "Manual refresh failed:", err);
                 statusArea.setStatus("❌ Error during manual refresh. Check console for details.");
             }
         });
@@ -3418,13 +3586,13 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         // Check if update popup should be shown
         const updateReason = getUpdateReason();
         if (updateReason && shouldShowUpdatePopup()) {
-            console.log(UPDATE_LOG_TAG, `Update needed. Reason: ${updateReason}`);
+            hbDebugLog('update', 'log', UPDATE_LOG_TAG, `Update needed. Reason: ${updateReason}`);
             // Show popup - user decides whether to update
             showUpdatePopup(updateReason);
             // Note: The actual update is triggered by clicking "Update Now" in the popup
             // We don't block here - script continues to function normally
         } else if (updateReason) {
-            console.log(UPDATE_LOG_TAG, `Update needed but popup suppressed. Reason: ${updateReason}`);
+            hbDebugLog('update', 'log', UPDATE_LOG_TAG, `Update needed but popup suppressed. Reason: ${updateReason}`);
         }
 
         // Always set current version

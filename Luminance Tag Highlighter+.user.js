@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Luminance Tag Highlighter+
 // @namespace    http://tampermonkey.net/
-// @version      2.6.5
+// @version      2.7.0
 // @description  Branched from Emp++ Tag Highlighter v0.7.9b
 // @author       xrt141, allebady
 // @grant        GM_getValue
@@ -11,9 +11,10 @@
 // @include      /^https://www\.empornium\.(me|sx|is)/
 // @include      /^https://www\.enthralled\.me/
 // @include      /^https://pornbay\.org/
-// @include      /^https://www\.happyfappy\.org/
+// @include      /^https://www\.happyfappy\.net/
 // @include      /^https://femdomcult\.org/
 // @include      /^https://www\.homeporntorrents\.club/
+// @include      /^https://kufirc\.com/
 // @match        *://*.empornium.sx/torrents.php*
 // @updateURL    https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highlighter+.user.js
 // @downloadURL  https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Tag%20Highlighter+.user.js
@@ -51,7 +52,7 @@ function runScript() {
 
     // Hosts that should NOT use 3-column tag splitting on detials page.
     const EXCLUDED_SPLIT_HOSTS = new Set([
-        'example.org', 
+        'example.org',
         'example.com',
     ]);
 
@@ -94,15 +95,86 @@ function runScript() {
 
     function runFunction(fn, identifier = '', args = []) {
         if (debug) {
-            console.log(`▶️ Running Function: ${fn.name} - ${identifier}`);
+            lthDebugLog('ui', 'log', `▶️ Running Function: ${fn.name} - ${identifier}`);
         }
         if (typeof fn === 'function') {
             fn(...args);
         } else {
-            console.warn(`[!] ${identifier} is NOT defined or not a function. Type is:`, typeof fn);
+            lthDebugLog('error', 'warn', `[!] ${identifier} is NOT defined or not a function. Type is:`, typeof fn);
         }
     }
     window.runFunction = runFunction;
+
+    // Debug logging wrapper - respects user's debug category settings
+    const lthDebugLog = (category, method, ...args) => {
+        // Access storage directly using GM_getValue (same as getDebugSettings)
+        let debugSettings = null;
+        try {
+            const raw = GM_getValue("lth-debug-settings");
+            debugSettings = raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            debugSettings = null;
+        }
+        
+        // Use defaults if no settings found
+        if (!debugSettings) {
+            debugSettings = {
+                debugTheme: true,
+                debugStyling: true,
+                debugUI: true,
+                debugTags: true,
+                debugLayout: true,
+                debugSize: true,
+                debugSettings: true,
+            };
+        }
+        
+        const categoryMap = {
+            'theme': debugSettings.debugTheme,
+            'styling': debugSettings.debugStyling,
+            'ui': debugSettings.debugUI,
+            'tags': debugSettings.debugTags,
+            'layout': debugSettings.debugLayout,
+            'size': debugSettings.debugSize,
+            'settings': debugSettings.debugSettings,
+        };
+        
+        if (categoryMap[category]) {
+            const logMethod = console[method] || console.log;
+            // Prepend [LTH] prefix to all output for consistency
+            const modifiedArgs = args.length > 0 && typeof args[0] === 'string' 
+                ? [`[LTH] ${args[0]}`, ...args.slice(1)]
+                : ['[LTH]', ...args];
+            logMethod(...modifiedArgs);
+        }
+    };
+    window.lthDebugLog = lthDebugLog;
+
+    // Get debug settings from storage
+    const getDebugSettings = () => {
+        const key = "lth-debug-settings";
+        const rawOptions = GM_getValue(key);
+        if (rawOptions) {
+            return JSON.parse(GM_getValue(key));
+        }
+        // Default: all debug categories enabled
+        return {
+            debugTheme: true,
+            debugStyling: true,
+            debugUI: true,
+            debugTags: true,
+            debugLayout: true,
+            debugSize: true,
+            debugSettings: true,
+        };
+    };
+    window.getDebugSettings = getDebugSettings;
+
+    // Save debug settings to storage
+    const saveDebugSettings = (settings) => {
+        GM_setValue("lth-debug-settings", JSON.stringify(settings));
+    };
+    window.saveDebugSettings = saveDebugSettings;
 
     // === Define default feature toggles, color mappings, and tag categories. ===
 
@@ -346,8 +418,8 @@ function runScript() {
         .map(link => link.href)
         .filter(href => href && href.match(/themes?|style/i));
 
-        console.log("🎨 Stylesheet URLs:");
-        themeLinks.forEach(url => console.log(" -", url));
+        lthDebugLog('theme', 'log', "🎨 Stylesheet URLs:");
+        themeLinks.forEach(url => lthDebugLog('theme', 'log', " -", url));
 
         return themeLinks;
     }
@@ -370,7 +442,7 @@ function runScript() {
     themeStyles.find(url => url.includes("/happyfappy/style.css")) ? "HappyFappy" :
     "unknown";
     // Debug - Output Theme to Console
-    console.log("🧩 Detected theme from stylesheet:", currentTheme);
+    lthDebugLog('theme', 'log', "🧩 Detected theme from stylesheet:", currentTheme);
 
 
     // === Theme-based color and saturation overrides ===
@@ -835,6 +907,7 @@ function runScript() {
                 <li data-page="s-conf-size"><a class="s-conf-tab">Size</a></li>
                 <li data-page="s-conf-dupe-cleanup"><a class="s-conf-tab">Dupe Cleanup</a></li>
                 <li data-page="s-conf-import-export"><a class="s-conf-tab">Import/Export</a></li>
+                <li data-page="s-conf-debug"><a class="s-conf-tab">Debug</a></li>
               </ul>
             </div>
 
@@ -994,6 +1067,37 @@ function runScript() {
                   <button id="import-settings-button">Import Settings</button>
                 </div>
 
+                <!-- 📄📄 - Debug Console Page - 📄📄 -->
+                <div class="s-conf-page" id="s-conf-debug">
+                  <h2>Debug Console Settings</h2>
+                  <p>Toggle console output categories on/off to control which debug messages appear in the browser console.</p>
+                  <div style="margin: 20px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                      <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                        <input type="checkbox" class="s-debug-checkbox" name="debugTheme" /> Theme Detection
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                        <input type="checkbox" class="s-debug-checkbox" name="debugStyling" /> Tag Styling
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                        <input type="checkbox" class="s-debug-checkbox" name="debugUI" /> Settings UI
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                        <input type="checkbox" class="s-debug-checkbox" name="debugTags" /> Tag Operations
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                        <input type="checkbox" class="s-debug-checkbox" name="debugLayout" /> Layout Changes
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                        <input type="checkbox" class="s-debug-checkbox" name="debugSize" /> Size Indicators
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                        <input type="checkbox" class="s-debug-checkbox" name="debugSettings" /> Settings Management
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- 📄📄 - Size Indicator Settings Page - 📄📄 -->
                 <div class="s-conf-page" id="s-conf-size">
                   <h2>Size Indicators</h2>
@@ -1070,7 +1174,7 @@ function runScript() {
         `;
 
         // Debug
-        console.log("🟣 Built New HTML");
+        lthDebugLog('ui', 'log', "🟣 Built New HTML");
         return configHTML;
     }
 
@@ -1288,8 +1392,8 @@ function runScript() {
 
     // --- Watch Dogs, Standard --
     if (currentTheme === "WatchDogs" || currentTheme === "Standard" || currentTheme === "HappyFappy") {
-        console.log ("Current Theme: ", currentTheme)
-        console.log (" Applying Custom Settings for Watchdogs / Standard Theme");
+        lthDebugLog('theme', 'log', "Current Theme: ", currentTheme)
+        lthDebugLog('theme', 'log', " Applying Custom Settings for Watchdogs / Standard Theme");
         const style = document.createElement("style");
         style.id = "WatchDogs-theme-fix";
 
@@ -1383,7 +1487,7 @@ function runScript() {
     let isRefreshing = false;
     function refreshUI(activeTabId) {
         if (isRefreshing) {
-            console.warn("⏳ refreshUI() called while already refreshing — skipped.");
+            lthDebugLog('ui', 'warn', "⏳ refreshUI() called while already refreshing — skipped.");
             return;
         }
         isRefreshing = true;
@@ -1395,8 +1499,8 @@ function runScript() {
                 $j(".tab-row-container li.s-selected").data("page") ||
                 "s-conf-general";
 
-            console.group("🔄 refreshUI()");
-            console.log("Restoring active tab:", activeTabId);
+            lthDebugLog('ui', 'log', "🔄 refreshUI()");
+            lthDebugLog('ui', 'log', "Restoring active tab:", activeTabId);
 
             // Remove old config panel to prevent duplicates
             $j("#s-conf-background").remove();
@@ -1417,15 +1521,15 @@ function runScript() {
                 $tab.addClass("s-selected");
                 $page.addClass("s-selected");
             } else {
-                console.warn("⚠️ Could not restore tab:", activeTabId, "— defaulting to General");
+                lthDebugLog('ui', 'warn', "⚠️ Could not restore tab:", activeTabId, "— defaulting to General");
                 $j(".tab-row-container li[data-page='s-conf-general']").addClass("s-selected");
                 $j("#s-conf-general").addClass("s-selected");
             }
 
-            console.log("✅ UI rebuild complete");
-            console.groupEnd();
+            lthDebugLog('ui', 'log', "✅ UI rebuild complete");
+            // console.groupEnd() — already handled by lthDebugLog
         } catch (err) {
-            console.error("💥 refreshUI() failed:", err);
+            lthDebugLog('error', 'error', "💥 refreshUI() failed:", err);
         } finally {
             isRefreshing = false;
         }
@@ -1440,13 +1544,13 @@ function runScript() {
         // Extract only the size part (e.g., "880.03 MiB" from "7 mins ago880.03 MiB")
         const sizeMatch = sizeText.match(/([\d.]+)\s*(TiB|GiB|MiB|KiB)/i);
         if (!sizeMatch) {
-            if (debug) console.log("[SIZE-EMOJI-PARSER] Could not parse size from:", sizeText);
+            lthDebugLog('size', 'log', "[SIZE-EMOJI-PARSER] Could not parse size from:", sizeText);
             return '';
         }
 
         const value = parseFloat(sizeMatch[1]);
         const unit = sizeMatch[2].toUpperCase();
-        if (debug) console.log("Parsed value:", value, "unit:", unit);
+        lthDebugLog('size', 'log', "Parsed value:", value, "unit:", unit);
 
         // Convert to GiB for comparison
         let sizeInGiB = 0;
@@ -1457,7 +1561,7 @@ function runScript() {
             case 'KIB': sizeInGiB = value / (1024 * 1024); break;
         }
 
-        if (debug) console.log("Size in GiB:", sizeInGiB);
+        lthDebugLog('size', 'log', "Size in GiB:", sizeInGiB);
 
         // Return emoji based on user-configurable thresholds (largest first)
         // Each threshold is the MAXIMUM for that emoji
@@ -1476,29 +1580,34 @@ function runScript() {
     function processBrowsePage(rowSelector, type) {
         var rows = $j(rowSelector);
 
-        if (debug) console.groupCollapsed(`[LTH] - Torrent Row Debug`);
+        lthDebugLog('styling', 'log', `[LTH] - Torrent Row Debug`);
         rows.each(function (i, row) {
             row = $j(row);
 var nameLink = row.find("td:nth-child(2) > a");
-            if (debug) console.groupCollapsed(`=== Processing - Row ${i} ===`);
+            lthDebugLog('styling', 'log', `=== Processing - Row ${i} ===`);
             if (debug) console.log("Name:", nameLink.text());
-            if (debug) console.groupCollapsed(`=== Size Indicator Debug ===`);
+            lthDebugLog('size', 'log', `=== Size Indicator Debug ===`);
 
             var lineHeight = settings.roomierTags ? "22px" : "18px";
 
             // === Add size-based emoji to torrent name ===
             if (type === "torrent") {
                 var sizeCell = row.find("td.nobr:last");
-                // var nameLink = row.find("td:nth-child(2) > a");
-                if (debug) console.log("Name:", nameLink.text());
-                // if (debug) console.log("sizeCell.length:", sizeCell.length, "| nameLink.length:", nameLink.length);
+                
+                // top10.php has an extra column (ranking), so name is in column 3, not column 2
+                var isTop10 = /\/top10\.php/i.test(window.location.href);
+                var nameLink = isTop10 
+                    ? row.find("td:nth-child(3) > a")  // Column 3 for top10.php
+                    : row.find("td:nth-child(2) > a"); // Column 2 for regular pages
+                
+                if (debug) lthDebugLog('size', 'log', "Name:", nameLink.text());
 
                 if (sizeCell.length && nameLink.length) {
                     var sizeText = sizeCell.text().trim();
-                    if (debug) console.log("Size text found:", sizeText);
+                    lthDebugLog('size', 'log', "Size text found:", sizeText);
 
                     var sizeEmoji = getSizeDotEmoji(sizeText);
-                    if (debug) console.log("Size emoji:", sizeEmoji);
+                    lthDebugLog('size', 'log', "Size emoji:", sizeEmoji);
 
                     if (sizeEmoji) {
                         var currentText = nameLink.text();
@@ -1506,15 +1615,15 @@ var nameLink = row.find("td:nth-child(2) > a");
                         // Only prepend if not already prepended
                         if (!currentText.startsWith(sizeEmoji)) {
                             nameLink.text(sizeEmoji + ' ' + currentText);
-                            if (debug) console.log("✅ New Name:", nameLink.text());
+                            lthDebugLog('size', 'log', "✅ New Name:", nameLink.text());
                         } else {
-                            if (debug) console.log("Emoji already present");
+                            lthDebugLog('size', 'log', "Emoji already present");
                         }
                     } else {
-                        if (debug) console.log("No emoji returned from getSizeDotEmoji");
+                        lthDebugLog('size', 'log', "No emoji returned from getSizeDotEmoji");
                     }
                 } else {
-                    if (debug) console.log("❌ Could not find size cell or name link");
+                    lthDebugLog('size', 'log', "❌ Could not find size cell or name link (page: " + (isTop10 ? "top10.php" : "regular") + ")");
                 }
             }
 
@@ -1540,7 +1649,7 @@ var nameLink = row.find("td:nth-child(2) > a");
 
             if (!totalTagNum) return;
 
-            if (debug) console.groupCollapsed(`=== Tag Debug === - Row ${i}`);
+            lthDebugLog('tags', 'log', `=== Tag Debug === - Row ${i}`);
 
             tagContainer.find("a").each(function (i, tagLink) {
                 tagLink = $j(tagLink);
@@ -1630,7 +1739,7 @@ var nameLink = row.find("td:nth-child(2) > a");
                         }
                         // Do NOT increment undefined here — handle after loop
                         // Tag Score Group
-                        if (debug) console.log(`Tag: ${tag}, Value: ${numericVal}`);
+                        lthDebugLog('tags', 'log', `Tag: ${tag}, Value: ${numericVal}`);
                         //  if (debug) console.groupEnd();
 
                         matched = true;
@@ -1649,7 +1758,7 @@ var nameLink = row.find("td:nth-child(2) > a");
                 // 💬 Console output - Wrap in an "enable debug" later.
                 /*
                 if (!matched) {
-                    console.warn(`[TagClassify] ${tag} → not found in any list`);
+                    lthDebugLog('error', 'warn', `[TagClassify] ${tag} → not found in any list`);
                     undefinedNum++;
                 }
                */
@@ -1657,7 +1766,7 @@ var nameLink = row.find("td:nth-child(2) > a");
             });
 
 
-            if (debug) console.groupCollapsed(`=== Tag Value Summary === - Row ${i}`);
+            lthDebugLog('tags', 'log', `=== Tag Value Summary === - Row ${i}`);
             // === Percentages (numeric-based, include undefined) ===
             // Compute weighted values from numeric tag values
             var weightedGood = rawGood; // sum of all positive values
@@ -1689,10 +1798,10 @@ var nameLink = row.find("td:nth-child(2) > a");
             }
 
             //Debug
-            if (debug) console.log("Positive (weightedGood):", weightedGood, countPositive);
-            if (debug) console.log("Negative (weightedBad):", weightedBad, countNegative);
-            if (debug) console.log("Total (weightedTotal):", weightedTotal);
-            if (debug) console.log("Percentages -> Good:", pctGood.toFixed(2), "% | Bad:", pctBad.toFixed(2), "%");
+            lthDebugLog('tags', 'log', "Positive (weightedGood):", weightedGood, countPositive);
+            lthDebugLog('tags', 'log', "Negative (weightedBad):", weightedBad, countNegative);
+            lthDebugLog('tags', 'log', "Total (weightedTotal):", weightedTotal);
+            lthDebugLog('tags', 'log', "Percentages -> Good:", pctGood.toFixed(2), "% | Bad:", pctBad.toFixed(2), "%");
             if (debug) console.groupEnd();
 
             // Render the percent bar: Good(left, green), Bad(middle, red), Undefined(right, gray)
@@ -1821,7 +1930,7 @@ Tags Ignored: (${countIgnored})`
             .find(div => div.textContent.trim() === 'Torrents');
 
             if (!headerDiv) {
-                console.warn('Header div not found for column toggle button.');
+                lthDebugLog('error', 'warn', 'Header div not found for column toggle button.');
                 return;
             }
             headerDiv.style.display = 'flex';
@@ -1964,9 +2073,9 @@ Tags Ignored: (${countIgnored})`
         });
 
         var highlightDetailTags = function () {
-            console.log("🟢 highlightDetailsTags Started...");
+            lthDebugLog('styling', 'log', "🟢 highlightDetailsTags Started...");
             if (window.isTagsLoaded) {
-                console.log("🟢 isTagsLoaded = True");
+                lthDebugLog('styling', 'log', "🟢 isTagsLoaded = True");
                 return;
             }
             //Timeout to ensure we run after everything else
@@ -2164,7 +2273,7 @@ Tags Ignored: (${countIgnored})`
                 runFunction(enforceTagRowLayout, 'xfqeunl053g9i3jl', []);
                 runFunction(resizeAllTagText, 'l5dk2pzuonmy9c09', []);
             } catch (e) {
-                console.warn('post-highlight adjustments failed', e);
+                lthDebugLog('error', 'warn', 'post-highlight adjustments failed', e);
             }
         }, 100);
 
@@ -2267,7 +2376,7 @@ Tags Ignored: (${countIgnored})`
         // Find a place in the table to insert our toggle
         const targetCell = document.querySelector('.box tr.rowa td');
         if (!targetCell) {
-            console.warn('Edit Tags toggle: target cell not found.');
+            lthDebugLog('error', 'warn', 'Edit Tags toggle: target cell not found.');
             return;
         }
 
@@ -2430,7 +2539,7 @@ Tags Ignored: (${countIgnored})`
             const ta = document.querySelector('#export-settings-textarea');
             if (ta) ta.textContent = JSON.stringify(getSettings(), null, 2);
         } catch (err) {
-            console.warn("populate export box failed:", err);
+            lthDebugLog('error', 'warn', "populate export box failed:", err);
         }
 
         //Init Display
@@ -2457,6 +2566,24 @@ Tags Ignored: (${countIgnored})`
             document.getElementById('threshold-red').value = settings.sizeThresholds.red;
             document.getElementById('threshold-purple').value = settings.sizeThresholds.purple;
         }
+
+        // === Initialize Debug Settings ===
+        const debugSettings = getDebugSettings();
+        $j(".s-debug-checkbox").each(function() {
+            const name = $j(this).attr("name");
+            if (debugSettings.hasOwnProperty(name)) {
+                $j(this).prop("checked", debugSettings[name]);
+            }
+        });
+
+        // === Debug Checkbox Event Listeners ===
+        $j(".s-debug-checkbox").on("change", function() {
+            const name = $j(this).attr("name");
+            const isChecked = $j(this).is(":checked");
+            const updated = getDebugSettings();
+            updated[name] = isChecked;
+            saveDebugSettings(updated);
+        });
 
         //Init Listeners
         $j(".s-conf-tab").parent().on("click", function () {
@@ -2550,14 +2677,14 @@ Tags Ignored: (${countIgnored})`
                             span.style.border = "1px solid #888";
                             const a = span.querySelector("a");
                             if (a) a.style.color = "#111";
-                            console.warn("[DupeCleanup] Applied fallback for invisible badge:", span.getAttribute("data-list-key"));
+                            lthDebugLog('error', 'warn', "[DupeCleanup] Applied fallback for invisible badge:", span.getAttribute("data-list-key"));
                         }
                     });
                 });
 
-                console.log("[DupeCleanup] Rendered", keys.length, "unique duplicate tags.");
+                lthDebugLog('settings', 'log', "[DupeCleanup] Rendered", keys.length, "unique duplicate tags.");
             } catch (err) {
-                console.error("[DupeCleanup] Error:", err);
+                lthDebugLog('error', 'error', "[DupeCleanup] Error:", err);
                 $list.html("<div>Error scanning duplicates. See console for details.</div>");
             }
 
@@ -2592,7 +2719,7 @@ Tags Ignored: (${countIgnored})`
                         if (key === listKey) continue; // keep in chosen list
                         arr.splice(idx, 1);
                         changed = true;
-                        console.log(`[DupeCleanup] Removed "${tagText}" from ${key}`);
+                        lthDebugLog('tags', 'log', `[DupeCleanup] Removed "${tagText}" from ${key}`);
                     }
                 }
 
@@ -2600,7 +2727,7 @@ Tags Ignored: (${countIgnored})`
                     saveTags(listKey, s.tags[listKey]); // save chosen list
                     // save all modified lists as well
                     for (const k in s.tags) saveTags(k, s.tags[k]);
-                    console.log(`[DupeCleanup] Saved updates after keeping "${tagText}" only in ${listKey}`);
+                    lthDebugLog('settings', 'log', `[DupeCleanup] Saved updates after keeping "${tagText}" only in ${listKey}`);
                 }
 
                 // Refresh the Dupe Cleanup tab to reflect changes
@@ -2702,7 +2829,7 @@ Tags Ignored: (${countIgnored})`
                     const colorKey = id.replace('threshold-', '');
                     settings.sizeThresholds[colorKey] = value;
                     runFunction(saveSettings, 'size-threshold-change', []);
-                    if (debug) console.log(`[SIZE-SETTINGS] Updated ${colorKey} threshold to ${value}`);
+                    lthDebugLog('size', 'log', `[SIZE-SETTINGS] Updated ${colorKey} threshold to ${value}`);
                 }
             });
         });
@@ -2717,7 +2844,7 @@ Tags Ignored: (${countIgnored})`
             e.preventDefault();
             e.stopPropagation();
 
-            console.log("🟢 Save button clicked");
+            lthDebugLog('ui', 'log', "🟢 Save button clicked");
 
             // Capture active tab before teardown
             const activeTabId = $j('.tab-row-container li.s-selected').data('page') || $j('.tab-row-container li.s-selected .s-conf-tab').data('page') || "s-conf-general";
@@ -2880,7 +3007,7 @@ Tags Ignored: (${countIgnored})`
                 try {
                     runFunction(refreshUI, 'fi8jsnprktgnrpbf', []);
                 } catch (err) {
-                    console.warn('refreshUI() failed after import', err);
+                    lthDebugLog('error', 'warn', 'refreshUI() failed after import', err);
                 }
 
                 const ta = document.querySelector('#export-settings-textarea');
@@ -2931,7 +3058,7 @@ Tags Ignored: (${countIgnored})`
                     // User feedback
                     displayStatus("success", settings.names[type] + " tags updated successfully.");
                 } catch (err) {
-                    console.error("Tag update failed for type:", type, err);
+                    lthDebugLog('error', 'error', "Tag update failed for type:", type, err);
                     displayStatus("error", "An error occurred while updating tags for " + settings.names[type] + ".");
                 }
             } else {
@@ -3014,21 +3141,21 @@ Tags Ignored: (${countIgnored})`
 
         // Import/export settings related code
         function importSettings(rawSettings) {
-            console.log("importSettings called; raw length =", rawSettings?.length);
+            lthDebugLog('settings', 'log', "importSettings called; raw length =", rawSettings?.length);
             try {
                 const trimmedSettings = rawSettings.trim();
                 if (!trimmedSettings) {
-                    console.warn("No data");
+                    lthDebugLog('error', 'warn', "No data");
                     return;
                 }
                 let imported = JSON.parse(trimmedSettings);
-                console.log("Parsed JSON keys:", Object.keys(imported));
+                lthDebugLog('settings', 'log', "Parsed JSON keys:", Object.keys(imported));
 
                 // --- mark checkpoints ---
-                console.log("Checkpoint A: majorVersion =", imported.majorVersion);
+                lthDebugLog('settings', 'log', "Checkpoint A: majorVersion =", imported.majorVersion);
 
                 if (!imported.majorVersion || imported.majorVersion < 2.0) {
-                    console.log("Checkpoint B: starting migration");
+                    lthDebugLog('settings', 'log', "Checkpoint B: starting migration");
 
                     // tagKeyMap
                     const tagKeyMap = {
@@ -3142,16 +3269,16 @@ Tags Ignored: (${countIgnored})`
                     // 5) Mark the migrated import at the new version
                     imported.majorVersion = 2.5;
 
-                    console.log("Checkpoint F: after name fill");
+                    lthDebugLog('settings', 'log', "Checkpoint F: after name fill");
                 }
 
                 settings = imported;
-                console.log("Checkpoint G: settings assigned OK");
+                lthDebugLog('settings', 'log', "Checkpoint G: settings assigned OK");
 
                 saveSettings();
 
             } catch (err) {
-                console.error("Import crash caught:", err);
+                lthDebugLog('error', 'error', "Import crash caught:", err);
                 alert("Import crashed: " + err.message);
             }
         }
@@ -3190,20 +3317,20 @@ Tags Ignored: (${countIgnored})`
             const key = $btn.data("name");
             const $cell = $btn.closest("tr").children(".label-cell[data-name='" + key + "']");
 
-            console.log("🔹 Edit clicked:", key);
-            console.log("🔹 Found cell:", $cell.get(0));
-            console.log("🔹 Cell HTML:", $cell.html());
-            console.log("🔹 Cell text:", JSON.stringify($cell.text()));
-            console.log("Click event count:", e.timeStamp);
+            lthDebugLog('ui', 'log', "🔹 Edit clicked:", key);
+            lthDebugLog('ui', 'log', "🔹 Found cell:", $cell.get(0));
+            lthDebugLog('ui', 'log', "🔹 Cell HTML:", $cell.html());
+            lthDebugLog('ui', 'log', "🔹 Cell text:", JSON.stringify($cell.text()));
+            lthDebugLog('ui', 'log', "Click event count:", e.timeStamp);
 
             // 🔒 Skip if already editing
             if ($cell.find("input.label-input").length) {
-                console.log("🔸 Edit already active for", key);
+                lthDebugLog('ui', 'log', "🔸 Edit already active for", key);
                 return;
             }
 
             const oldValue = $cell.text().trim();
-            console.log("Editing", key, "with initial value:", oldValue);
+            lthDebugLog('ui', 'log', "Editing", key, "with initial value:", oldValue);
 
             const $input = $j("<input type='text' class='label-input'>")
             .val(oldValue)
@@ -3380,7 +3507,7 @@ Tags Ignored: (${countIgnored})`
             holder.addClass("s-Tag7d");
             moveRowToTags7d(holder);
         } catch (err) {
-            console.error("addTags7dTagElement failed:", err);
+            lthDebugLog('error', 'error', "addTags7dTagElement failed:", err);
         }
     }
 
@@ -3391,7 +3518,7 @@ Tags Ignored: (${countIgnored})`
             holder.removeClass("s-Tag7d s-Tag7d-hidden");
             moveRowFromTags7d(holder);
         } catch (err) {
-            console.error("removeTags7dTagElement failed:", err);
+            lthDebugLog('error', 'error', "removeTags7dTagElement failed:", err);
         }
     }
 
@@ -3416,7 +3543,7 @@ Tags Ignored: (${countIgnored})`
         try {
             runFunction(highlightDetailTags, 'tkdvdxy7yjobd4w6', []);
         } catch (err) {
-            console.warn('highlightDetailTags() call failed after addTagElement', err);
+            lthDebugLog('error', 'warn', 'highlightDetailTags() call failed after addTagElement', err);
         }
     }
 
@@ -3430,7 +3557,7 @@ Tags Ignored: (${countIgnored})`
         try {
             runFunction(highlightDetailTags, 's570ofb1h79n3woz', []);
         } catch (err) {
-            console.warn('highlightDetailTags() call failed after removeTagElement', err);
+            lthDebugLog('error', 'warn', 'highlightDetailTags() call failed after removeTagElement', err);
         }
     }
 
@@ -3457,7 +3584,7 @@ Tags Ignored: (${countIgnored})`
                     const idx = otherList.indexOf(tag);
                     if (idx !== -1) {
                         otherList.splice(idx, 1);
-                        console.log(`[TagMove] Removed "${tag}" from ${settings.names[otherType]} before adding to ${settings.names[type]}`);
+                        lthDebugLog('tags', 'log', `[TagMove] Removed "${tag}" from ${settings.names[otherType]} before adding to ${settings.names[type]}`);
                     }
                 }
 
@@ -3561,7 +3688,7 @@ Tags Ignored: (${countIgnored})`
     // Prevents duplication and keeps tag hierarchy consistent.
     function cleanChildTagsFromParent() {
         if (!settings || !settings.tags) {
-            console.warn("[cleanChildTagsFromParent] Settings or tags not found");
+            lthDebugLog('error', 'warn', "[cleanChildTagsFromParent] Settings or tags not found");
             return [];
         }
 
@@ -3599,7 +3726,7 @@ Tags Ignored: (${countIgnored})`
                     );
                     const removed = beforeCount - tagsByType[other].length;
                     if (removed > 0) {
-                        console.log(`[Clean] Removed ${removed} duplicate(s) from ${other} (kept in ${current})`);
+                        lthDebugLog('request', 'log', `[Clean] Removed ${removed} duplicate(s) from ${other} (kept in ${current})`);
                     }
                 } else {
                     // different family → record conflict for manual review
@@ -3616,7 +3743,7 @@ Tags Ignored: (${countIgnored})`
         }
 
         runFunction(saveSettings, '3v7t2bc6j8ivpojg', [settings]);
-        console.log(`[cleanChildTagsFromParent] Done. Cross-group conflicts found: ${conflicts.length}`);
+        lthDebugLog('tags', 'log', `[cleanChildTagsFromParent] Done. Cross-group conflicts found: ${conflicts.length}`);
         if (conflicts.length) console.table(conflicts);
         return conflicts;
     }
@@ -3698,11 +3825,11 @@ function addJQuery(callback) {
         try {
             const storedSettings = JSON.parse(GM_getValue('spyderSettings', '{}'));
             if (storedSettings.moveCoverToMiddle === false) {
-                console.log('rearrangeLayout skipped: moveCoverToMiddle is disabled');
+                lthDebugLog('layout', 'log', 'rearrangeLayout skipped: moveCoverToMiddle is disabled');
                 return;
             }
         } catch (e) {
-            console.warn('rearrangeLayout: Could not read settings', e);
+            lthDebugLog('error', 'warn', 'rearrangeLayout: Could not read settings', e);
         }
 
         const middleColumn = document.querySelector('#details_top > div.middle_column');
@@ -3710,7 +3837,7 @@ function addJQuery(callback) {
         const container = document.querySelector('#details_top');
 
         if (!middleColumn || !sidebar || !container) {
-            console.warn('Rearrange script: One or more elements not found.');
+            lthDebugLog('error', 'warn', 'Rearrange script: One or more elements not found.');
             return;
         }
 
@@ -3728,7 +3855,7 @@ function addJQuery(callback) {
         middleColumn.style.marginLeft = '0';
         middleColumn.style.marginRight = '0';
 
-        console.log('middleColumn moved above sidebar:', middleColumn);
+        lthDebugLog('layout', 'log', 'middleColumn moved above sidebar:', middleColumn);
 
         // --- HappyFappy-only placement before the tag list wrapper ---
         const host = (window.location.hostname || '').toLowerCase();
@@ -3761,7 +3888,7 @@ function addJQuery(callback) {
                 middleColumn.insertBefore(sidebar, refNode);
             } else {
                 middleColumn.appendChild(sidebar);
-                console.warn('rearrangeLayout: No direct taglist container found; appended sidebar to end.');
+                lthDebugLog('error', 'warn', 'rearrangeLayout: No direct taglist container found; appended sidebar to end.');
             }
         }
     }
@@ -3773,11 +3900,11 @@ function addJQuery(callback) {
         try {
             const storedSettings = JSON.parse(GM_getValue('spyderSettings', '{}'));
             if (storedSettings.useThreeColumnTags === false) {
-                console.log('splitTagsIntoColumns skipped: useThreeColumnTags is disabled');
+                lthDebugLog('layout', 'log', 'splitTagsIntoColumns skipped: useThreeColumnTags is disabled');
                 return;
             }
         } catch (e) {
-            console.warn('splitTagsIntoColumns: Could not read settings', e);
+            lthDebugLog('error', 'warn', 'splitTagsIntoColumns: Could not read settings', e);
         }
 
         const tagList = document.querySelector('#torrent_tags_list');
@@ -4022,7 +4149,7 @@ function addJQuery(callback) {
             refreshBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
         });
         refreshBtn.addEventListener('click', () => {
-            console.log ("Pressed Refresh.....")
+            lthDebugLog('ui', 'log', "Pressed Refresh.....");
             runFunction(rebuildTagLayout, '9nedi4ndiyg0rjyv', []);
         });
 
@@ -4072,7 +4199,7 @@ function addJQuery(callback) {
             const storedSettings = JSON.parse(GM_getValue('spyderSettings', '{}'));
             use3ColTags = storedSettings.useThreeColumnTags !== false;
         } catch (e) {
-            console.warn('addButtonToggle: Could not read settings', e);
+            lthDebugLog('error', 'warn', 'addButtonToggle: Could not read settings', e);
         }
 
         // === Normal placement: details page ===
@@ -4098,7 +4225,7 @@ function addJQuery(callback) {
                 `;
                 buttonRow.appendChild(refreshBtn);
                 buttonRow.appendChild(toggleBtn);
-                
+
                 // Insert after tag_header
                 if (tagHeader.nextSibling) {
                     tagHeader.parentNode.insertBefore(buttonRow, tagHeader.nextSibling);
@@ -4120,7 +4247,7 @@ function addJQuery(callback) {
         toggleBtn.style.zIndex = '10000';
         document.body.appendChild(refreshBtn);
         document.body.appendChild(toggleBtn);
-        console.log('addButtonToggle() attached floating (fallback).');
+        lthDebugLog('layout', 'log', 'addButtonToggle() attached floating (fallback).');
     }
     window.addButtonToggle = addButtonToggle;
 
@@ -4163,34 +4290,34 @@ function addJQuery(callback) {
             if (!moveCover && use3ColTags) {
                 const tagContainer = document.querySelector('#tag_container');
                 const detailsTop = document.querySelector('#details_top');
-                
+
                 if (tagContainer && detailsTop) {
                     // Move tag_container outside of middle_column to be full-width
                     // and place it after details_top
                     const parent = detailsTop.parentElement;
                     if (parent && !tagContainer.classList.contains('s-fullwidth-tags')) {
                         tagContainer.classList.add('s-fullwidth-tags');
-                        
+
                         // Insert after details_top
                         if (detailsTop.nextSibling) {
                             parent.insertBefore(tagContainer, detailsTop.nextSibling);
                         } else {
                             parent.appendChild(tagContainer);
                         }
-                        
+
                         // Apply full-width styles
                         tagContainer.style.width = '100%';
                         tagContainer.style.maxWidth = '100%';
                         tagContainer.style.boxSizing = 'border-box';
                         tagContainer.style.clear = 'both';
                         tagContainer.style.marginTop = '15px';
-                        
-                        console.log('Tag container moved to full width (cover not moved, 3-col tags enabled)');
+
+                        lthDebugLog('layout', 'log', 'Tag container moved to full width (cover not moved, 3-col tags enabled)');
                     }
                 }
             }
         } catch (e) {
-            console.warn('applyTagContainerFullWidth: Could not read settings', e);
+            lthDebugLog('error', 'warn', 'applyTagContainerFullWidth: Could not read settings', e);
         }
     }
     window.applyTagContainerFullWidth = applyTagContainerFullWidth;
@@ -4229,7 +4356,7 @@ function addJQuery(callback) {
     function waitForLayoutReady(callback) {
         const container = document.querySelector('#details_top');
         if (!container) {
-            console.warn('LayoutWatcher: #details_top not found.');
+            lthDebugLog('error', 'warn', 'LayoutWatcher: #details_top not found.');
             return;
         }
 
@@ -4240,7 +4367,7 @@ function addJQuery(callback) {
 
             if (middleColumn && tagList && sidebar) {
                 observer.disconnect();
-                console.log('Layout ready: triggering enhancements');
+                lthDebugLog('request', 'log', 'Layout ready: triggering enhancements');
                 callback();
             }
         });
@@ -4260,19 +4387,19 @@ function addJQuery(callback) {
     function rebuildTagLayout() {
         const DEBOUNCE_MS = 800;
         if (window.__rebuildLock) {
-            console.warn('⏳ rebuildTagLayout skipped (lock)');
+            lthDebugLog('popup', 'warn', '⏳ rebuildTagLayout skipped (lock)');
             return;
         }
         const now = Date.now();
         if (now - (window.__lastRebuildTs || 0) < DEBOUNCE_MS) {
-            console.warn('⏳ rebuildTagLayout skipped (debounced)');
+            lthDebugLog('popup', 'warn', '⏳ rebuildTagLayout skipped (debounced)');
             return;
         }
         window.__rebuildLock = true;
 
         setTimeout(() => {
             try {
-                console.log('🔁 Rebuilding tag layout...');
+                lthDebugLog('layout', 'log', '🔁 Rebuilding tag layout...');
                 runFunction(highlightDetailTags, '2c5anxv59ystmji1', []);
                 runFunction(splitTagsIntoColumns, '4jiq2v8m4svjq0hk', []);
                 runFunction(enforceTagRowLayout, 'y0o8ew4hhbqe7jis', []);
@@ -4280,7 +4407,7 @@ function addJQuery(callback) {
                 runFunction(resizeAllTagText, '168o5p8wofx26w1h', []);
                 runFunction(addButtonToggle, 'vcjy4ldrxj8ycx6r', []);
             } catch (err) {
-                console.warn('🔴 Tag layout rebuild failed:', err);
+                lthDebugLog('layout', 'warn', '🔴 Tag layout rebuild failed:', err);
             } finally {
                 // ✅ Stamp the "last rebuild" time here, AFTER completing the work
                 window.__lastRebuildTs = Date.now();
@@ -4317,7 +4444,7 @@ function addJQuery(callback) {
                     runFunction(addButtonToggle, 'jn34hbjb18o5u2zl', []);
                     runFunction(resizeAllTagText, 'x7ewpozd8a63bcp4', []);
                 } catch (err) {
-                    console.warn('Tags7d observer rebuild failed:', err);
+                    lthDebugLog('error', 'warn', 'Tags7d observer rebuild failed:', err);
                 } finally {
                     isRebuilding = false;
                 }
@@ -4326,7 +4453,7 @@ function addJQuery(callback) {
 
         observer.observe(hidden7d, { childList: true, subtree: false });
 
-        console.log('Observer active: re-reading tags on Tags7d changes');
+        lthDebugLog('request', 'log', 'Observer active: re-reading tags on Tags7d changes');
     })();
 
     // Observe for added tags and reapply the tag layout.
@@ -4339,7 +4466,7 @@ function addJQuery(callback) {
                     if (
                         node.nodeType === 1 &&
                         node.id === "messagebar0" &&
-                        node.textContent.includes("Added")
+                        (node.textContent.includes("Added") || node.textContent.includes("Deleted"))
                     ) {
                         runFunction(processDetailsPage, 'fsjggygvnq7r875i', []);
                         setTimeout(() => {
@@ -4374,24 +4501,134 @@ function addJQuery(callback) {
 
             const now = Date.now();
             if (now - (window.__lastRebuildTs || 0) < DEBOUNCE_MS) {
-                console.warn('⏳ Focus rebuild skipped (debounced by last rebuild timestamp)');
+                lthDebugLog('layout', 'warn', '⏳ Focus rebuild skipped (debounced by last rebuild timestamp)');
                 return;
             }
 
             isRebuilding = true;
-            console.log('Window focused — triggering layout recheck');
+            lthDebugLog('layout', 'log', 'Window focused — triggering layout recheck');
 
             setTimeout(() => {
                 try {
                     runFunction(rebuildTagLayout, 'llou6iuynqvw379q', []);
                 } catch (err) {
-                    console.warn('Focus rebuild failed:', err);
+                    lthDebugLog('error', 'warn', 'Focus rebuild failed:', err);
                 } finally {
                     isRebuilding = false;
                 }
             }, 300);
         });
     })();
+
+    // === Auto-resize for the tag search textarea (#taginput) ===
+    // - Grows vertically as the user types
+    // - Caps at 200px and becomes scrollable after that
+    // - Works for dynamically-inserted instances and is idempotent
+    function enableTagInputAutoResize() {
+        const MAX_PX = 200;
+
+        // Safety: do nothing if document isn't available
+        if (!document || !document.body) return;
+
+        // Inject a small CSS fallback to ensure max-height/overflow behavior
+        try {
+            if (typeof GM_addStyle === 'function') {
+                GM_addStyle(`#taginput { max-height: ${MAX_PX}px !important; overflow-y: auto !important; resize: vertical !important; box-sizing: border-box !important; }`);
+            }
+        } catch (e) {
+            /* ignore */
+        }
+
+        const attach = (ta) => {
+            if (!ta || ta.dataset.lthAutoResize) return;
+            ta.dataset.lthAutoResize = '1';
+            ta.style.boxSizing = 'border-box';
+            ta.style.maxHeight = MAX_PX + 'px';
+            ta.style.overflowY = 'auto';
+            ta.style.resize = 'vertical';
+
+            // Remember last known value so programmatic changes can be detected
+            let lastVal = String(ta.value || '');
+
+            const adjust = () => {
+                // Use requestAnimationFrame to batch layout changes
+                window.requestAnimationFrame(() => {
+                    ta.style.height = 'auto';
+                    const newH = Math.min(ta.scrollHeight, MAX_PX);
+                    ta.style.height = newH + 'px';
+                });
+            };
+
+            // Attach listeners (idempotent because of dataset flag)
+            ta.addEventListener('input', adjust);
+            ta.addEventListener('change', adjust);
+            ta.addEventListener('cut', () => setTimeout(adjust, 0));
+            ta.addEventListener('paste', () => setTimeout(adjust, 0));
+            window.addEventListener('resize', adjust);
+
+            // --- Fallback: detect programmatic changes ---
+            // 1) MutationObserver to catch attribute/characterData changes
+            const valObserver = new MutationObserver(() => {
+                const v = String(ta.value || '');
+                if (v !== lastVal) {
+                    lastVal = v;
+                    adjust();
+                }
+            });
+            try {
+                valObserver.observe(ta, { attributes: true, attributeFilter: ['value'], childList: true, subtree: true, characterData: true });
+                ta.dataset.lthAutoResizeObs = '1';
+            } catch (e) {
+                // ignore if observe fails for any reason
+            }
+
+            // 2) Polling fallback — catches direct `.value = ...` assignments
+            const POLL_MS = 200;
+            const pollId = setInterval(() => {
+                // stop polling if element removed from DOM
+                if (!document.contains(ta)) {
+                    clearInterval(pollId);
+                    try { valObserver.disconnect(); } catch (e) {}
+                    return;
+                }
+
+                const v = String(ta.value || '');
+                if (v !== lastVal) {
+                    lastVal = v;
+                    adjust();
+                }
+            }, POLL_MS);
+            // store poll id (for debugging/cleanup) and indicate poll attached
+            ta.dataset.lthAutoResizePoll = String(pollId);
+
+            // Initial sizing (and ensure size after short delay)
+            adjust();
+            setTimeout(adjust, 50);
+        };
+
+        // Attach to any existing element
+        const existing = document.getElementById('taginput');
+        if (existing) attach(existing);
+
+        // Observe DOM for dynamically-added #taginput
+        const mo = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+                for (const n of m.addedNodes) {
+                    if (n && n.nodeType === 1) {
+                        if (n.id === 'taginput') attach(n);
+                        else {
+                            const found = n.querySelector && n.querySelector('#taginput');
+                            if (found) attach(found);
+                        }
+                    }
+                }
+            }
+        });
+        mo.observe(document.documentElement || document.body, { childList: true, subtree: true });
+    }
+
+    // Enable immediately (safe to call multiple times)
+    enableTagInputAutoResize();
 
 })();
 // This is the very end of this file.
