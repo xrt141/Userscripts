@@ -1,6 +1,6 @@
 // ==UserScript==
     // @name        Luminance Direct Thumbnails+
-    // @version     2.7.0
+    // @version     2.7.5
     // @include     /https?://www\.empornium\.(is|sx)/*
     // @include     /https?://www\.happyfappy\.net/*
     // @include     /https?://femdomcult\.org/*
@@ -19,6 +19,7 @@
     // @connect     empornium.is
     // @connect     *.empornium.sx
     // @connect     imagebam.com
+    // @connect     i.kek.sh
     // @downloadURL https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Direct%20Thumbnails+.user.js
     // @updateURL   https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Direct%20Thumbnails+.user.js
     // ==/UserScript==
@@ -51,7 +52,7 @@
         var auto_refresh_failed_after_ms = 2500; // auto-refresh failed/stalled thumbs ~2.5s after first pass
         var stall_timeout_ms = 4000; // mark as "stalled" if not loaded by this time (ms)
         // NEW: Blob fetch fallback
-        var blob_fetch_hosts = ['hamsterimg.net']; // only these domains use Blob fallback
+        var blob_fetch_hosts = ['hamsterimg.net', 'i.kek.sh']; // only these domains use Blob fallback
         var blob_fetch_on_error = true; // switch to Blob on <img> error
         var blob_fetch_on_stall = true; // switch to Blob when watchdog marks tn-stalled
 
@@ -452,6 +453,12 @@
             text-shadow: none !important;
             letter-spacing: normal !important;
             border-radius: 4px !important;
+        }
+        /* detail page override: use relative positioning when inside #details_top */
+        #details_top .custom-category-overlay td > div[title],
+        #details_top .custom-category-overlay .cats_col > div,
+        #details_top .custom-category-overlay .cats_cols > div {
+            position: relative !important;
         }
         .custom-category-overlay-small td > div[title],
         .custom-category-overlay-small .cats_col  > div,
