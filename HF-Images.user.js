@@ -1,10 +1,13 @@
 // ==UserScript==
-// @name        Temporary Hamsterimage Fix
-// @description Temporary fix for Hamsterimage issues.
-// @version     0.0.2
+// @name        Temporary Image Host Fix
+// @description Temporary fix for Hamsterimage & kek.sh image loading issues (now supports kufirc.com)
+// @version     0.0.5
 // @author      xrt141
 // @include     /https?://www\.happyfappy\.net/*
+// @include     /https?://kufirc\.com/*
 // @grant       GM_cookie
+// @connect     hamsterimg.net
+// @connect     i.kek.sh
 // @grant       GM_notification
 // @grant       GM_openInTab
 // @grant       GM_xmlhttpRequest
@@ -22,8 +25,22 @@
     'use strict';
 
     // only operate on torrent detail pages
-    if (!/\/torrents\.php\?id=\d+/i.test(location.href)) {
-        return; // exit silently on other pages
+   // if (!/\/torrents\.php\?id=\d+/i.test(location.href)) {
+   //     return; // exit silently on other pages
+   // }
+
+    // --- configuration toggles ---
+    // set to false to disable handling of a given host
+    const handleHosts = {
+        hamsterimg: false,   // process images from hamsterimg.net
+        kek: true           // process images from i.kek.sh
+    };
+
+    function shouldHandleUrl(url) {
+        if (!url) return false;
+        if (handleHosts.hamsterimg && url.indexOf('hamsterimg.net') !== -1) return true;
+        if (handleHosts.kek && url.indexOf('i.kek.sh') !== -1) return true;
+        return false;
     }
 
     // helper that fetches a URL via GM_xmlhttpRequest and returns a blob URL
@@ -69,7 +86,7 @@
     function replaceImg(img) {
         if (!img || !img.src) return;
         const url = img.src;
-        if (url.indexOf('hamsterimg.net') === -1) return;
+        if (!shouldHandleUrl(url)) return;
 
         // clear the src so the browser stops trying to load it normally
         img.removeAttribute('src');
@@ -82,7 +99,7 @@
     }
 
     // work on existing images
-    document.querySelectorAll('img[src*="hamsterimg.net"]').forEach(replaceImg);
+    document.querySelectorAll('img[src*="hamsterimg.net"], img[src*="i.kek.sh"]').forEach(replaceImg);
 
     // watch for dynamically added images
     const mo = new MutationObserver(muts => {
@@ -92,7 +109,7 @@
                 if (n.tagName === 'IMG') {
                     replaceImg(n);
                 } else if (n.querySelectorAll) {
-                    n.querySelectorAll('img[src*="hamsterimg.net"]').forEach(replaceImg);
+                    n.querySelectorAll('img[src*="hamsterimg.net"], img[src*="i.kek.sh"]').forEach(replaceImg);
                 }
             });
         });
