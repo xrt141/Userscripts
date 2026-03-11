@@ -4538,7 +4538,15 @@ function addJQuery(callback) {
         } catch (e) {
             /* ignore */
         }
-
+            // special case: ensure the autocomplete popup has white background on
+            // happyfappy domains only (site sometimes sets a dark background).
+            if (location.hostname.includes('happyfappy')) {
+                try {
+                    if (typeof GM_addStyle === 'function') {
+                        GM_addStyle('#autoresults { background: white !important; }');
+                    }
+                } catch(e) { /* ignore */ }
+            }
         const attach = (ta) => {
             if (!ta || ta.dataset.lthAutoResize) return;
             ta.dataset.lthAutoResize = '1';
