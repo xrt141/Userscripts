@@ -1,6 +1,6 @@
 // ==UserScript==
     // @name        Luminance Direct Thumbnails+
-    // @version     2.7.5
+    // @version     2.8.0
     // @include     /https?://www\.empornium\.(is|sx)/*
     // @include     /https?://www\.happyfappy\.net/*
     // @include     /https?://femdomcult\.org/*
