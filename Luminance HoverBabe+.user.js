@@ -2,7 +2,7 @@
 // @name        Luminance HoverBabe+
 // @namespace   empornium Scripts
 // @description Hover over performer tag and get their Babepedia Bio.
-// @version     1.51.0
+// @version     1.52.0
 // @author      vandenium xrt141 (forked and extended by xrt141)
 // @include     /https?://www\.empornium\.(is|sx)/*
 // @include     /https?://www\.happyfappy\.net/*
@@ -37,6 +37,8 @@ const TARGET_BP_HOST = "www.babepedia.com";
 const TARGET_CUP_URL = "https://www.boobepedia.com";
 const TARGET_IAFD_URL = "https://www.iafd.com";
 const TARGET_IAFD_HOST = "www.iafd.com";
+// Base URL for the current site (useful instead of hardcoding empornium domain)
+const SITE_BASE = window.location?.origin || `${location.protocol}//${location.hostname}`;
 
 // Storage and debug keys
 const PARTITION_KEY = { topLevelSite: TARGET_BP_URL };
@@ -1520,6 +1522,24 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         `IAFD`,
     );
 
+    // Helper: append a node or text to a container, inserting a separator between items
+    const appendWithSeparator = (container, nodeOrText, separator = " - ") => {
+        if (!container) return;
+        // Use a data flag on the container so we know if we've already appended items
+        const already = container.dataset.hbHasLinks === "1";
+        if (already) {
+            container.append(document.createTextNode(separator));
+        } else {
+            container.dataset.hbHasLinks = "1";
+        }
+
+        if (typeof nodeOrText === "string") {
+            container.append(document.createTextNode(nodeOrText));
+        } else {
+            container.append(nodeOrText);
+        }
+    };
+
     const isCCuporGreater = (d) => d?.["Bra/cup size"]?.split('').some(c => c >= 'C' && c <= 'Z') || false;
 
     const displayBio = (name, pageDom, precacheOnly) => {
@@ -1644,15 +1664,14 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
                         // Only populate external links if enabled
                         if (shouldShowExternalLinks) {
-                            // Add get more of link
-                            externalLinksContainer.append(
-                                getMoreOfLink(
-                                    `/torrents.php?taglist=${nameToTag(name)}`,
-                                    "empornium",
-                                ),
+                            // Add get more of links (separated)
+                            appendWithSeparator(
+                                externalLinksContainer,
+                                getMoreOfLink(`/torrents.php?taglist=${nameToTag(name)}`, "Tag Search"),
                             );
 
-                            externalLinksContainer.append(
+                            appendWithSeparator(
+                                externalLinksContainer,
                                 getMoreOfLink(
                                     `http://anonym.es/?https://${TARGET_BP_HOST}/babe/${name.replace(
                                         " ",
@@ -1665,15 +1684,18 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
 
                             const TARGET_CUP_DESC = new URL(TARGET_CUP_URL).hostname.replace(/^www\./, "");
-                            const TARGET_CUP_LABEL = TARGET_CUP_DESC.replace(/\.[^.]+$/, "");
+                            const TARGET_CUP_LABEL = TARGET_CUP_DESC
+                                .replace(/\.[^.]+$/, "")
+                                .replace(/\b\w/, (c) => c.toUpperCase());
 
 
                             if (isCCuporGreater(performerData)) {
-                                externalLinksContainer.append(
+                                appendWithSeparator(
+                                    externalLinksContainer,
                                     getMoreOfLink(
                                         `http://anonym.es/?${TARGET_CUP_URL}/boobs/${name.replace(" ", "_")}`,
-                                        TARGET_CUP_LABEL
-                                    )
+                                        TARGET_CUP_LABEL,
+                                    ),
                                 );
                             }
 
@@ -1683,13 +1705,13 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                             // spinner.
                             if (data.iafd?.[tag]) {
                                 const iafdLink = createIAFDLink(data.iafd[tag], tag);
-                                externalLinksContainer.append(iafdLink);
+                                appendWithSeparator(externalLinksContainer, iafdLink);
                             } else {
                                 setInterval(() => {
                                     iafdSpinner.append(".");
                                 }, 1000);
 
-                                externalLinksContainer.append(iafdSpinner);
+                                appendWithSeparator(externalLinksContainer, iafdSpinner);
                             }
                         } else {
                             // Hide the external links section completely
@@ -2008,12 +2030,12 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         const tagsForStatus = tagsToHighlight.concat(newMisses).concat(newHits);
 
         statusArea.setStatus(
-            `${totalTagsToHighlight} performer tags with bios on page: ${
+                `${totalTagsToHighlight} performer tags with bios on page: ${
             tagsForStatus.length > 0
             ? tagsForStatus
             .map(
                 (tag) =>
-                `<a href='https://www.empornium.is/torrents.php?taglist=${nameToTag(
+                `<a href='${SITE_BASE}/torrents.php?taglist=${nameToTag(
                     tagToName(tag.innerText),
                 )}'>${tagToName(tag.innerText)}</a>`,
             )
@@ -2066,22 +2088,22 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                     const externalLinksContainer =
                           // todo
                           bioContainer.querySelector("#links-list");
-                    if (bioContainer && iafdLink) {
-                        const existingIafdLink = bioContainer.querySelector("#iafd-link");
-                        if (!existingIafdLink) {
-                            externalLinksContainer.append(iafdLink);
-                            iafdSpinner.remove();
-                        }
-                    }
-
-                    // No actor on iafd
-                    if (!iafdLink) {
-                        if (iafdSpinner) {
-                            iafdSpinner.remove();
+                        if (bioContainer && iafdLink) {
+                            const existingIafdLink = bioContainer.querySelector("#iafd-link");
+                            if (!existingIafdLink) {
+                                appendWithSeparator(externalLinksContainer, iafdLink);
+                                iafdSpinner.remove();
+                            }
                         }
 
-                        externalLinksContainer.append("No IAFD page found.😞");
-                    }
+                        // No actor on iafd
+                        if (!iafdLink) {
+                            if (iafdSpinner) {
+                                iafdSpinner.remove();
+                            }
+
+                            appendWithSeparator(externalLinksContainer, "No IAFD page found.😞");
+                        }
                     // could have returned earlier than bio. It's in data now so try
                     // displaying link in displayBio.
                 }
@@ -2223,12 +2245,12 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         const tagsForStatus = tagsToHighlight.concat(newMisses).concat(newHits);
 
         statusArea.setStatus(
-            `${totalTagsToHighlight} performer tags with bios on page: ${
+                `${totalTagsToHighlight} performer tags with bios on page: ${
             tagsForStatus.length > 0
             ? tagsForStatus
             .map(
                 (tag) =>
-                `<a href='https://www.empornium.is/torrents.php?taglist=${nameToTag(
+                `<a href='${SITE_BASE}/torrents.php?taglist=${nameToTag(
                     tagToName(tag.innerText),
                 )}'>${tagToName(tag.innerText)}</a>`,
             )
