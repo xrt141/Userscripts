@@ -337,6 +337,113 @@
              max_cached_images
          );
 
+        // Initialize lightbox for full-size image viewing
+        (function initializeLightbox() {
+            // Check if feature is enabled
+            const enabled = (() => {
+                const hasGM = typeof GM_getValue === 'function';
+                const key = 'ldt_enable_fullsize_on_hover';
+                try {
+                    const v = hasGM ? GM_getValue(key, true) : (localStorage.getItem(key) ?? 'true');
+                    return v === true || v === 'true' || v === 1 || v === '1';
+                } catch (e) { return true; }
+            })();
+
+            if (!enabled) return;
+
+            const lightboxHTML = '<div id="tn-lightbox"><img id="tn-lightbox-img" src="" alt="" /></div>';
+            document.body.insertAdjacentHTML('beforeend', lightboxHTML);
+
+            const lightbox = document.getElementById('tn-lightbox');
+            const lightboxImg = document.getElementById('tn-lightbox-img');
+            let closeTimeoutId = null;
+            let currentWrap = null;
+
+            // Close lightbox when clicking on it (the semi-transparent background)
+            lightbox.addEventListener('click', (e) => {
+                if (e.target === lightbox) {
+                    closeLightbox();
+                }
+            });
+
+            // Close lightbox on escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && lightbox.classList.contains('visible')) {
+                    closeLightbox();
+                }
+            });
+
+            function closeLightbox() {
+                if (closeTimeoutId) clearTimeout(closeTimeoutId);
+                closeTimeoutId = null;
+                lightbox.classList.remove('visible');
+                lightboxImg.src = '';
+                currentWrap = null;
+            }
+
+            // Set up magnifying glass icons for images
+            const observer = new MutationObserver(() => {
+                document.querySelectorAll('.tn-img-wrap img:not([data-lightbox-initialized])').forEach(img => {
+                    img.setAttribute('data-lightbox-initialized', 'true');
+                    const wrap = img.closest('.tn-img-wrap');
+                    if (!wrap) return;
+
+                    // Create magnifying glass icon
+                    const icon = document.createElement('div');
+                    icon.className = 'tn-magnify-icon';
+                    let showTimeoutId = null;
+
+                    // Show lightbox on icon hover
+                    icon.addEventListener('mouseenter', () => {
+                        if (closeTimeoutId) clearTimeout(closeTimeoutId);
+                        closeTimeoutId = null;
+                        
+                        // Delay showing the lightbox to prevent accidental triggers
+                        showTimeoutId = setTimeout(() => {
+                            currentWrap = wrap;
+                            lightboxImg.src = img.src;
+                            lightbox.classList.add('visible');
+                            
+                            // Start tracking mouse movement
+                            const trackMouse = (e) => {
+                                const rect = icon.getBoundingClientRect();
+                                const isOverIcon = (e.clientX >= rect.left && e.clientX <= rect.right &&
+                                                  e.clientY >= rect.top && e.clientY <= rect.bottom);
+                                
+                                if (!isOverIcon) {
+                                    if (closeTimeoutId) clearTimeout(closeTimeoutId);
+                                    closeTimeoutId = setTimeout(() => {
+                                        closeLightbox();
+                                    }, 300);
+                                    document.removeEventListener('mousemove', trackMouse);
+                                }
+                            };
+                            document.addEventListener('mousemove', trackMouse);
+                            
+                            // Store reference so we can remove it later
+                            icon.dataset.trackMouseFn = trackMouse;
+                        }, 500);
+                    });
+
+                    // Cancel the show delay if mouse leaves the icon before it triggers
+                    icon.addEventListener('mouseleave', () => {
+                        if (showTimeoutId) {
+                            clearTimeout(showTimeoutId);
+                            showTimeoutId = null;
+                        }
+                    });
+
+                    wrap.appendChild(icon);
+                });
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: false
+            });
+        })();
+
 
 
     })();
@@ -429,10 +536,10 @@
         .small-category { vertical-align: top !important; }
         .overlay-category td > div[title],
         .overlay-category .cats_col  > div,
-        .overlay-category .cats_cols > div { position: absolute; overflow: hidden; z-index: 10000; }
+        .overlay-category .cats_cols > div { position: absolute; overflow: hidden; z-index: 1000; }
         .overlay-category-small td > div[title],
         .overlay-category-small .cats_col  > div,
-        .overlay-category-small .cats_cols > div { width: 11px; z-index: 10000; }
+        .overlay-category-small .cats_cols > div { width: 11px; z-index: 1000; }
         .remove-category td > div[title],
         .remove-category .cats_col  > div,
         .remove-category .cats_cols > div { display: none; }
@@ -442,7 +549,7 @@
         .custom-category-overlay .cats_cols > div {
             position: absolute;
             overflow: hidden;
-            z-index: 10000;
+            z-index: 1000;
             background: rgba(0, 0, 0, 0.8) !important;
             color: #fff !important;
             font-size: 12px !important;
@@ -482,6 +589,64 @@
         /* Hide img element while loading (class-based, not :has()) */
         .tn-img-wrap.tn-loading img {
             visibility: hidden;
+        }
+        
+        /* Magnifying glass icon styles */
+        .tn-magnify-icon {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            width: 25px;
+            height: 25px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10;
+            user-select: none;
+            transition: background 0.15s ease;
+            font-size: 14px;
+            line-height: 1;
+        }
+        
+        .tn-magnify-icon:hover {
+            background: rgba(0, 0, 0, 0.85);
+        }
+        
+        .tn-magnify-icon::before {
+            content: '🔍';
+        }
+        
+        /* Full-size image viewer (lightbox) */
+        #tn-lightbox {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            cursor: zoom-out;
+        }
+        
+        #tn-lightbox.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        #tn-lightbox img {
+            max-height: 75vh;
+            max-width: 75vw;
+            border: 2px solid #000;
+            object-fit: contain;
         }
         /* DEBUG: Bright red border on ALL images to help identify mystery element */
         img:not([src]), img[src=""] {
@@ -1620,6 +1785,7 @@
                 remove_categories: false,
                 preserve_animated_images: true,
                 disable_site_hover_images: true,
+                enable_fullsize_on_hover: true,
                 max_retry_attempts: 10,
                 retry_delay_ms: 1000,
                 // Sequential mode can be 'off' (lazy), 'sequential' (single-worker), or 'sequential_plus' (concurrent workers)
@@ -1652,6 +1818,7 @@
             let ldt_custom_category_overlay = persistence.readBool('ldt_custom_category_overlay', DEFAULTS.custom_category_overlay);
             let ldt_preserve_animated = persistence.readBool('ldt_preserve_animated', DEFAULTS.preserve_animated_images);
             let ldt_disable_site_hover = persistence.readBool('ldt_disable_site_hover', DEFAULTS.disable_site_hover_images);
+            let ldt_enable_fullsize_on_hover = persistence.readBool('ldt_enable_fullsize_on_hover', DEFAULTS.enable_fullsize_on_hover);
             let ldt_max_retries = persistence.readNum('ldt_max_retry_attempts', DEFAULTS.max_retry_attempts);
             let ldt_retry_delay = persistence.readNum('ldt_retry_delay_ms', DEFAULTS.retry_delay_ms);
             // NEW: use a string mode for sequential behavior
@@ -1698,6 +1865,7 @@ modalBg.innerHTML = `
             <div class="ldt-row"><label title="Download smaller image sizes. Experimental - may reduce performance"><span class="ldt-label-text">Image Quality</span> <select id="ldt-image-size-select" class="ldt-select"><option value="Thumbnail">Thumbnail</option><option value="Medium">Medium</option><option value="Full">Full</option></select></label></div>
             <div class="ldt-row"><label title="Keep animated images full size to preserve animation"><input id="ldt-preserve-animated" type="checkbox"> Preserve Animated (GIF/WebP)</label></div>
             <div class="ldt-row"><label title="Disable site hover images to reduce redundancy"><input id="ldt-disable-hover" type="checkbox"> Disable Site Hover</label></div>
+            <div class="ldt-row"><label title="Show full-size image when hovering the magnifying glass icon"><input id="ldt-enable-fullsize-hover" type="checkbox"> Enable Full Size Image on Hover</label></div>
             <div class="ldt-row"><label title="Place thumbnails inside the category column"><input id="ldt-replace-cats" type="checkbox"> Replace Categories</label></div>
             <div class="ldt-row"><label title="Hide category names entirely"><input id="ldt-remove-cats" type="checkbox"> Remove Categories</label></div>
             <div class="ldt-row"><label title="Apply custom styling to category overlay"><input id="ldt-custom-cat-overlay" type="checkbox"> Custom Category Overlay</label></div>
@@ -1814,6 +1982,7 @@ modalBg.innerHTML = `
             const sizeSelect = modalBg.querySelector('#ldt-image-size-select');
             const preserveCheckbox = modalBg.querySelector('#ldt-preserve-animated');
             const disableHoverCheckbox = modalBg.querySelector('#ldt-disable-hover');
+            const enableFullsizeHoverCheckbox = modalBg.querySelector('#ldt-enable-fullsize-hover');
             const replaceCatsCheckbox = modalBg.querySelector('#ldt-replace-cats');
             const removeCatsCheckbox = modalBg.querySelector('#ldt-remove-cats');
             const customCatOverlayCheckbox = modalBg.querySelector('#ldt-custom-cat-overlay');
@@ -1846,6 +2015,7 @@ modalBg.innerHTML = `
             if (sizeSelect) sizeSelect.value = ldt_image_size || DEFAULTS.image_size;
             if (preserveCheckbox) preserveCheckbox.checked = !!ldt_preserve_animated;
             if (disableHoverCheckbox) disableHoverCheckbox.checked = !!ldt_disable_site_hover;
+            if (enableFullsizeHoverCheckbox) enableFullsizeHoverCheckbox.checked = !!ldt_enable_fullsize_on_hover;
             if (replaceCatsCheckbox) replaceCatsCheckbox.checked = !!ldt_replace_categories;
             if (removeCatsCheckbox) removeCatsCheckbox.checked = !!ldt_remove_categories;
             if (customCatOverlayCheckbox) customCatOverlayCheckbox.checked = !!ldt_custom_category_overlay;
@@ -1868,6 +2038,7 @@ modalBg.innerHTML = `
                     ldt_image_size = sizeSelect ? (sizeSelect.value || DEFAULTS.image_size) : DEFAULTS.image_size;
                     ldt_preserve_animated = !!preserveCheckbox?.checked;
                     ldt_disable_site_hover = !!disableHoverCheckbox?.checked;
+                    ldt_enable_fullsize_on_hover = !!enableFullsizeHoverCheckbox?.checked;
                     ldt_replace_categories = !!replaceCatsCheckbox?.checked;
                     ldt_remove_categories = !!removeCatsCheckbox?.checked;
                     ldt_custom_category_overlay = !!customCatOverlayCheckbox?.checked;
@@ -1888,6 +2059,7 @@ modalBg.innerHTML = `
                         'ldt_image_size': ldt_image_size,
                         'ldt_preserve_animated': ldt_preserve_animated,
                         'ldt_disable_site_hover': ldt_disable_site_hover,
+                        'ldt_enable_fullsize_on_hover': ldt_enable_fullsize_on_hover,
                         'ldt_replace_categories': ldt_replace_categories,
                         'ldt_remove_categories': ldt_remove_categories,
                         'ldt_custom_category_overlay': ldt_custom_category_overlay,
@@ -1941,6 +2113,9 @@ modalBg.innerHTML = `
                 }
 
                 closeConfigModal();
+                
+                // Refresh page to apply settings
+                setTimeout(() => { location.reload(); }, 200);
             });
 
             // Debug console button handler
