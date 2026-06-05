@@ -1,6 +1,6 @@
 // ==UserScript==
     // @name        Luminance Direct Thumbnails+
-    // @version     2.8.0
+    // @version     2.8.2
     // @include     /https?://www\.empornium\.(is|sx)/*
     // @include     /https?://www\.happyfappy\.net/*
     // @include     /https?://femdomcult\.org/*
@@ -497,12 +497,15 @@
                     return;
                 }
 
-                // Reset flags/handlers only for images we actually plan to restart
+                // Full reset — clear ALL in-flight state so stuck/spinning images can restart
+                instance.clearImageState($img);  // cancels stall timers, removes spinner/classes
                 $img.data('retryCount', 0)
-                    .removeClass('tn-failed tn-blocked')
+                    .removeClass('tn-failed tn-blocked tn-stalled')
                     .off('error.lazyRetry load.lazyRetry')
                     .data('isLoading', false)
-                    .removeData('loaded');
+                    .removeData('loaded')
+                    .removeData('blobFetchInFlight')  // critical: unblocks _fetchImageAsBlob guard
+                    .removeData('first404Done');      // allow 404-fallback logic to retry fresh
 
                 if (isBlocked) {
                     const ph = instance.block_placeholder_data_uri(instance.max_image_size);
@@ -1310,9 +1313,29 @@
                 self.clearImageState($img);
                 $img.data('retryCount', 0).data('loaded', true);
                 window.logFinish($img.data('src'));
-                // Cache if enabled and not already a data URL
-                if (self.cache && self.cache.enabled && imgEl.complete && imgEl.naturalWidth > 0 && imgEl.src && !imgEl.src.startsWith('data:')) {
-                    try { self.cache.setImage(originalSrc, imgEl.src); } catch (e) {}
+                // Cache the image as a real data URL so subsequent loads are instant
+                if (self.cache && self.cache.enabled && imgEl.complete && imgEl.naturalWidth > 0) {
+                    try {
+                        if (imgEl.src.startsWith('data:')) {
+                            // Already a data URL (blob-fetch result) — store directly
+                            self.cache.setImage(originalSrc, imgEl.src);
+                        } else {
+                            // Convert to data URL via canvas so the cache is actually useful
+                            try {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = imgEl.naturalWidth;
+                                canvas.height = imgEl.naturalHeight;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(imgEl, 0, 0);
+                                const dataUrl = canvas.toDataURL();
+                                self.cache.setImage(originalSrc, dataUrl);
+                                if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Canvas-encoded and cached: ' + originalSrc);
+                            } catch (canvasErr) {
+                                // Cross-origin taint — cannot read pixels; skip caching for this image
+                                if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Canvas taint, skipping cache for: ' + originalSrc);
+                            }
+                        }
+                    } catch (e) {}
                 }
                 $img.trigger('tnDone');
             });

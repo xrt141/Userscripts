@@ -2,7 +2,7 @@
 // @name        Luminance HoverBabe+
 // @namespace   empornium Scripts
 // @description Hover over performer tag and get their Babepedia Bio.
-// @version     1.53.0
+// @version     1.54.3
 // @author      vandenium xrt141 (forked and extended by xrt141)
 // @include     /https?://www\.empornium\.(is|sx)/*
 // @include     /https?://www\.happyfappy\.net/*
@@ -105,7 +105,7 @@ const hbDebugLog = (category, method, ...args) => {
     } catch (e) {
         debugSettings = null;
     }
-    
+
     // Use defaults if no settings found
     if (!debugSettings) {
         debugSettings = {
@@ -118,7 +118,7 @@ const hbDebugLog = (category, method, ...args) => {
             debugErrors: true,
         };
     }
-    
+
     const categoryMap = {
         'prefetch': debugSettings.debugPrefetch,
         'request': debugSettings.debugRequestLogging,
@@ -128,11 +128,11 @@ const hbDebugLog = (category, method, ...args) => {
         'storage': debugSettings.debugStorage,
         'error': debugSettings.debugErrors,
     };
-    
+
     if (categoryMap[category]) {
         const logMethod = console[method] || console.log;
         // Prepend [LHB] prefix to all output for consistency
-        const modifiedArgs = args.length > 0 && typeof args[0] === 'string' 
+        const modifiedArgs = args.length > 0 && typeof args[0] === 'string'
             ? [`[LHB] ${args[0]}`, ...args.slice(1)]
             : ['[LHB]', ...args];
         logMethod(...modifiedArgs);
@@ -370,7 +370,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
     <div class="buttons">
       <button id="hb-update-now" class="btn primary">Update Now</button>
-      <button id="hb-update-cancel" class="btn secondary">Cancel</button>
+      <button id="hb-update-close" class="btn secondary">Close</button>
     </div>
 
     <div class="progress-area">
@@ -401,19 +401,19 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
         // --- Elements ---
         const updateBtn = modal.querySelector("#hb-update-now");
-        const cancelBtn = modal.querySelector("#hb-update-cancel");
+        const closeBtn = modal.querySelector("#hb-update-close");
         const progressEl = modal.querySelector("#hb-update-progress");
         const suppressCbx = modal.querySelector("#hb-update-suppress-checkbox");
         const suppressDays = modal.querySelector("#hb-update-suppress-days");
 
         // Store reference to modal for external status updates
-        window.hbUpdateModal = { progressEl, overlay, style, modal, updateBtn, cancelBtn };
+        window.hbUpdateModal = { progressEl, overlay, style, modal, updateBtn, closeBtn };
 
         // --- Behavior ---
         updateBtn.addEventListener("click", async () => {
             hbDebugLog('update', 'log', UPDATE_LOG_TAG, "Update Now clicked");
             updateBtn.disabled = true;
-            cancelBtn.disabled = true;
+            closeBtn.disabled = true;
             progressEl.textContent = "Starting database update...";
 
             try {
@@ -422,8 +422,8 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                 data = getData();
                 currentActorTotal = 0;
 
-                // Trigger the actual update
-                const result = await getAllActors();
+                // Trigger the actual update (with allowRefreshOldData=true to force refresh)
+                const result = await getAllActors(true);
 
                 // Update completed successfully
                 const total = getTotalActors();
@@ -439,26 +439,24 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                     statusArea.updateDaysToRefreshActors();
                 }
 
-                // Enable cancel button (which now acts as "Close")
-                cancelBtn.disabled = false;
-                cancelBtn.textContent = "Close";
+                // Enable close button
+                closeBtn.disabled = false;
 
             } catch (error) {
                 hbDebugLog('update', 'error', UPDATE_LOG_TAG, "Update failed:", error);
                 progressEl.textContent = `❌ Update failed: ${error}. You can close and try again later.`;
-                cancelBtn.disabled = false;
-                cancelBtn.textContent = "Close";
+                closeBtn.disabled = false;
             }
         });
 
-        cancelBtn.addEventListener("click", () => {
-            hbDebugLog('update', 'log', UPDATE_LOG_TAG, "Cancel/Close clicked");
+        closeBtn.addEventListener("click", () => {
+            hbDebugLog('update', 'log', UPDATE_LOG_TAG, "Close clicked");
 
-            // Save suppression preference if checked
+            // Save suppression preference if checkbox is checked
             if (suppressCbx.checked) {
                 const days = parseInt(suppressDays.value, 10);
                 setUpdatePopupSuppressionDays(days);
-                hbDebugLog('update', 'log', UPDATE_LOG_TAG, `Suppressing popup for ${days} days`);
+                hbDebugLog('update', 'log', UPDATE_LOG_TAG, `Popup suppressed for ${days} days`);
             }
 
             // Close modal
@@ -492,6 +490,12 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
     /** Notify user to open BP and complete Cloudflare Turnstile */
     function notifyNeedsAuth() {
+        // Check if errors are suppressed
+        if (shouldSuppressPopup()) {
+            hbDebugLog('popup', 'warn', LOG_TAG, "Auth notification suppressed by user setting.");
+            return;
+        }
+
         const text =
               "babepedia requires human verification (Cloudflare). Click to open babepedia, complete the check, then return and refresh.";
         if (typeof GM_notification === "function") {
@@ -530,16 +534,22 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                         resolve(true);
                     } else {
                         hbDebugLog('cloudflare', 'warn', `[HB-CF] Non-200 from ${TARGET_BP_URL} (checkSiteReachable):`, resp.status, `${TARGET_BP_URL}/`);
-                        showCaptchaPopupIfNeeded(resp.status);
-                        notifyNeedsAuth();
-                        try { GM_openInTab(TARGET_BP_URL, { active: true }); } catch {}
+                        // Only show popup and notifications if errors are not suppressed
+                        if (!shouldSuppressPopup()) {
+                            showCaptchaPopupIfNeeded(resp.status);
+                            notifyNeedsAuth();
+                            try { GM_openInTab(TARGET_BP_URL, { active: true }); } catch {}
+                        }
                         resolve(false);
                     }
                 },
                 onerror: (err) => {
                     cfDebug("Network error:", err);
-                    notifyNeedsAuth();
-                    try { GM_openInTab(TARGET_BP_URL, { active: true }); } catch {}
+                    // Only notify if errors are not suppressed
+                    if (!shouldSuppressPopup()) {
+                        notifyNeedsAuth();
+                        try { GM_openInTab(TARGET_BP_URL, { active: true }); } catch {}
+                    }
                     resolve(false);
                 },
             };
@@ -658,7 +668,10 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
                 if (resp.status !== 200 && resp.status !== 403) {
                     hbDebugLog('cloudflare', 'warn', `${CF_DEBUG_TAG} Non-200 from ${TARGET_BP_HOST} (cfAwareRequest):`, resp.status, merged.url);
-                    showCaptchaPopup(resp.status);
+                    // Only show popup if errors are not suppressed
+                    if (!shouldSuppressPopup()) {
+                        showCaptchaPopup(resp.status);
+                    }
                 }
                 userOnload && userOnload(resp);
             };
@@ -928,13 +941,23 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         return 0;
     };
 
-    const getAllActors = () => {
+    const getAllActors = (allowRefreshOldData = true) => {
         const nowTime = Date.now();
+        const hasCurrentCache = data?.actorNames?.names?.size > 0 && nowTime - data.actorNames.time <= ONE_MONTH;
+        const hasOldData = data?.actorNames?.names?.size > 0 && nowTime - data.actorNames.time > ONE_MONTH;
 
-        if (data?.actorNames?.names?.size > 0 && nowTime - data.actorNames.time <= ONE_MONTH) {
+        // If data is current, use cache regardless
+        if (hasCurrentCache) {
             return Promise.resolve("cache current");
         }
 
+        // If data is old and we're NOT allowed to refresh (e.g., suppressed popup), use old cache
+        if (hasOldData && !allowRefreshOldData) {
+            hbDebugLog('data', 'log', LOG_TAG, "Using old cached data; refresh suppressed by user");
+            return Promise.resolve("cache old - suppressed");
+        }
+
+        // If no data or allowed to refresh, fetch new data
         // Clean the excluded tags cache
         cleanTagCaches(true);
 
@@ -952,10 +975,25 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                     allActorNames.add(name);
                 }
             }
+            
+            // If we got NO actors from the fresh request, fall back to old data
+            if (allActorNames.size === 0 && hasOldData) {
+                hbDebugLog('data', 'warn', LOG_TAG, "Fresh request returned no actors; using old cached data as fallback");
+                return Promise.resolve("cache old - fallback");
+            }
+            
             data.actorNames = { names: allActorNames, time: nowTime };
             saveData(data);
             statusArea?.setTotalActors();
             return responses;
+        }).catch((error) => {
+            // If the fetch fails entirely and we have old data, use it
+            if (hasOldData) {
+                hbDebugLog('data', 'warn', LOG_TAG, "Fetch failed; using old cached data as fallback:", error);
+                return Promise.resolve("cache old - fallback (error)");
+            }
+            // No old data to fall back to
+            throw error;
         });
     };
 
@@ -1408,7 +1446,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         const extraClass = slug ? ` label-${slug}` : '';
         div.innerHTML = `<span class="label${extraClass}">${name}: </span><span class="value">${value}</span>`;
         return div;
-    };   
+    };
 
     const addDebutInfo = (bioDom) => {
         const target = findEl(bioDom, ".info-grid", "Age:");
@@ -1611,15 +1649,20 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         // Get bio image and show
         if (hovered) {
             // Performer images are always fetched and shown when available
+            const debugSettings = getDebugSettings();
+            const bioLoadStart = performance.now();
+            let bioDisplayStart = 0;
 
             const displayCallback = (img) => {
                 if (hovered) {
                     hovered = false;
+                    bioDisplayStart = performance.now();
                     if (!precacheOnly) {
                         const target = document.querySelector(
                             "#details_top, #torrent_table, #content",
                         );
 
+                        const containerStart = performance.now();
                         const bioContainer = createBioContainer(
                             name,
                             img,
@@ -1719,9 +1762,23 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                         }
 
                         target.appendChild(bioContainer);
+                        const domAppendTime = performance.now();
 
                         // Apply user-configured label colors (if any)
                         try { applyConfiguredLabelColors(bioContainer); } catch (e) { /* ignore */ }
+
+                        // Log full timing breakdown
+                        if (debugSettings.debugCacheTiming) {
+                            const containerTime = bioDisplayStart - containerStart;
+                            const imageWaitTime = bioDisplayStart - bioLoadStart;
+                            const totalTime = domAppendTime - bioLoadStart;
+                            console.group(`[LHB] Full Bio Load: ${name}`);
+                            console.log(`Image Fetch/Process: ${imageWaitTime.toFixed(2)}ms`);
+                            console.log(`Container Build: ${containerTime.toFixed(2)}ms`);
+                            console.log(`DOM Append + Paint: ${(domAppendTime - bioDisplayStart).toFixed(2)}ms`);
+                            console.log(`Total (lookup→visible): ${totalTime.toFixed(2)}ms`);
+                            console.groupEnd();
+                        }
 
                         bioContainer.style.left = "40%";
                         bioContainer.style.top = "40%";
@@ -1959,8 +2016,23 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                 }
                 setStatus(`Getting page bio for ${name} from cache.`);
 
+                // Cache timing instrumentation
+                const debugSettings = getDebugSettings();
+                const t0 = performance.now();
+
                 const pageDom = stringToHTML(data.pages[name].response);
+                const t1 = performance.now();
+
                 displayBio(name, pageDom, precacheOnly);
+                const t2 = performance.now();
+
+                if (debugSettings.debugCacheTiming) {
+                    console.group(`[LHB] Cache Load: ${name}`);
+                    console.log(`HTML Parse: ${(t1 - t0).toFixed(2)}ms`);
+                    console.log(`Display Render: ${(t2 - t1).toFixed(2)}ms`);
+                    console.log(`Total: ${(t2 - t0).toFixed(2)}ms`);
+                    console.groupEnd();
+                }
                 return;
             }
             setStatus(`Page bio unavailable for ${name}.`);
@@ -2166,7 +2238,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         }
         prefetchInitialized = true;
         hbDebugLog('prefetch', 'log', '[LHB] prefetchBioPagesAndImages started');
-        
+
         // We'll reset the flag right after we've done our work,
         // OR when the queue processing completes
         const resetFlag = () => {
@@ -2330,7 +2402,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         if (newMisses.length > 0) {
             saveTagCache("misses", tagMisses);
         }
-        
+
         // Reset flag immediately after main work is done
         // The queue processing will reset it again when it completes
         if (!prefetchQueue.length) {
@@ -2818,6 +2890,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             debugPopup: true,
             debugStorage: true,
             debugErrors: true,
+            debugCacheTiming: true,
         };
     };
 
@@ -3118,6 +3191,10 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
           <input type="checkbox" id="debug-errors" ${settings.debugErrors ? 'checked' : ''}>
           <label for="debug-errors">General Errors & Warnings</label>
         </div>
+        <div class="hb-debug-item">
+          <input type="checkbox" id="debug-cache-timing" ${settings.debugCacheTiming ? 'checked' : ''}>
+          <label for="debug-cache-timing">Cache Load Timings</label>
+        </div>
       </div>
       <div id="hb-debug-buttons">
         <button id="hb-debug-cancel">Cancel</button>
@@ -3149,8 +3226,9 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                 debugPopup: document.querySelector('#debug-popup').checked,
                 debugStorage: document.querySelector('#debug-storage').checked,
                 debugErrors: document.querySelector('#debug-errors').checked,
+                debugCacheTiming: document.querySelector('#debug-cache-timing').checked,
             };
-            
+
             saveDebugSettings(debugSettings);
             removePopup();
         });
@@ -3660,8 +3738,11 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         };
 
 
-        // Ensure we ran the cookie probe above; now always attempt to load actors and set up tags.
-        getAllActors().then(setUpHoverAndHighlightTags);
+        // Ensure we ran the cookie probe above; now attempt to load actors and set up tags.
+        // If update popup should be shown and not suppressed, don't auto-refresh old data
+        // (user must click "Update Now" to refresh). If popup is suppressed or not needed, use cached data.
+        const shouldAutoRefresh = !getUpdateReason() || shouldSuppressUpdatePopup();
+        getAllActors(shouldAutoRefresh).then(setUpHoverAndHighlightTags);
 
         const { body } = document;
         body.addEventListener("keyup", (e) => {
