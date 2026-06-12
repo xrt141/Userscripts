@@ -1084,7 +1084,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
       border-radius: 5px;
       font-size: inherit;
       color: #ccc;
-      z-index: 100;
+      z-index: 999999;
       box-sizing: border-box;
       /* Use viewport-relative sizing requested by user */
       width: 75vw;
@@ -3675,8 +3675,11 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
 
     const run = async () => {
-        // Run the cookie validation / user prompt flow but do not disable the script.
-        await shouldSkipDueToCloudflare();
+        // Run the cookie validation / user prompt flow in the background (non-blocking)
+        // Don't await it - let it run independently
+        shouldSkipDueToCloudflare().catch(err => {
+            hbDebugLog('error', 'warn', '[HB] Cloudflare check failed:', err);
+        });
 
         settings = getSettings();
 
