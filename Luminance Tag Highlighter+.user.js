@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name         Luminance Tag Highlighter+
 // @namespace    http://tampermonkey.net/
-// @version      2.8.0
+// @version      2.8.1
 // @description  Branched from Emp++ Tag Highlighter v0.7.9b
 // @author       xrt141, allebady
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_addStyle
 // @require      https://code.jquery.com/jquery-1.12.4.min.js
-// @include      /^https://www\.empornium\.(me|sx|is)/
+// @include      /^https://(www\.)?empornium\.(me|sx|is)/
+// @include      /^https://(www\.)?emparadise\.rs/
 // @include      /^https://www\.enthralled\.me/
 // @include      /^https://pornbay\.org/
 // @include      /^https://www\.happyfappy\.net/
