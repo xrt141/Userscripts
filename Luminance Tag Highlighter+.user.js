@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Luminance Tag Highlighter+
 // @namespace    http://tampermonkey.net/
-// @version      2.8.1
+// @version      2.8.2
 // @description  Branched from Emp++ Tag Highlighter v0.7.9b
 // @author       xrt141, allebady
 // @grant        GM_getValue
@@ -230,6 +230,20 @@ function runScript() {
         //Should we hide any tag buttons - Dynamically generated above - Default: false ---
         ...tagButtonVisibilityDefaults,
 
+        //--- Saved tag lists per category - Default: empty array each ---
+        tags: Object.fromEntries(ALL_TAGS_KEYS.map(key => [key, []])),
+
+        //--- Numeric weight per category for percent bar / torrent coloring ---
+        tagValues: {
+            Tags1a: 1, Tags1b: 2, Tags1c: 0,
+            Tags2a: 1, Tags2b: 2, Tags2c: 0,
+            Tags3a: 1, Tags3b: 2, Tags3c: 0,
+            Tags4a: 1, Tags4b: 2, Tags4c: 0,
+            Tags5a: 1, Tags5b: 2, Tags5c: 0,
+            Tags6a: 1, Tags6b: 2, Tags6c: 0,
+            Tags7a: -1, Tags7b: -2, Tags7c: -3, Tags7d: 0
+        },
+
         // Color default settings - matches colors from 0.7.9b
         colors: {
             Tags1a: { background: "#A9DF9C", border: "#000000", text: "#000000", borderColor: "#000000", borderStyle: "solid", borderWeight: "0px" },
@@ -286,8 +300,7 @@ function runScript() {
     };
 
     // Load Settings - Use defaults above for missing / empty settings.
-    var settings = getSettings();
-    settings = $j.extend(true, defaults, settings);
+    var settings = $j.extend(true, {}, defaults, getSettings());
 
     // Initialize settings.tags
     if (!settings.tags) settings.tags = {};
@@ -486,36 +499,6 @@ function runScript() {
         document.head.appendChild(style);
     }
 
-
-    // Default numeric values for tag effect on percent bar and torrent coloring
-    // Migration: old categories → numeric values From 2.0
-    // Very Good = +2, Good = +1, Ignore = 0, Bad = -1, Very Bad = -2
-    if (!settings.tagValues) {
-        settings.tagValues = {
-            Tags1a: 1,
-            Tags1b: 2,
-            Tags1c: 0,
-            Tags2a: 1,
-            Tags2b: 2,
-            Tags2c: 0,
-            Tags3a: 1,
-            Tags3b: 2,
-            Tags3c: 0,
-            Tags4a: 1,
-            Tags4b: 2,
-            Tags4c: 0,
-            Tags5a: 1,
-            Tags5b: 2,
-            Tags5c: 0,
-            Tags6a: 1,
-            Tags6b: 2,
-            Tags6c: 0,
-            Tags7a: -1,
-            Tags7b: -2,
-            Tags7c: -3,
-            Tags7d: 0
-        };
-    }
 
     // Migration for old string values (if present)
     for (const [key, val] of Object.entries(settings.tagValues)) {
@@ -3656,7 +3639,8 @@ Tags Ignored: (${countIgnored})`
     }
 
     function getSettings() {
-        return JSON.parse(getValue("spyderSettings", "{}"));
+        // Merge stored settings over defaults so every key is always present.
+        return $j.extend(true, {}, defaults, JSON.parse(getValue("spyderSettings", "{}")));
     }
 
     function saveSettings() {
