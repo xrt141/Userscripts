@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Luminance Tag Highlighter+
 // @namespace    http://tampermonkey.net/
-// @version      2.8.1
+// @version      2.8.2
 // @description  Branched from Emp++ Tag Highlighter v0.7.9b
 // @author       xrt141, allebady
 // @grant        GM_getValue
@@ -441,6 +441,7 @@ function runScript() {
     themeStyles.find(url => url.includes("/standard/style.css")) ? "Standard" :
     themeStyles.find(url => url.includes("/bubblegum/style.css")) ? "Bubblegum" :
     themeStyles.find(url => url.includes("/happyfappy/style.css")) ? "HappyFappy" :
+    themeStyles.find(url => url.includes("/lesssucky/style.css")) ? "LessSucky" :
     "unknown";
     // Debug - Output Theme to Console
     lthDebugLog('theme', 'log', "🧩 Detected theme from stylesheet:", currentTheme);
@@ -460,6 +461,7 @@ function runScript() {
         Sarandafl:   { green: [130, 210, 130], red: [220, 110, 110], maxAlpha: 0.5 },
         Empornium:   { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.7 },
         Standard:    { green: [50, 90, 50], red: [100, 50, 50], maxAlpha: 0.5 },
+        LessSucky:   { green: [100, 180, 100], red: [180, 80, 80], maxAlpha: 0.5 },
         unknown:     { green: [120, 200, 120], red: [210, 100, 100], maxAlpha: 0.5 }
     };
 
@@ -476,6 +478,17 @@ function runScript() {
             #searchbars input.searchbox::-webkit-input-placeholder { color: #fff; opacity: 1;}`;
             document.head.appendChild(style);
         }
+    }
+
+    // --- LessSucky Theme - Adjust Tag Styling
+    if (currentTheme === "LessSucky") {
+        const style = document.createElement("style");
+        style.id = "LessSucky-theme-tag-overrides";
+        style.textContent = `.tag_inner .s-tag {
+            border-bottom: none !important;
+            background: #1d1d1d !important;
+        }`;
+        document.head.appendChild(style);
     }
 
     // --- Use Wide Layout --
