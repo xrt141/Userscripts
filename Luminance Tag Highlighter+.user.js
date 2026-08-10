@@ -486,7 +486,7 @@ function runScript() {
         style.id = "LessSucky-theme-tag-overrides";
         style.textContent = `.tag_inner .s-tag {
             border-bottom: none !important;
-            background: #1d1d1d !important;
+            background: #242424 !important;
         }`;
         document.head.appendChild(style);
     }
