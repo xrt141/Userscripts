@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Luminance Tag Highlighter+
 // @namespace    http://tampermonkey.net/
-// @version      2.8.3
+// @version      2.8.4
 // @description  Branched from Emp++ Tag Highlighter v0.7.9b
 // @author       xrt141, allebady
 // @grant        GM_getValue
@@ -1227,6 +1227,8 @@ function runScript() {
         #s-conf-form {display:block; background:#fff; padding:15px; min-height: 350px;}
         #s-conf-form label {display:block;}
         #s-conf-form, #s-conf-form select, #s-conf-form input {background: #eee;}
+        #s-conf-form select {color: #000 !important; background: #eee !important; border: 1px solid #999;}
+        #s-conf-form select option {color: #000 !important; background: #eee !important;}
 
       /* == Config Tabs == */
          .tab-row-container {height: 40px;box-sizing: border-box;  display: flex;cursor:pointer;}
@@ -1254,6 +1256,8 @@ function runScript() {
         .s-conf-tag-table {border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 12px; line-height: 1.1;table-layout: auto;}
         .s-conf-tag-table th, .s-conf-tag-table td { border: 1px solid #ccc; padding: 1px 4px; text-align: Center}
         .s-conf-tag-table th, .s-conf-tag-table tr, .s-conf-tag-table tr input, .s-conf-tag-table tr select {background: #eee;}
+        .s-conf-tag-table tr select {color: #000 !important; background: #eee !important; border: 1px solid #999;}
+        .s-conf-tag-table tr select option {color: #000 !important; background: #eee !important;}
         .s-conf-tag-table th:first-child, .s-conf-tag-table td:first-child { width: 26px; text-align: center; padding: 0; }
         .s-conf-tag-table input[type='checkbox'] { transform: scale(1.1); margin: 0; vertical-align: middle; }
         .s-conf-tag-table select.tag-value-select { font-size: 11px; padding: 1px 1px; }
@@ -1263,11 +1267,12 @@ function runScript() {
         input[type="number"]::-webkit-inner-spin-button,
         input[type="number"]::-webkit-outer-spin-button {-webkit-appearance: none;margin: 0;}
         input[type="number"] {-moz-appearance: textfield; /* Firefox */}
-        .tag-color-picker {width: 40px; height: 23px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; padding: 0;display: inline-block;}
+        .tag-color-picker {width: 40px; height: 23px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; padding: 0 !important;display: inline-block;}
+        input[type="color"] {padding: 0 !important; margin: 0 !important;}
         .spinner {display: inline-flex; align-items: center; gap: 4px;}
         .tag-value-spinner {width: 30px;text-align: center;font-size: 12px;border: 1px solid #888;box-sizing: border-box;padding: 0;}
         .border-weight-spinner {width: 30px;text-align: center;font-size: 12px;border: 1px solid #888;box-sizing: border-box;padding: 0;}
-        .sample-tag {display:inline-block; padding:1px 6px; border-radius:8px; font-weight:normal; line-height: 17px; height: 17px; width: 90px}
+        .sample-tag {display:inline-block; padding:1px 6px; border-radius:8px; font-weight:normal; line-height: 17px}
         .sample-tag .sample-remove { margin-left:4px; color:#000; text-decoration:none; cursor:default; }
         .sample-tag .sample-remove:hover { text-decoration:none; }
         .info-header-icon {display:inline-block;width:14px;height:14px;margin-left:4px; border-radius:50%;background:#8BA9C4;color:#fff!important;font:bold 11px/14px Arial,sans-serif; text-align:center;cursor:help;}
