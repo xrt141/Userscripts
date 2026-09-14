@@ -41,18 +41,38 @@
 
                     // Check if it's now visible (not hidden, not at -10000px)
                     if (visibility === 'visible' || (left !== '-10000px' && top !== '-10000px')) {
-                        // Position above cursor
                         const height = overDiv.offsetHeight;
+                        const width = overDiv.offsetWidth;
                         const padding = 15;
-                        const newY = lastMouseY - height - padding;
-                        const finalY = Math.max(10, newY); // Keep 10px from top
+                        
+                        // Calculate position above cursor
+                        let newY = lastMouseY - height - padding;
+                        let newX = lastMouseX;
+                        
+                        // Check boundaries and adjust if needed
+                        const screenHeight = window.innerHeight;
+                        const screenWidth = window.innerWidth;
+                        
+                        // If popup would go off top of screen, position it below instead
+                        if (newY < 10) {
+                            newY = lastMouseY + padding;
+                        }
+                        
+                        // If popup would go off right edge, shift left
+                        if (newX + width > screenWidth - 10) {
+                            newX = screenWidth - width - 10;
+                        }
+                        
+                        // If popup would go off left edge, shift right
+                        if (newX < 10) {
+                            newX = 10;
+                        }
 
-                        // Apply new positioning
+                        // Apply new positioning only if actually needed
                         overDiv.style.position = 'fixed';
-                        overDiv.style.top = finalY + 'px';
-                        overDiv.style.left = lastMouseX + 'px';
+                        overDiv.style.top = newY + 'px';
+                        overDiv.style.left = newX + 'px';
                         overDiv.style.visibility = 'visible';
-                        console.log('[PopupAbove] Repositioned popup above cursor');
                     }
                 }
             });
