@@ -1,6 +1,6 @@
 // ==UserScript==
     // @name        Luminance Direct Thumbnails+
-    // @version     2.8.2
+    // @version     2.9.1
     // @include     /https?://www\.empornium\.(is|sx)/*
     // @include     /https?://www\.happyfappy\.net/*
     // @include     /https?://femdomcult\.org/*
@@ -9,7 +9,7 @@
     // @include     /https?://www\.cheggit\.me/user\.php.*/
     // @include     /https?://kufirc.com/
     // @license     MIT
-    // @require     http://code.jquery.com/jquery-2.1.1.js
+    // @require     https://code.jquery.com/jquery-3.7.1.min.js
     // @grant       GM_addStyle
     // @grant       GM_xmlhttpRequest
     // @grant       GM_getValue
@@ -20,6 +20,7 @@
     // @connect     *.empornium.sx
     // @connect     imagebam.com
     // @connect     i.kek.sh
+    // @connect     *
     // @downloadURL https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Direct%20Thumbnails+.user.js
     // @updateURL   https://github.com/xrt141/Userscripts/raw/refs/heads/main/Luminance%20Direct%20Thumbnails+.user.js
     // ==/UserScript==
@@ -47,7 +48,15 @@
         var sequential_load_delay_ms = 300;
         // NEW: Sequential+ concurrency: number of images to actively load in parallel when sequential mode is enabled.
         // Set to 1 for classic single-worker sequential behavior, >1 enables "Sequential+".
-        var concurrent_active_loads = 4;
+        var concurrent_active_loads = 8;
+        // Per-hostname cap. This only exists to stop ONE slow host from eating every worker
+        // on mixed-host pages. Most sites use a single host, so setting this too low just
+        // throttles everything -- keep it at or near the global cap unless a host is
+        // actively rate-limiting you.
+        var per_host_concurrent_loads = 6;
+        // Exponential backoff: delay = retry_delay_ms * 2^(attempt-1), capped below.
+        var retry_backoff_multiplier = 2;
+        var retry_backoff_max_ms = 10000;
 
         var auto_refresh_failed_after_ms = 2500; // auto-refresh failed/stalled thumbs ~2.5s after first pass
         var stall_timeout_ms = 4000; // mark as "stalled" if not loaded by this time (ms)
@@ -62,6 +71,12 @@
         // NEW: Image caching settings
         var enable_image_caching = true; // enable/disable IndexedDB image caching
         var max_cached_images = 100; // maximum number of images to cache
+        // Route cacheable images through GM_xmlhttpRequest and store the raw Blob.
+        // TRADEOFF: this is the only way caching works for cross-origin hosts (canvas
+        // readback is tainted), BUT it is slower per image -- the request goes through the
+        // extension bridge instead of the browser's native image pipeline, and it bypasses
+        // the browser's own HTTP cache. Only worth enabling if you revisit the same pages.
+        var cache_via_blob = false;
 
 
 
@@ -112,6 +127,11 @@
                 const p_debug_logging = boolVal('ldt_debug_logging', debug_logging);
                 const p_enable_image_caching = boolVal('ldt_enable_image_caching', enable_image_caching);
                 const p_max_cached_images = Number(getRaw('ldt_max_cached_images', max_cached_images)) || max_cached_images;
+                const p_cache_via_blob = boolVal('ldt_cache_via_blob', cache_via_blob);
+                let p_per_host_concurrent_loads = Number(getRaw('ldt_per_host_concurrent_loads', per_host_concurrent_loads));
+                if (!Number.isFinite(p_per_host_concurrent_loads) || p_per_host_concurrent_loads < 1) p_per_host_concurrent_loads = per_host_concurrent_loads;
+                const p_retry_backoff_multiplier = Number(getRaw('ldt_retry_backoff_multiplier', retry_backoff_multiplier)) || retry_backoff_multiplier;
+                const p_retry_backoff_max_ms = Number(getRaw('ldt_retry_backoff_max_ms', retry_backoff_max_ms)) || retry_backoff_max_ms;
 
                 // Apply overrides to the local defaults
                 max_image_size = p_max_image_size;
@@ -130,6 +150,10 @@
                 window.debug_logging = debug_logging;
                 enable_image_caching = p_enable_image_caching;
                 max_cached_images = p_max_cached_images;
+                cache_via_blob = p_cache_via_blob;
+                per_host_concurrent_loads = Math.max(1, Math.floor(p_per_host_concurrent_loads));
+                retry_backoff_multiplier = Math.max(1, p_retry_backoff_multiplier);
+                retry_backoff_max_ms = Math.max(0, p_retry_backoff_max_ms);
 
                 // Map the string mode into the boolean and concurrency globals used by the rest of the script
                 switch (String(p_sequential_mode).toLowerCase()) {
@@ -173,6 +197,10 @@
                         dbgLog('settings', 'stall_timeout_ms: ' + stall_timeout_ms);
                         dbgLog('settings', 'enable_image_caching: ' + enable_image_caching);
                         dbgLog('settings', 'max_cached_images: ' + max_cached_images);
+                        dbgLog('settings', 'cache_via_blob: ' + cache_via_blob);
+                        dbgLog('settings', 'per_host_concurrent_loads: ' + per_host_concurrent_loads);
+                        dbgLog('settings', 'retry_backoff_multiplier: ' + retry_backoff_multiplier);
+                        dbgLog('settings', 'retry_backoff_max_ms: ' + retry_backoff_max_ms);
                         dbgLog('settings', '--- Effective Settings End ---');
                     } catch (e) { /* ignore */ }
                 }
@@ -195,9 +223,12 @@
                 if (!node || node.nodeType !== 1) return false;
                 const el = node;
                 if (el.matches(HOVER_SELECTOR_STR)) return true;
-                // Walk up ancestors to catch nested structures
+                // Walk up ancestors to catch nested structures. getComputedStyle is a forced
+                // style resolve, so only pay for it on elements that are actually positioned.
                 for (let p = el, i = 0; i < 4 && p; i++, p = p.parentElement) {
                     if (p.matches(HOVER_SELECTOR_STR)) return true;
+                    const inline = p.style;
+                    if (!inline || (inline.position !== 'absolute' && inline.position !== 'fixed' && !inline.zIndex)) continue;
                     const style = getComputedStyle(p);
                     if ((style.position === 'absolute' || style.position === 'fixed') && parseInt(style.zIndex || '0', 10) >= 1000) return true;
                 }
@@ -216,30 +247,39 @@
 
             const mo = new MutationObserver(mutations => {
                 for (const m of mutations) {
-                    m.addedNodes.forEach(node => {
-                        if (node.nodeType !== 1) return;
+                    for (const node of m.addedNodes) {
+                        if (node.nodeType !== 1) continue;
                         const el = node;
-                        if (isHoverContainer(el) || el.querySelector(HOVER_SELECTOR_STR)) {
+                        // Cheap check first; querySelector over a large subtree is expensive.
+                        if (el.matches(HOVER_SELECTOR_STR) || isHoverContainer(el)) {
+                            neutralizeImages(el);
+                        } else if (el.firstElementChild && el.querySelector(HOVER_SELECTOR_STR)) {
                             neutralizeImages(el);
                         }
-                    });
+                    }
                     if (m.type === 'attributes' && m.target && isHoverContainer(m.target)) {
                         neutralizeImages(m.target);
                     }
                 }
             });
 
-            mo.observe(document.documentElement || document.body, {
+            const startObserving = () => mo.observe(document.body || document.documentElement, {
                 childList: true,
                 subtree: true,
                 attributes: true,
                 attributeFilter: ['class', 'id', 'style']
             });
+            if (document.body) startObserving();
+            else document.addEventListener('DOMContentLoaded', startObserving, { once: true });
         })();
 
 
         // --- DEBUG SETTINGS SYSTEM ---
+        // Cached in memory: this used to hit GM_getValue + JSON.parse on EVERY log line,
+        // which is thousands of parses on a full torrent page.
+        let _debugSettingsCache = null;
         const getDebugSettings = () => {
+            if (_debugSettingsCache) return _debugSettingsCache;
             const hasGM = typeof GM_getValue === 'function';
             const key = 'ldt-debug-settings';
             const defaults = {
@@ -251,12 +291,14 @@
             };
             try {
                 const stored = hasGM ? GM_getValue(key) : localStorage.getItem(key);
-                return stored ? JSON.parse(String(stored)) : defaults;
-            } catch (e) { return defaults; }
+                _debugSettingsCache = stored ? Object.assign({}, defaults, JSON.parse(String(stored))) : defaults;
+            } catch (e) { _debugSettingsCache = defaults; }
+            return _debugSettingsCache;
         };
         const saveDebugSettings = (settings) => {
             const hasGM = typeof GM_getValue === 'function';
             const key = 'ldt-debug-settings';
+            _debugSettingsCache = settings; // keep the memo in sync with the settings UI
             try {
                 const val = JSON.stringify(settings);
                 if (hasGM) GM_setValue(key, val);
@@ -266,6 +308,7 @@
 
         // --- DEBUG LOGGER (inside the IIFE) ---
         const ldtDebugLog = (category, message) => {
+            if (!debug_logging) return;
             const settings = getDebugSettings();
             const categoryMap = {
                 'settings': 'debugSettings',
@@ -334,7 +377,11 @@
              blob_fetch_on_error,
              blob_fetch_on_stall,
              enable_image_caching,
-             max_cached_images
+             max_cached_images,
+             cache_via_blob,
+             per_host_concurrent_loads,
+             retry_backoff_multiplier,
+             retry_backoff_max_ms
          );
 
         // Initialize lightbox for full-size image viewing
@@ -480,10 +527,6 @@
             }
 
             instance.images.forEach($img => {
-                // Cancel any pending retry timers
-                const tid = $img.data('retryTimeoutId');
-                if (tid) { clearTimeout(tid); $img.removeData('retryTimeoutId'); }
-
                 const src = $img.data('src');
                 const isBlocked = instance.isBlacklisted(src);
 
@@ -504,7 +547,10 @@
                     .off('error.lazyRetry load.lazyRetry')
                     .data('isLoading', false)
                     .removeData('loaded')
+                    .removeData('doneFired')          // critical: allows a fresh completion signal
                     .removeData('blobFetchInFlight')  // critical: unblocks _fetchImageAsBlob guard
+                    .removeData('blobTried')
+                    .removeData('scrapedOnce')
                     .removeData('first404Done');      // allow 404-fallback logic to retry fresh
 
                 if (isBlocked) {
@@ -826,20 +872,23 @@
         this.storeName = 'images';
         this.db = null;
         this.initPromise = null;
+        this.writesSinceTrim = 0;
+        this.trimInterval = 25; // only run eviction every N writes
 
         // Initialize IndexedDB
         this.init = function() {
             if (!self.enabled) return Promise.resolve();
             if (self.initPromise) return self.initPromise;
 
-            self.initPromise = new Promise((resolve, reject) => {
+            self.initPromise = new Promise((resolve) => {
                 try {
                     const request = indexedDB.open(self.dbName, 1);
                     request.onerror = () => {
                         if (window.ldtDebugLog) window.ldtDebugLog('error', 'IndexedDB open failed: ' + request.error);
                         self.enabled = false;
-                        reject(request.error);
+                        resolve();
                     };
+                    request.onblocked = () => { self.enabled = false; resolve(); };
                     request.onsuccess = () => {
                         self.db = request.result;
                         if (window.ldtDebugLog) window.ldtDebugLog('caching', 'IndexedDB initialized');
@@ -855,57 +904,77 @@
                 } catch (e) {
                     if (window.ldtDebugLog) window.ldtDebugLog('error', 'IndexedDB init error: ' + e.message);
                     self.enabled = false;
-                    reject(e);
+                    resolve();
                 }
             });
             return self.initPromise;
         };
 
-        // Get image from cache
+        // Get image from cache. Returns { url, blob | dataUrl, timestamp } or null.
+        // NOTE: this used to bail out immediately when `db` wasn't open yet, which meant the
+        // entire first screen of images missed the cache on every single page load.
         this.getImage = function(url) {
-            if (!self.enabled || !self.db) return Promise.resolve(null);
-            return new Promise((resolve) => {
-                try {
-                    const tx = self.db.transaction([self.storeName], 'readonly');
-                    const store = tx.objectStore(self.storeName);
-                    const request = store.get(url);
-                    request.onsuccess = () => {
-                        if (request.result && window.ldtDebugLog) {
-                            window.ldtDebugLog('caching', 'Cache hit for ' + url);
-                        }
-                        resolve(request.result || null);
-                    };
-                    request.onerror = () => resolve(null);
-                } catch (e) {
-                    if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache get error: ' + e.message);
-                    resolve(null);
-                }
-            });
+            if (!self.enabled) return Promise.resolve(null);
+            return self.init().then(() => {
+                if (!self.db) return null;
+                return new Promise((resolve) => {
+                    try {
+                        const tx = self.db.transaction([self.storeName], 'readonly');
+                        const store = tx.objectStore(self.storeName);
+                        const request = store.get(url);
+                        request.onsuccess = () => {
+                            if (request.result && window.ldtDebugLog) {
+                                window.ldtDebugLog('caching', 'Cache hit for ' + url);
+                            }
+                            resolve(request.result || null);
+                        };
+                        request.onerror = () => resolve(null);
+                    } catch (e) {
+                        if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache get error: ' + e.message);
+                        resolve(null);
+                    }
+                });
+            }).catch(() => null);
         };
 
-        // Store image in cache
-        this.setImage = function(url, dataUrl) {
-            if (!self.enabled || !self.db) return Promise.resolve();
-            return new Promise((resolve) => {
-                try {
-                    const tx = self.db.transaction([self.storeName], 'readwrite');
-                    const store = tx.objectStore(self.storeName);
-                    const data = { url: url, dataUrl: dataUrl, timestamp: Date.now() };
-                    const request = store.put(data);
-                    request.onsuccess = () => {
-                        if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Cached image ' + url);
-                        self.enforceMaxSize();
+        // Store image in cache. `payload` may be a Blob (preferred) or a data-URL string.
+        this.setImage = function(url, payload) {
+            if (!self.enabled) return Promise.resolve();
+            return self.init().then(() => {
+                if (!self.db) return;
+                return new Promise((resolve) => {
+                    try {
+                        const tx = self.db.transaction([self.storeName], 'readwrite');
+                        const store = tx.objectStore(self.storeName);
+                        const isBlob = (typeof Blob !== 'undefined') && (payload instanceof Blob);
+                        const data = {
+                            url: url,
+                            blob: isBlob ? payload : null,
+                            dataUrl: isBlob ? null : payload,
+                            type: isBlob ? (payload.type || '') : '',
+                            timestamp: Date.now()
+                        };
+                        const request = store.put(data);
+                        request.onsuccess = () => {
+                            if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Cached image ' + url);
+                            // Eviction used to run a count() + cursor scan on EVERY insert.
+                            self.writesSinceTrim++;
+                            if (self.writesSinceTrim >= self.trimInterval) {
+                                self.writesSinceTrim = 0;
+                                self.enforceMaxSize();
+                            }
+                            resolve();
+                        };
+                        request.onerror = () => {
+                            if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache set error: ' + request.error);
+                            resolve();
+                        };
+                    } catch (e) {
+                        if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache set error: ' + e.message);
                         resolve();
-                    };
-                    request.onerror = () => {
-                        if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache set error: ' + request.error);
-                        resolve();
-                    };
-                } catch (e) {
-                    if (window.ldtDebugLog) window.ldtDebugLog('error', 'Cache set error: ' + e.message);
-                    resolve();
-                }
-            });
+                    }
+                });
+            }).catch(() => {});
         };
 
         // Enforce max cache size by deleting oldest entries
@@ -998,7 +1067,8 @@
     function LazyThumbnails(progress, backend, image_size, preserve_animated_images, replace_categories, remove_categories, custom_category_overlay,
                             max_image_size, max_retry_attempts, retry_delay_ms, blacklisted_domains, blocked_placeholder_scale,
                             sequential_load, sequential_load_delay_ms, concurrent_active_loads, host_rewrites, auto_refresh_failed_after_ms, stall_timeout_ms,
-                            blob_fetch_hosts, blob_fetch_on_error, blob_fetch_on_stall, enable_image_caching, max_cached_images) {
+                            blob_fetch_hosts, blob_fetch_on_error, blob_fetch_on_stall, enable_image_caching, max_cached_images,
+                            cache_via_blob, per_host_concurrent_loads, retry_backoff_multiplier, retry_backoff_max_ms) {
         var self = this;
         // --- Helper: schedule a single timer for retry or stall per image ---
         const scheduleImageTimer = ($img, ms, cb) => {
@@ -1015,6 +1085,13 @@
         this.$torrent_table = null;
         this.images = [];
         this._seqTimerId = null;
+        this._seqBusy = false;
+        this._activeLoads = 0;
+        this._pumping = false;
+        this._pumpAgain = false;
+        this._pending = null;
+        this._watchdogId = null;
+        this._lastProgressAt = Date.now();
         this.attach_image = backend.attach_image;
         this.get_image_src = backend.get_image_src;
         this.image_index = 0;
@@ -1089,6 +1166,36 @@
         this.blob_fetch_hosts = blob_fetch_hosts || [];
         this.blob_fetch_on_error = !!blob_fetch_on_error;
         this.blob_fetch_on_stall = !!blob_fetch_on_stall;
+        this.cache_via_blob = !!cache_via_blob;
+        this.per_host_limit = Math.max(1, Math.floor(per_host_concurrent_loads) || 1);
+        this.retry_backoff_multiplier = Number.isFinite(retry_backoff_multiplier) && retry_backoff_multiplier >= 1 ? retry_backoff_multiplier : 1;
+        this.retry_backoff_max_ms = Number.isFinite(retry_backoff_max_ms) && retry_backoff_max_ms > 0 ? retry_backoff_max_ms : 10000;
+        this._hostLoads = Object.create(null);
+        this._objectUrls = [];
+
+        // Hostname key used for per-host concurrency accounting.
+        this._hostKey = function (url) {
+            const parsed = self._parseURLHost(url);
+            return parsed ? parsed.host : '';
+        };
+
+        // Object URLs must be revoked or they leak the whole decoded image for the page's life.
+        this._trackObjectUrl = function (u) {
+            self._objectUrls.push(u);
+            if (self._objectUrls.length > 400) {
+                try { URL.revokeObjectURL(self._objectUrls.shift()); } catch (e) {}
+            }
+            return u;
+        };
+
+        // Exponential backoff so we stop hammering a host that is already throttling us.
+        this._backoffDelay = function (attempt) {
+            const base = self.retry_delay_ms > 0 ? self.retry_delay_ms : 0;
+            if (!base) return 0;
+            const d = base * Math.pow(self.retry_backoff_multiplier, Math.max(0, attempt));
+            // Jitter avoids every stalled thumbnail retrying on the same tick.
+            return Math.min(self.retry_backoff_max_ms, Math.round(d * (0.85 + Math.random() * 0.3)));
+        };
 
 
         this._parseURLHost = (url) => {
@@ -1139,8 +1246,17 @@
             if (!url || !$img || !$img[0] || $img.data('blobFetchInFlight')) return;
             $img.data('blobFetchInFlight', true);
 
+            // Always route completion through the session's one-shot signal so the
+            // sequential scheduler can never lose a worker slot.
+            const done = () => {
+                const fn = $img.data('emitDone');
+                if (typeof fn === 'function') fn(); else $img.trigger('tnDone');
+            };
+
             const markFailed = () => {
-                $img.addClass('tn-failed').data('isLoading', false).removeData('blobFetchInFlight').trigger('tnDone');
+                self.clearImageState($img);
+                $img.addClass('tn-failed').data('isLoading', false).removeData('blobFetchInFlight');
+                done();
             };
 
             GM_xmlhttpRequest({
@@ -1149,12 +1265,26 @@
                 responseType: 'blob',
                 timeout: 15000,
                 onload: function (resp) {
+                    if ($img.data('doneFired')) { $img.removeData('blobFetchInFlight'); return; }
                     if (resp.status >= 200 && resp.status < 300 && resp.response) {
                         try {
                             const reader = new FileReader();
+                            reader.onerror = markFailed;
                             reader.onloadend = function () {
+                                if (!reader.result) { markFailed(); return; }
                                 self.clearImageState($img);
-                                $img.data('isLoading', true).prop('src', reader.result).removeData('blobFetchInFlight');
+                                $img.removeClass('tn-stalled tn-failed')
+                                    .data('fromCache', false)
+                                    .data('isLoading', true)
+                                    .removeData('blobFetchInFlight')
+                                    .prop('src', reader.result);
+                                // Safety net in case the data URL never fires load/error.
+                                scheduleImageTimer($img, self.stall_timeout_ms, function () {
+                                    const el = $img[0];
+                                    if (el && el.complete && el.naturalWidth > 0) return;
+                                    $img.addClass('tn-failed').data('isLoading', false);
+                                    done();
+                                });
                             };
                             reader.readAsDataURL(resp.response);
                         } catch (e) { markFailed(); }
@@ -1183,6 +1313,10 @@
             var $wrap = jQuery('<span class="tn-img-wrap"></span>');
             var $img = jQuery('<img>');
             var min_size = small ? '50px' : max_image_size + 'px';
+            // decoding=async keeps image decode off the main thread; no-referrer avoids the
+            // hotlink blocking that silently 403s several image hosts.
+            $img.attr('decoding', 'async');
+            $img.attr('referrerpolicy', 'no-referrer');
             $img.data('src', src);
             $img.data('retryCount', 0);
             $img.css({
@@ -1205,7 +1339,7 @@
         this.clearImageState = function($img) {
             const imgEl = $img[0];
 
-            // Cancel ALL pending timers for this image
+            // Cancel ALL pending timers for this image (legacy keys kept for safety)
             const timers = ['imgTimerId', 'retryTimeoutId', 'attemptTimerId'];
             timers.forEach(timerKey => {
                 const tid = $img.data(timerKey);
@@ -1240,63 +1374,53 @@
             const $row = $img.data('row');
             const imgEl = $img[0];
 
+            // --- One-shot completion signal for THIS show_img session --------------------
+            // Every exit path must call emitDone() exactly once, otherwise the sequential
+            // scheduler leaks a worker slot and eventually deadlocks (images never load).
+            $img.data('doneFired', false);
+            const emitDone = function () {
+                if ($img.data('doneFired')) return;
+                $img.data('doneFired', true);
+                $img.trigger('tnDone');
+            };
+            $img.data('emitDone', emitDone);
+
             // Skip hidden torrent rows
             const rowEl = $row && $row[0];
             if (rowEl && (rowEl.offsetParent === null || (rowEl.offsetWidth === 0 && rowEl.offsetHeight === 0))) {
                 $img.off('error.lazyRetry load.lazyRetry').data('loaded', false);
                 self.clearImageState($img);
                 window.logSkip('Torrent Row Hidden - Skipping Image');
-                $img.trigger('tnDone');
+                emitDone();
                 return;
             }
 
             // Short-circuit for blacklisted hosts
             if (self.isBlacklisted(originalSrc)) {
+                $img.off('error.lazyRetry load.lazyRetry');
+                self.clearImageState($img);
                 $img.prop('src', self.block_placeholder_data_uri(max_image_size))
                     .data('blocked', true).addClass('tn-blocked')
-                    .css({ 'min-width': '', 'min-height': '' })
-                    .off('error.lazyRetry load.lazyRetry');
+                    .css({ 'min-width': '', 'min-height': '' });
+                window.logSkip('Blacklisted host - Skipping Image');
+                emitDone();
                 return;
             }
 
-            // Already good or in-flight? don't touch.
-            if ($img.data('loaded') || $img.data('isLoading')) return;
+            // Already good, or already in flight from an earlier session: release the slot
+            // immediately instead of silently swallowing the completion signal.
+            if ($img.data('loaded') || $img.data('isLoading')) {
+                window.logSkip('Image already loaded / in-flight - Skipping');
+                emitDone();
+                return;
+            }
 
             // Start clean visual surface
             if (imgEl) {
                 imgEl.style.minWidth = '';
                 imgEl.style.minHeight = '';
             }
-            $img.off('error.lazyRetry load.lazyRetry');
 
-            // Optional decode guard (no-op for errors; success path just marks loaded)
-            if (imgEl && typeof imgEl.decode === 'function') {
-                imgEl.decode().then(() => {
-                    const tid = $img.data('retryTimeoutId');
-                    if (tid) { clearTimeout(tid); $img.removeData('retryTimeoutId'); }
-                    $img.data('loaded', true);
-                    $img.off('error.lazyRetry');
-                }).catch(() => { /* handled by error.retry logic */ });
-            }
-
-            // --- Helper: start/cancel a per-attempt stall timer ---
-            function startStallTimer($img, onStall) {
-                const defaultStallHandler = () => {
-                    if ($img.data('loaded') || !$img.data('isLoading')) return;
-                    const el = $img[0];
-                    if (el && el.complete && el.naturalWidth > 0) return;
-                    $img.addClass('tn-stalled');
-                    window.logTimeout($img.data('src'));
-                    if (self.blob_fetch_on_stall && self._isBlobFetchHost($img.data('src'))) {
-                        self._fetchImageAsBlob($img.data('src'), $img);
-                        return;
-                    }
-                    $img.trigger('tnDone');
-                };
-                scheduleImageTimer($img, self.stall_timeout_ms, onStall || defaultStallHandler);
-            }
-
-            // --- Attach handlers ---
             window.logBegin(originalSrc);
             $img.data('isLoading', true);
             // Add spinner overlay to wrapper when loading starts
@@ -1306,202 +1430,308 @@
                 $wrap.append('<div class="tn-spinner"></div>');
             }
 
-            // Remove any old handlers to ensure clean state
-            $img.off('load.lazyRetry error.lazyRetry');
+            // --- Helper: per-attempt stall watchdog (single shared timer slot) -----------
+            function startStallTimer() {
+                scheduleImageTimer($img, self.stall_timeout_ms, function () {
+                    if ($img.data('doneFired') || $img.data('loaded')) return;
+                    const el = $img[0];
+                    if (el && el.complete && el.naturalWidth > 0) { onLoad(); return; }
+                    $img.addClass('tn-stalled');
+                    window.logTimeout($img.data('src'));
+                    if (self.blob_fetch_on_stall && self._isBlobFetchHost(originalSrc)) {
+                        self._fetchImageAsBlob(originalSrc, $img);
+                        return;
+                    }
+                    // Treat a stall as a transient failure and use the normal retry budget.
+                    scheduleRetry($img.data('retryCount') || 0, originalSrc);
+                });
+            }
 
-            $img.one('load.lazyRetry', function () {
-                self.clearImageState($img);
-                $img.data('retryCount', 0).data('loaded', true);
-                window.logFinish($img.data('src'));
-                // Cache the image as a real data URL so subsequent loads are instant
-                if (self.cache && self.cache.enabled && imgEl.complete && imgEl.naturalWidth > 0) {
-                    try {
-                        if (imgEl.src.startsWith('data:')) {
-                            // Already a data URL (blob-fetch result) — store directly
-                            self.cache.setImage(originalSrc, imgEl.src);
-                        } else {
-                            // Convert to data URL via canvas so the cache is actually useful
-                            try {
-                                const canvas = document.createElement('canvas');
-                                canvas.width = imgEl.naturalWidth;
-                                canvas.height = imgEl.naturalHeight;
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(imgEl, 0, 0);
-                                const dataUrl = canvas.toDataURL();
-                                self.cache.setImage(originalSrc, dataUrl);
-                                if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Canvas-encoded and cached: ' + originalSrc);
-                            } catch (canvasErr) {
-                                // Cross-origin taint — cannot read pixels; skip caching for this image
-                                if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Canvas taint, skipping cache for: ' + originalSrc);
-                            }
+            // --- Helper: (re)arm handlers for EVERY attempt, then kick off the request ---
+            // Handlers are .one() so they must be re-attached before each new src, otherwise
+            // a successful retry never reports completion.
+            function armAndLoad(src) {
+                if ($img.data('doneFired')) return;
+                $img.off('load.lazyRetry error.lazyRetry')
+                    .one('load.lazyRetry', onLoad)
+                    .one('error.lazyRetry', onError)
+                    .data('isLoading', true)
+                    .prop('src', src);
+                startStallTimer();
+            }
+
+            // --- Attempt a URL, preferring the cacheable Blob path -----------------------
+            // Canvas readback is tainted for cross-origin images, so a plain <img> load can
+            // never populate the cache. Fetching the bytes ourselves gives us both the
+            // rendered image AND a storable Blob from a single request.
+            function startAttempt(src) {
+                if ($img.data('doneFired')) return;
+                const cacheable = self.cache && self.cache.enabled && self.cache_via_blob &&
+                                  /^https?:/i.test(src || '');
+                if (!cacheable) { armAndLoad(src); return; }
+
+                $img.data('isLoading', true);
+                startStallTimer();
+                GM_xmlhttpRequest({
+                    method: 'GET',
+                    url: src,
+                    responseType: 'blob',
+                    timeout: Math.max(8000, self.stall_timeout_ms * 2),
+                    onload: function (resp) {
+                        if ($img.data('doneFired')) return;
+                        const blob = resp && resp.response;
+                        const okStatus = resp && resp.status >= 200 && resp.status < 300;
+                        const isImage = blob && blob.size > 0 && (!blob.type || blob.type.indexOf('image/') === 0);
+                        if (!okStatus || !isImage) {
+                            // Not an image (403 / HTML interstitial / empty) — fall back to the
+                            // plain <img> path so the existing error+probe logic can handle it.
+                            armAndLoad(src);
+                            return;
                         }
-                    } catch (e) {}
-                }
-                $img.trigger('tnDone');
-            });
+                        try {
+                            self.cache.setImage(originalSrc, blob);
+                            $img.data('fromCache', true); // already stored; don't re-cache on load
+                            armAndLoad(self._trackObjectUrl(URL.createObjectURL(blob)));
+                        } catch (e) {
+                            armAndLoad(src);
+                        }
+                    },
+                    onerror: () => { if (!$img.data('doneFired')) armAndLoad(src); },
+                    ontimeout: () => { if (!$img.data('doneFired')) armAndLoad(src); }
+                });
+            }
 
+            function giveUp() {
+                $img.removeClass('tn-stalled').addClass('tn-failed')
+                    .off('load.lazyRetry error.lazyRetry');
+                self.clearImageState($img);
+                emitDone();
+            }
 
+            // --- Cache the successfully decoded bitmap (best effort) ---------------------
+            function cacheResult() {
+                if (!(self.cache && self.cache.enabled)) return;
+                if ($img.data('fromCache')) return; // came from / already written to cache
+                if (!imgEl || !imgEl.complete || !imgEl.naturalWidth) return;
+                try {
+                    const currentSrc = imgEl.src || '';
+                    if (currentSrc.startsWith('data:')) {
+                        // Already a data URL (blob-fetch result) — store directly
+                        self.cache.setImage(originalSrc, currentSrc);
+                        return;
+                    }
+                    // Canvas readback taints (and throws) for cross-origin images, which is
+                    // the common case here — skip the pointless work entirely.
+                    let sameOrigin = false;
+                    try { sameOrigin = new URL(currentSrc, location.href).origin === location.origin; } catch (e) {}
+                    if (!sameOrigin) return;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = imgEl.naturalWidth;
+                    canvas.height = imgEl.naturalHeight;
+                    canvas.getContext('2d').drawImage(imgEl, 0, 0);
+                    canvas.toBlob(b => { if (b) self.cache.setImage(originalSrc, b); });
+                } catch (e) { /* ignore cache failures */ }
+            }
 
-            // --- Helper: Schedule a retry with optional delay ---
-            function scheduleRetry(count, delaySrc, delayMs) {
-                if (count >= self.max_retry_attempts) {
-                    $img.removeClass('tn-stalled').addClass('tn-failed').off('error.lazyRetry').data('isLoading', false);
-                    self.clearImageState($img);
-                    $img.trigger('tnDone');
-                    return;
-                }
+            // --- Success handler ---------------------------------------------------------
+            function onLoad() {
+                if ($img.data('doneFired')) return;
+                // Some browsers fire load for a broken/0-byte response; verify.
+                if (!imgEl || !imgEl.complete || imgEl.naturalWidth === 0) { onError(); return; }
+                self.clearImageState($img);
+                $img.removeClass('tn-failed tn-stalled')
+                    .data('retryCount', 0)
+                    .data('loaded', true);
+                window.logFinish(originalSrc);
+                cacheResult();
+                emitDone();
+            }
+
+            // --- Helper: Schedule a retry with exponential backoff -----------------------
+            function scheduleRetry(count, delaySrc) {
+                if ($img.data('doneFired')) return;
+                if (count >= self.max_retry_attempts) { giveUp(); return; }
                 const nextCount = count + 1;
                 $img.data('retryCount', nextCount);
+                const delayMs = self._backoffDelay(count);
                 const doRetry = () => {
+                    if ($img.data('doneFired') || $img.data('loaded')) return;
                     const el = $img[0];
-                    if ((el && el.complete && el.naturalWidth > 0) || $img.data('loaded')) return;
+                    if (el && el.complete && el.naturalWidth > 0) { onLoad(); return; }
                     window.logRetry(nextCount, delaySrc);
-                    $img.data('isLoading', true).prop('src', delaySrc);
-                    startStallTimer($img);
+                    armAndLoad(delaySrc);
                 };
                 if (delayMs > 0) {
                     window.logWait(delayMs);
-                    $img.data('isLoading', true).data('retryTimeoutId', setTimeout(doRetry, delayMs));
+                    $img.data('isLoading', true);
+                    scheduleImageTimer($img, delayMs, doRetry);
                 } else {
                     doRetry();
                 }
             }
 
-            $img.one('error.lazyRetry', function () {
-                if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
-                    self.clearImageState($img);
-                    $img.data('retryCount', 0).data('loaded', true);
-                    window.logFinish($img.data('src'));
-                    $img.trigger('tnDone');
-                    return;
-                }
-                const currentCount = $img.data('retryCount') || 0;
-                const retryDelay = self.retry_delay_ms > 0 ? self.retry_delay_ms : 0;
-
-                // Probe the failing URL to detect 404 or non-image content
+            // --- Helper: cheap probe. HEAD first; only pull the body when we actually ----
+            // need to scrape an HTML interstitial for a real <img> URL.
+            function probeUrl(cb) {
+                const contentTypeOf = (resp) => {
+                    const headers = (resp && resp.responseHeaders) ? String(resp.responseHeaders) : '';
+                    const m = headers.match(/content-type:\s*([^\r\n;]+)/i);
+                    return m ? (m[1] || '').trim().toLowerCase() : '';
+                };
+                const doGet = () => {
+                    GM_xmlhttpRequest({
+                        method: 'GET',
+                        url: originalSrc,
+                        timeout: 10000,
+                        onload: (r) => cb(r && r.status, contentTypeOf(r), (typeof r.responseText === 'string') ? r.responseText : ''),
+                        onerror: () => cb(0, '', ''),
+                        ontimeout: () => cb(0, '', '')
+                    });
+                };
                 GM_xmlhttpRequest({
-                    method: 'GET',
+                    method: 'HEAD',
                     url: originalSrc,
                     timeout: 6000,
-                    onload: function (resp) {
-                        // Detect non-image responses (HTML pages) and handle them specially.
-                        try {
-                            const status = resp && resp.status;
-                            const headers = (resp && resp.responseHeaders) ? resp.responseHeaders.toString().toLowerCase() : '';
-                            let contentType = '';
-                            const ctMatch = headers.match(/content-type:\s*([^\r\n;]+)/i);
-                            if (ctMatch) contentType = (ctMatch[1] || '').trim();
-
-                            const bodyText = (typeof resp.responseText === 'string') ? resp.responseText : '';
-                            const looksLikeHtml = /<\s*html/i.test(bodyText);
-
-                            // Helper to perform the normal bounded retry behavior
-                            const scheduleNormalRetry = () => scheduleRetry(currentCount, originalSrc, retryDelay);
-
-                            // If probe returns a HTTP 404, prefer the original/full URL first.
-                            const is404 = (status === 404);
-
-                            if (is404) {
-                                if (!$img.data('first404Done')) {
-                                    $img.data('first404Done', true);
-                                    window.logRetry(currentCount + 1, originalSrc);
-                                    window.logBegin(originalSrc);
-                                    const originalFull = self.to_original_url(originalSrc);
-                                    $img.data('isLoading', true).data('retryCount', currentCount + 1).prop('src', originalFull);
-                                    startStallTimer($img);
-                                    return;
-                                }
-                                scheduleNormalRetry();
-                                return;
-                            }
-
-                            // If the probe returns a non-image content-type or HTML body, try to extract an in-page <img>
-                            if ((contentType && !contentType.startsWith('image/')) || looksLikeHtml) {
-                                // Derive a short token from the original URL's last path segment (strip extension)
-                                let token = '';
-                                try {
-                                    const u = new URL(originalSrc, window.location.href);
-                                    const segs = (u.pathname || '').split('/').filter(Boolean);
-                                    token = segs.length ? segs[segs.length - 1] : '';
-                                    token = token.replace(/\.[^/.?#]+$/, '');
-                                } catch (e) {
-                                    token = (originalSrc || '').split('/').pop() || '';
-                                    token = token.replace(/\.[^/.?#]+$/, '');
-                                }
-
-                                // Collect <img src> candidates from the returned HTML
-                                let foundImg = null;
-                                if (bodyText) {
-                                    const imgRegex = /<img[^>]+src=["']([^"']+)["']/gi;
-                                    let m; const candidates = [];
-                                    while ((m = imgRegex.exec(bodyText)) !== null) {
-                                        let srcVal = m[1];
-                                        try { srcVal = new URL(srcVal, originalSrc).toString(); } catch (e) { /* keep raw */ }
-                                        candidates.push(srcVal);
-                                    }
-
-                                    // Prefer a candidate that contains the token anywhere in the URL
-                                    if (token) {
-                                        for (const c of candidates) {
-                                            if (c.indexOf(token) !== -1) { foundImg = c; break; }
-                                        }
-                                    }
-                                    // Fallback to first image found
-                                    if (!foundImg && candidates.length) foundImg = candidates[0];
-                                }
-
-                                if (foundImg) {
-                                    // Retry once with the discovered image URL
-                                    window.logRetry(currentCount + 1, foundImg);
-                                    window.logBegin(foundImg);
-                                    if (window.ldtDebugLog) window.ldtDebugLog('network', 'Probe returned HTML; retrying with discovered image: ' + foundImg);
-
-                                    $img.data('isLoading', true);
-                                    $img.data('retryCount', currentCount + 1);
-                                    $img.prop('src', foundImg);
-                                    startStallTimer($img);
-                                    return;
-                                }
-
-                                // No usable image discovered — DO NOT give up immediately.
-                                // Treat this case like a non-404 transient error and schedule a normal retry so we honor max_retry_attempts.
-                                if (window.ldtDebugLog) window.ldtDebugLog('network', 'Probe returned non-image content for URL. Scheduling retry: ' + originalSrc);
-                                scheduleNormalRetry();
-                                return;
-                            }
-                        } catch (e) {
-                            // If probe processing fails, fall through to the existing logic below
-                            if (window.ldtDebugLog) window.ldtDebugLog('error', 'LDT probe parse error: ' + e.message);
-                        }
-
-                        // --- Not a 404 and not non-image/HTML: normal retry ---
-                        scheduleRetry(currentCount, originalSrc, retryDelay);
+                    onload: function (r) {
+                        const status = r && r.status;
+                        const ct = contentTypeOf(r);
+                        if (status === 404) { cb(404, ct, ''); return; }
+                        if (ct && ct.indexOf('image/') === 0) { cb(status, ct, ''); return; }
+                        doGet(); // non-image (or unknown) — fetch the body so we can scrape it
                     },
-                    onerror: () => scheduleRetry(currentCount, originalSrc, retryDelay),
-                    ontimeout: () => scheduleRetry(currentCount, originalSrc, retryDelay)
+                    onerror: doGet,   // some hosts reject HEAD
+                    ontimeout: doGet
                 });
-            });
-
-            // --- First request after handlers are attached ---
-            // Check cache first before downloading
-            if (self.cache && self.cache.enabled) {
-                self.cache.getImage(originalSrc).then(cachedEntry => {
-                    if (cachedEntry && cachedEntry.dataUrl) {
-                        if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Loading from cache - ' + originalSrc);
-                        $img.prop('src', cachedEntry.dataUrl);
-                    } else {
-                        $img.prop('src', originalSrc);
-                    }
-                }).catch(() => {
-                    // On cache error, just load normally
-                    $img.prop('src', originalSrc);
-                });
-            } else {
-                $img.prop('src', originalSrc);
             }
 
-            // Arm per-attempt stall timer for the first attempt
-            startStallTimer($img);
+            // --- Failure handler ---------------------------------------------------------
+            function onError() {
+                if ($img.data('doneFired')) return;
+                if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) { onLoad(); return; }
+
+                // Cancel the stall watchdog while the probe is running.
+                scheduleImageTimer($img, 0, null);
+
+                const currentCount = $img.data('retryCount') || 0;
+                const scheduleNormalRetry = () => scheduleRetry(currentCount, originalSrc);
+
+                // Blob fallback for hosts that misbehave with plain <img> requests.
+                if (self.blob_fetch_on_error && self._isBlobFetchHost(originalSrc) && !$img.data('blobTried')) {
+                    $img.data('blobTried', true);
+                    self._fetchImageAsBlob(originalSrc, $img);
+                    return;
+                }
+
+                probeUrl(function (status, contentType, bodyText) {
+                    if ($img.data('doneFired')) return;
+                    try {
+                        const looksLikeHtml = /<\s*html/i.test(bodyText || '');
+
+                        // 404: prefer the original/full-size URL once before normal retries.
+                        if (status === 404) {
+                            if (!$img.data('first404Done')) {
+                                $img.data('first404Done', true);
+                                const originalFull = self.to_original_url(originalSrc);
+                                window.logRetry(currentCount + 1, originalFull);
+                                $img.data('retryCount', currentCount + 1);
+                                armAndLoad(originalFull);
+                                return;
+                            }
+                            scheduleNormalRetry();
+                            return;
+                        }
+
+                        // Non-image content-type or HTML body: try to extract an in-page <img>
+                        if ((contentType && contentType.indexOf('image/') !== 0) || looksLikeHtml) {
+                            let token = '';
+                            try {
+                                const u = new URL(originalSrc, window.location.href);
+                                const segs = (u.pathname || '').split('/').filter(Boolean);
+                                token = segs.length ? segs[segs.length - 1] : '';
+                            } catch (e) {
+                                token = (originalSrc || '').split('/').pop() || '';
+                            }
+                            token = token.replace(/\.[^/.?#]+$/, '');
+
+                            let foundImg = null;
+                            if (bodyText) {
+                                const imgRegex = /<img[^>]+src=["']([^"']+)["']/gi;
+                                let m; const candidates = [];
+                                while ((m = imgRegex.exec(bodyText)) !== null) {
+                                    let srcVal = m[1];
+                                    try { srcVal = new URL(srcVal, originalSrc).toString(); } catch (e) { /* keep raw */ }
+                                    candidates.push(srcVal);
+                                }
+                                if (token) {
+                                    for (const c of candidates) {
+                                        if (c.indexOf(token) !== -1) { foundImg = c; break; }
+                                    }
+                                }
+                                if (!foundImg && candidates.length) foundImg = candidates[0];
+                            }
+
+                            if (foundImg && !$img.data('scrapedOnce')) {
+                                $img.data('scrapedOnce', true);
+                                window.logRetry(currentCount + 1, foundImg);
+                                if (window.ldtDebugLog) window.ldtDebugLog('network', 'Probe returned HTML; retrying with discovered image: ' + foundImg);
+                                $img.data('retryCount', currentCount + 1);
+                                armAndLoad(foundImg);
+                                return;
+                            }
+
+                            if (window.ldtDebugLog) window.ldtDebugLog('network', 'Probe returned non-image content. Scheduling retry: ' + originalSrc);
+                            scheduleNormalRetry();
+                            return;
+                        }
+                    } catch (e) {
+                        if (window.ldtDebugLog) window.ldtDebugLog('error', 'LDT probe parse error: ' + e.message);
+                    }
+
+                    // Transient / unknown failure: normal bounded retry.
+                    scheduleNormalRetry();
+                });
+            }
+
+            // --- First attempt: check the cache, then arm handlers and load --------------
+            // Only consult the cache when something can actually populate it. With
+            // cache_via_blob off, cross-origin images are never cached, so an IndexedDB
+            // round-trip before every image would be pure added latency.
+            const useCache = self.cache && self.cache.enabled && self.cache_via_blob;
+            if (useCache) {
+                let settled = false;
+                const startFresh = () => {
+                    if (settled) return;
+                    settled = true;
+                    $img.data('fromCache', false);
+                    startAttempt(originalSrc);
+                };
+                const startCached = (src) => {
+                    if (settled) return;
+                    settled = true;
+                    $img.data('fromCache', true);
+                    armAndLoad(src);
+                };
+                // Never let a hung IndexedDB read strand the image.
+                const cacheGuard = setTimeout(startFresh, 1500);
+                self.cache.getImage(originalSrc).then(entry => {
+                    clearTimeout(cacheGuard);
+                    if (entry && entry.blob && entry.blob.size) {
+                        if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Loading from cache (blob) - ' + originalSrc);
+                        startCached(self._trackObjectUrl(URL.createObjectURL(entry.blob)));
+                    } else if (entry && entry.dataUrl) {
+                        if (window.ldtDebugLog) window.ldtDebugLog('caching', 'Loading from cache - ' + originalSrc);
+                        startCached(entry.dataUrl);
+                    } else {
+                        startFresh();
+                    }
+                }).catch(() => {
+                    clearTimeout(cacheGuard);
+                    startFresh();
+                });
+            } else {
+                $img.data('fromCache', false);
+                armAndLoad(originalSrc);
+            }
         };
 
 
@@ -1578,52 +1808,106 @@
 
 
 
+    // Safety net: if a completion signal is ever lost (host hangs, extension quirk),
+    // unstick the scheduler instead of leaving the rest of the page blank.
+    this._startWatchdog = function () {
+        if (self._watchdogId !== null) return;
+        self._lastProgressAt = self._lastProgressAt || Date.now();
+        self._watchdogId = setInterval(function () {
+            const pendingLeft = self._pending ? self._pending.length : (self.images.length - self.image_index);
+            if (pendingLeft <= 0 && !self._activeLoads && !self._seqBusy) {
+                self._stopWatchdog();
+                return;
+            }
+            const idleFor = Date.now() - (self._lastProgressAt || 0);
+            const limit = Math.max(15000, (self.stall_timeout_ms || 6000) * 3);
+            if (idleFor < limit) return;
+            if (window.ldtDebugLog) window.ldtDebugLog('error', 'Scheduler stalled for ' + idleFor + 'ms - forcing recovery');
+            self._lastProgressAt = Date.now();
+            self._activeLoads = 0;
+            self._hostLoads = Object.create(null);
+            self._seqBusy = false;
+            if (self._seqTimerId !== null) { clearTimeout(self._seqTimerId); self._seqTimerId = null; }
+            self.load_next_image(true);
+        }, 5000);
+    };
+
+    this._stopWatchdog = function () {
+        if (self._watchdogId !== null) { clearInterval(self._watchdogId); self._watchdogId = null; }
+    };
+
     this.load_next_image = function (force_check) {
         if (self.sequential_load) {
             self._activeLoads = self._activeLoads || 0;
             const concurrent = self.concurrent_limit || 1;
+            self._startWatchdog();
 
             if (concurrent > 1) {
-                while (self.image_index < self.images.length && self._activeLoads < concurrent) {
-                    const $img = self.images[self.image_index++];
-                    self._activeLoads++;
-                    const onDone = function () {
-                        self._activeLoads = Math.max(0, self._activeLoads - 1);
-                        $img.off('tnDone', onDone);
-                        self.progress_set_value(self.image_index / self.images.length);
-                        self.load_next_image(true);
-                    };
-                    $img.one('tnDone', onDone);
-                    self.show_img($img);
+                // Re-entrancy safe pump: show_img can complete synchronously (skipped rows,
+                // blacklisted hosts, cache hits) which would otherwise recurse deeply.
+                if (self._pumping) { self._pumpAgain = true; return; }
+                self._pumping = true;
+                // Pending queue lets us skip past images whose HOST is already saturated and
+                // start a different host instead, rather than head-of-line blocking.
+                if (!self._pending) self._pending = self.images.slice(self.image_index);
+                const perHost = self.per_host_limit || 1;
+                try {
+                    do {
+                        self._pumpAgain = false;
+                        while (self._pending.length && self._activeLoads < concurrent) {
+                            // Find the first queued image whose host has spare capacity.
+                            let pick = -1;
+                            for (let i = 0; i < self._pending.length; i++) {
+                                const host = self._hostKey(self._pending[i].data('src'));
+                                if ((self._hostLoads[host] || 0) < perHost) { pick = i; break; }
+                            }
+                            if (pick === -1) break; // every pending host is at capacity
+
+                            const $img = self._pending.splice(pick, 1)[0];
+                            const host = self._hostKey($img.data('src'));
+                            self._hostLoads[host] = (self._hostLoads[host] || 0) + 1;
+                            self.image_index = self.images.length - self._pending.length;
+                            self._activeLoads++;
+                            const onDone = function () {
+                                $img.off('tnDone', onDone);
+                                self._activeLoads = Math.max(0, self._activeLoads - 1);
+                                self._hostLoads[host] = Math.max(0, (self._hostLoads[host] || 1) - 1);
+                                self._lastProgressAt = Date.now();
+                                self.progress_set_value(self.image_index / self.images.length);
+                                self.load_next_image(true);
+                            };
+                            $img.one('tnDone', onDone);
+                            self._lastProgressAt = Date.now();
+                            self.show_img($img);
+                        }
+                    } while (self._pumpAgain);
+                } finally {
+                    self._pumping = false;
                 }
-                if (self.image_index >= self.images.length && !self._activeLoads) self.detach_scroll_event();
+                if (!self._pending.length && !self._activeLoads) self.detach_scroll_event();
                 return;
             }
 
             // Single-worker sequential
-            if (self._seqTimerId !== null) return;
+            if (self._seqTimerId !== null || self._seqBusy) return;
             if (self.image_index < self.images.length) {
                 const $currentImg = self.images[self.image_index];
-                let tnDoneCalled = false;
+                self.image_index++;
+                self._seqBusy = true;
                 const onDone = function () {
-                    tnDoneCalled = true;
+                    $currentImg.off('tnDone', onDone);
+                    self._seqBusy = false;
+                    self._lastProgressAt = Date.now();
+                    self.progress_set_value(self.image_index / self.images.length);
                     const gap = self.sequential_load_delay_ms || 0;
                     self._seqTimerId = setTimeout(() => {
                         self._seqTimerId = null;
-                        $currentImg.off('tnDone', onDone);
                         self.load_next_image(true);
                     }, gap);
                 };
                 $currentImg.one('tnDone', onDone);
+                self._lastProgressAt = Date.now();
                 self.show_img($currentImg);
-                self.image_index++;
-                self.progress_set_value(self.image_index / self.images.length);
-                if (tnDoneCalled && self._seqTimerId !== null) {
-                    clearTimeout(self._seqTimerId);
-                    self._seqTimerId = null;
-                    $currentImg.off('tnDone', onDone);
-                    self.load_next_image(true);
-                }
             } else {
                 self.detach_scroll_event();
             }
@@ -1667,9 +1951,11 @@
 
         this.detach_scroll_event = function () {
             jQuery(document).off('scroll resize', self.on_scroll_event);
+            self._stopWatchdog();
             self.progress_hide();
             const delay = self.auto_refresh_failed_after_ms || 0;
-            if (self.image_index < self.images.length) return;
+            const pendingLeft = self._pending ? self._pending.length : (self.images.length - self.image_index);
+            if (pendingLeft > 0) return;
             if (window.ldtDebugLog) {
                 window.ldtDebugLog('loading', '================================================');
                 window.ldtDebugLog('loading', '⏹️ - Finished Image Processing (Initial Pass)');
@@ -1686,8 +1972,6 @@
         this.refreshFailedThumbnails = function () {
             const queue = [];
             self.images.forEach($img => {
-                const tid = $img.data('retryTimeoutId');
-                if (tid) { clearTimeout(tid); $img.removeData('retryTimeoutId'); }
                 const src = $img.data('src');
                 const el = $img[0];
                 const isGood = (el && el.complete && el.naturalWidth > 0) || $img.data('loaded');
@@ -1700,20 +1984,25 @@
                     return;
                 }
                 if ($img.hasClass('tn-failed') || $img.hasClass('tn-stalled') || $img.data('retryCount') >= self.max_retry_attempts) {
-                    $img.data('retryCount', $img.data('retryCount') || 0)
+                    self.clearImageState($img);
+                    $img.data('retryCount', 0)
                         .removeClass('tn-failed tn-stalled tn-blocked')
                         .off('error.lazyRetry load.lazyRetry')
                         .data('isLoading', false)
-                        .removeData('loaded retryTimeoutId');
+                        .removeData('loaded')
+                        .removeData('doneFired')
+                        .removeData('blobFetchInFlight')
+                        .removeData('blobTried')
+                        .removeData('scrapedOnce')
+                        .removeData('first404Done');
                     queue.push($img);
                 }
             });
             (function processNext(i) {
                 if (i >= queue.length) return;
                 const $img = queue[i];
-                const src = $img.data('src');
-                window.logBegin(src);
-                self._isBlobFetchHost(src) ? self._fetchImageAsBlob(src, $img) : self.show_img($img);
+                // show_img owns handler arming + blob fallback; never bypass it.
+                self.show_img($img);
                 const gap = self.sequential_load_delay_ms || 0;
                 setTimeout(() => processNext(i + 1), gap);
             })(0);
@@ -1818,7 +2107,10 @@
                 stall_timeout_ms: 4000,
                 debug_logging: true,
                 enable_image_caching: true,
-                max_cached_images: 100
+                max_cached_images: 100,
+                cache_via_blob: false,
+                concurrent_active_loads: 8,
+                per_host_concurrent_loads: 6
             };
 
             // Unified persistence layer (handles both GM and localStorage)
@@ -1852,6 +2144,11 @@
             let ldt_debug = persistence.readBool('ldt_debug_logging', DEFAULTS.debug_logging);
             let ldt_enable_image_caching = persistence.readBool('ldt_enable_image_caching', DEFAULTS.enable_image_caching);
             let ldt_max_cached_images = persistence.readNum('ldt_max_cached_images', DEFAULTS.max_cached_images);
+            let ldt_cache_via_blob = persistence.readBool('ldt_cache_via_blob', DEFAULTS.cache_via_blob);
+            let ldt_concurrent_loads = persistence.readNum('ldt_concurrent_active_loads', DEFAULTS.concurrent_active_loads);
+            if (!Number.isFinite(ldt_concurrent_loads) || ldt_concurrent_loads < 1) ldt_concurrent_loads = DEFAULTS.concurrent_active_loads;
+            let ldt_per_host_loads = persistence.readNum('ldt_per_host_concurrent_loads', DEFAULTS.per_host_concurrent_loads);
+            if (!Number.isFinite(ldt_per_host_loads) || ldt_per_host_loads < 1) ldt_per_host_loads = DEFAULTS.per_host_concurrent_loads;
 
             // Determine where to place the link: reuse existing menu/list so it inherits styling
             function addSettingsLink() {
@@ -1902,6 +2199,8 @@ modalBg.innerHTML = `
             <div class="ldt-row"><label title="Delay between image load retries (milliseconds)"><span class="ldt-label-text">Retry Delay (ms)</span> <input id="ldt-retry-delay" class="ldt-number" type="number" min="0" value="${ldt_retry_delay}"></label></div>
             <div class="ldt-row"><label title="Off=lazy, Sequential=1 worker, Sequential+=concurrent"><span class="ldt-label-text">Loading Mode</span> <select id="ldt-sequential-mode" class="ldt-select"><option value="off">Off (Lazy)</option><option value="sequential">Sequential (1 worker)</option><option value="sequential_plus">Sequential+ (concurrent)</option></select></label></div>
             <div class="ldt-row"><label title="Delay between sequential image loads (milliseconds)"><span class="ldt-label-text">Sequential Delay (ms)</span> <input id="ldt-seq-delay" class="ldt-number" type="number" min="0" value="${ldt_sequential_delay}"></label></div>
+            <div class="ldt-row"><label title="Sequential+ only: total images loading at once across all hosts"><span class="ldt-label-text">Concurrent Loads</span> <input id="ldt-concurrent-loads" class="ldt-number" type="number" min="1" value="${ldt_concurrent_loads}"></label></div>
+            <div class="ldt-row"><label title="Max simultaneous loads per image host. Lower this only if a host rate-limits you; too low slows single-host sites."><span class="ldt-label-text">Per-Host Loads</span> <input id="ldt-per-host-loads" class="ldt-number" type="number" min="1" value="${ldt_per_host_loads}"></label></div>
             <div class="ldt-row"><label title="Auto-retry failed thumbnails after this delay"><span class="ldt-label-text">Auto-Refresh Failed (ms)</span> <input id="ldt-auto-refresh-failed" class="ldt-number" type="number" min="0" value="${ldt_auto_refresh_failed}"></label></div>
             <div class="ldt-row"><label title="Mark image stalled if not loaded by this time"><span class="ldt-label-text">Image Timeout (ms)</span> <input id="ldt-stall-timeout" class="ldt-number" type="number" min="0" value="${ldt_stall_timeout}"></label></div>
         </div>
@@ -1911,6 +2210,7 @@ modalBg.innerHTML = `
         <h2>Image Caching Options</h2>
         <div class="ldt-grid">
             <div class="ldt-row"><label title="Cache images in IndexedDB for faster reloads"><input id="ldt-enable-image-caching" type="checkbox"> Enable Image Caching</label></div>
+            <div class="ldt-row"><label title="Required for caching cross-origin hosts, but SLOWER on first load (bypasses the browser image pipeline and HTTP cache). Only enable if you revisit the same pages often."><input id="ldt-cache-via-blob" type="checkbox"> Blob Cache (slower first load)</label></div>
             <div class="ldt-row"><label title="Maximum number of images to store in cache"><span class="ldt-label-text">Max Cached Images</span> <input id="ldt-max-cached-images" class="ldt-number" type="number" min="1" value="100"></label></div>
             <div class="ldt-row"><input id="ldt-clear-image-cache" type="button" value="Clear Image Cache"></div>
         </div>
@@ -2019,6 +2319,9 @@ modalBg.innerHTML = `
             const debugCheckbox = modalBg.querySelector('#ldt-debug-logging');
             const enableImageCachingCheckbox = modalBg.querySelector('#ldt-enable-image-caching');
             const maxCachedImagesInput = modalBg.querySelector('#ldt-max-cached-images');
+            const cacheViaBlobCheckbox = modalBg.querySelector('#ldt-cache-via-blob');
+            const concurrentLoadsInput = modalBg.querySelector('#ldt-concurrent-loads');
+            const perHostLoadsInput = modalBg.querySelector('#ldt-per-host-loads');
             const clearCacheBtn = modalBg.querySelector('#ldt-clear-image-cache');
             const debugConsoleBtn = modalBg.querySelector('#ldt-debug-console-btn');
 
@@ -2052,6 +2355,9 @@ modalBg.innerHTML = `
             if (debugCheckbox) debugCheckbox.checked = !!ldt_debug;
             if (enableImageCachingCheckbox) enableImageCachingCheckbox.checked = !!ldt_enable_image_caching;
             if (maxCachedImagesInput) maxCachedImagesInput.value = Number.isFinite(ldt_max_cached_images) ? ldt_max_cached_images : DEFAULTS.max_cached_images;
+            if (cacheViaBlobCheckbox) cacheViaBlobCheckbox.checked = !!ldt_cache_via_blob;
+            if (concurrentLoadsInput) concurrentLoadsInput.value = ldt_concurrent_loads;
+            if (perHostLoadsInput) perHostLoadsInput.value = ldt_per_host_loads;
 
             if (saveBtn) saveBtn.addEventListener('click', () => {
                 try {
@@ -2075,6 +2381,9 @@ modalBg.innerHTML = `
                     ldt_debug = !!debugCheckbox?.checked;
                     ldt_enable_image_caching = !!enableImageCachingCheckbox?.checked;
                     ldt_max_cached_images = Number(maxCachedImagesInput?.value) || DEFAULTS.max_cached_images;
+                    ldt_cache_via_blob = !!cacheViaBlobCheckbox?.checked;
+                    ldt_concurrent_loads = Math.max(1, Number(concurrentLoadsInput?.value) || DEFAULTS.concurrent_active_loads);
+                    ldt_per_host_loads = Math.max(1, Number(perHostLoadsInput?.value) || DEFAULTS.per_host_concurrent_loads);
 
                     // Persist all values at once using unified persistence layer
                     persistence.saveAll({
@@ -2094,7 +2403,10 @@ modalBg.innerHTML = `
                         'ldt_stall_timeout_ms': ldt_stall_timeout,
                         'ldt_debug_logging': ldt_debug,
                         'ldt_enable_image_caching': ldt_enable_image_caching,
-                        'ldt_max_cached_images': ldt_max_cached_images
+                        'ldt_max_cached_images': ldt_max_cached_images,
+                        'ldt_cache_via_blob': ldt_cache_via_blob,
+                        'ldt_concurrent_active_loads': ldt_concurrent_loads,
+                        'ldt_per_host_concurrent_loads': ldt_per_host_loads
                     });
 
                     // Attempt to apply to running instance if available
@@ -2108,6 +2420,9 @@ modalBg.innerHTML = `
                             inst.retry_delay_ms = ldt_retry_delay;
                             inst.sequential_load = ldt_sequential_mode !== 'off';
                             if (ldt_sequential_mode === 'sequential') inst.concurrent_limit = 1;
+                            else inst.concurrent_limit = ldt_concurrent_loads;
+                            inst.per_host_limit = ldt_per_host_loads;
+                            inst.cache_via_blob = ldt_cache_via_blob;
                             inst.sequential_load ? inst.detach_scroll_event() : inst.attach_scroll_event();
                             inst.sequential_load_delay_ms = ldt_sequential_delay;
                             inst.auto_refresh_failed_after_ms = ldt_auto_refresh_failed;
