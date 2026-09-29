@@ -2,7 +2,7 @@
 // @name        Luminance HoverBabe+
 // @namespace   empornium Scripts
 // @description Hover over performer tag and get their Babepedia Bio.
-// @version     1.54.3
+// @version     1.55.0
 // @author      vandenium xrt141 (forked and extended by xrt141)
 // @include     /https?://www\.empornium\.(is|sx)/*
 // @include     /https?://www\.happyfappy\.net/*
@@ -24,6 +24,7 @@
 // ==/UserScript==
 // Changelog:
 
+// 2026-09-29 - Fixed bug when malformed tags are encountered.
 /* ========================================================================================
    Luminance HoverBabe+ - Forked from Hoverbabe (vandenium)
    ======================================================================================== */
@@ -999,11 +1000,21 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
     const getAllActorNamesFromCache = () => data.actorNames.names;
 
-    const capitalizeFirst = (s) => s[0].toUpperCase() + s.slice(1);
+    const capitalizeFirst = (s) => {
+        if (typeof s !== "string" || s.length === 0) return "";
+        return s[0].toUpperCase() + s.slice(1);
+    };
 
     const tagToName = (tag) => {
-        if (tag.includes("📸")) tag = tag.substring(2);
-        return tag.split(".").map(capitalizeFirst).join(" ");
+        if (typeof tag !== "string") tag = tag == null ? "" : String(tag);
+        // Strip any indicator glyphs anywhere in the string (not a fixed-length substring),
+        // then collapse whitespace/newlines that some sites inject inside tag anchors.
+        tag = tag.replace(/[📸📷]/gu, "").replace(/\s+/g, " ").trim();
+        return tag
+            .split(".")
+            .filter((part) => part.length > 0)
+            .map(capitalizeFirst)
+            .join(" ");
     };
 
     const createBioContainer = (
@@ -2717,11 +2728,13 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             allActors,
         );
 
+        // Use the normalized tag text (same function used for cache keys) rather than raw
+        // innerText, which can contain indicator glyphs, counts, newlines or be empty.
         sectionActorTags = [
             ...sectionActorTags,
-            ...newHits.map((hit) => hit.innerText),
-            ...knownHits.map((hit) => hit.innerText),
-        ];
+            ...newHits.map(getLowerTagText),
+            ...knownHits.map(getLowerTagText),
+        ].filter((t) => t && t.length > 0);
         const sectionActorTagsSet = new Set(sectionActorTags);
         const sectionActorTagsNoDups = [...sectionActorTagsSet];
 
@@ -2733,25 +2746,34 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
             tagHits.add(getLowerTagText(tag));
         });
 
-        statusArea.setStatus(
-            `${sectionActorTagsNoDups.length} performers with bios on page: ${
-            sectionActorTagsNoDups.length > 0
-            ? sectionActorTagsNoDups
-            .map((tag) => {
-                return `<a href='./torrents.php?taglist=${tag}'>${tagToName(
-                    tag,
-                )}</a>`;
-            })
-            .sort()
-            .join(", ")
-            : "none"
-            }`,
-            false,
-        );
+        // Highlight FIRST. The status area is cosmetic, and a render error in it must never
+        // prevent tags from being highlighted (this previously broke list pages entirely).
         tagsToHighlight.forEach(highlightTag);
 
         // Highlight aliases
         highlightAliases(tags, settings);
+
+        try {
+            statusArea.setStatus(
+                `${sectionActorTagsNoDups.length} performers with bios on page: ${
+                sectionActorTagsNoDups.length > 0
+                ? sectionActorTagsNoDups
+                .map((tag) => {
+                    const name = tagToName(tag);
+                    return `<a href='${SITE_BASE}/torrents.php?taglist=${encodeURIComponent(
+                        nameToTag(name),
+                    )}'>${name}</a>`;
+                })
+                .filter((html) => html.length > 0)
+                .sort()
+                .join(", ")
+                : "none"
+                }`,
+                false,
+            );
+        } catch (e) {
+            hbDebugLog('error', 'warn', '[LHB] Failed to render status area for list page', e);
+        }
 
         // write to cache if there were any new hits/misses.
         if (newHits && newHits.length > 0) {
