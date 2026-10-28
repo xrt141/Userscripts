@@ -2,7 +2,7 @@
 // @name        Luminance HoverBabe+
 // @namespace   empornium Scripts
 // @description Hover over performer tag and get their Babepedia Bio.
-// @version     1.55.0
+// @version     1.56.0
 // @author      vandenium xrt141 (forked and extended by xrt141)
 // @include     /https?://www\.empornium\.(is|sx)/*
 // @include     /https?://www\.happyfappy\.net/*
@@ -24,6 +24,7 @@
 // ==/UserScript==
 // Changelog:
 
+// 2026-10-28 - Cache only popup biography sections; evict oldest bios above an 8 MiB payload budget.
 // 2026-09-29 - Fixed bug when malformed tags are encountered.
 /* ========================================================================================
    Luminance HoverBabe+ - Forked from Hoverbabe (vandenium)
@@ -824,20 +825,85 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
         if (window.hbUpdateModal?.progressEl) window.hbUpdateModal.progressEl.textContent = msg;
     };
 
+    const BIO_CACHE_MAX_BYTES = 8 * 1024 * 1024;
+    const BIO_CACHE_VERSION = 1;
+    const cacheEncoder = new TextEncoder();
+
+    const compactBioPage = (pageDom) => {
+        const selectors = "#personal-info-block, #aka, #profimg, div.useruploads2, #biotext, .outlink, div#morelikethumbs";
+        const container = document.createElement("div");
+        pageDom.querySelectorAll(selectors).forEach(el => {
+            if (!el.parentElement?.closest(selectors)) {
+                container.appendChild(el.cloneNode(true));
+            }
+        });
+        container.querySelectorAll("script, style, link, iframe, object, embed, noscript, .gallerybanner").forEach(el => el.remove());
+        container.querySelectorAll("*").forEach(el => {
+            for (const attr of Array.from(el.attributes)) {
+                if (!["id", "class", "href", "src", "title", "alt"].includes(attr.name)) {
+                    el.removeAttribute(attr.name);
+                }
+            }
+        });
+        return container.innerHTML;
+    };
+
+    const serializeData = (dataObj) => {
+        const now = Date.now();
+        const pages = dataObj.pages || {};
+        dataObj.pages = pages;
+        for (const [name, entry] of Object.entries(pages)) {
+            if (now - entry.time > ONE_WEEK) {
+                delete pages[name];
+            } else if (entry.response && entry.cacheVersion !== BIO_CACHE_VERSION) {
+                entry.response = compactBioPage(stringToHTML(entry.response));
+                entry.cacheVersion = BIO_CACHE_VERSION;
+            }
+        }
+
+        const serialize = () => JSON.stringify({
+            ...dataObj,
+            actorNames: {
+                ...dataObj.actorNames,
+                names: JSON.stringify([...dataObj.actorNames.names]),
+            },
+        });
+        // GM_setValue carries this JSON as a string, so include its extra JSON escaping.
+        const payloadBytes = value => cacheEncoder.encode(JSON.stringify(value)).byteLength;
+        let serialized = serialize();
+        let evicted = 0;
+        const oldestFirst = Object.keys(pages).sort((a, b) => pages[a].time - pages[b].time);
+        for (const name of oldestFirst) {
+            if (payloadBytes(serialized) <= BIO_CACHE_MAX_BYTES) break;
+            delete pages[name];
+            evicted++;
+            serialized = serialize();
+        }
+        if (evicted) {
+            console.warn(`[LHB] Evicted ${evicted} oldest biography cache entries to stay within the 8 MiB storage payload budget.`);
+        }
+        if (payloadBytes(serialized) > BIO_CACHE_MAX_BYTES) {
+            const message = "[LHB] Actor/index data alone exceeds the 8 MiB storage payload budget; data was not saved.";
+            console.error(message);
+            throw new Error(message);
+        }
+        return serialized;
+    };
+
     const getData = () => {
         const raw = GM_getValue("hoverbabe-data");
         if (raw) {
             const o = JSON.parse(raw);
             o.actorNames.names = new Set(JSON.parse(o.actorNames.names));
+            const serialized = serializeData(o);
+            if (serialized !== raw) GM_setValue("hoverbabe-data", serialized);
             return o;
         }
         return { actorNames: { names: new Set(), time: undefined }, pages: {} };
     };
     const saveData = (dataObj) => {
-        // Convert actorNames.names to array first
-        dataObj.actorNames.names = JSON.stringify([...dataObj.actorNames.names]);
-        GM_setValue("hoverbabe-data", JSON.stringify(dataObj));
-        data = getData();
+        GM_setValue("hoverbabe-data", serializeData(dataObj));
+        data = dataObj;
     };
     const clearAllData = () => GM_deleteValue("hoverbabe-data");
 
@@ -1537,14 +1603,17 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
 
     const cleanPagesCache = () => {
         const now = Date.now();
+        let changed = false;
         if (data.pages) {
             for (const name in data.pages) {
                 if (now - data.pages[name].time > ONE_WEEK) {
                     setStatus(`Deleting cached page for ${name}`);
                     delete data.pages[name];
+                    changed = true;
                 }
             }
         }
+        if (changed) saveData(data);
     };
 
     const clearAllBioCache = () => {
@@ -1980,7 +2049,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                             // cache + save
                             const now = new Date();
                             data.pages ??= {};
-                            data.pages[name] = { response: responseObject.response, time: now.getTime() };
+                            data.pages[name] = { response: compactBioPage(pageDom), time: now.getTime(), cacheVersion: BIO_CACHE_VERSION };
                             saveData(data);
                         } else {
                             // No bio found, cache the negative result
@@ -2077,7 +2146,7 @@ const getLowerTagText = (el) => (el.innerText || "").trim().replace(/^[📸📷]
                         // cache + save + display
                         const now = new Date();
                         data.pages ??= {};
-                        data.pages[name] = { response: responseObject.response, time: now.getTime() };
+                        data.pages[name] = { response: compactBioPage(pageDom), time: now.getTime(), cacheVersion: BIO_CACHE_VERSION };
                         saveData(data);
                         displayBio(name, pageDom, precacheOnly);
                     } else {
